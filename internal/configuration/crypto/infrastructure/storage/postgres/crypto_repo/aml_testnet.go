@@ -12,6 +12,7 @@ import (
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // ConfigureAMLTestnet is explicit control-plane configuration. It neither
@@ -55,8 +56,8 @@ func (r *AMLRepository) ConfigureAMLTestnet(ctx context.Context, request aml.Con
 			if err := result.Validate(family, identifier); err != nil {
 				return err
 			}
-			_, err = q.Exec(ctx, `INSERT INTO cat_integration_accounts(id,code,name,provider) VALUES($1::uuid,'AMLTESTNET-'||replace($1::uuid::text,'-',''),'AML эмулятор — '||$2,'testnet_aml')`, request.AccountID, identifier)
-			if err != nil {
+			code := "AMLTESTNET-" + strings.ReplaceAll(request.AccountID.String(), "-", "")
+			if err := catalog_repo.CreateKeylessAccount(ctx, request.AccountID, code, "AML эмулятор — "+identifier, aml.TestnetProvider); err != nil {
 				return err
 			}
 			_, err = q.Exec(ctx, `INSERT INTO sys_crypto_aml_testnet_emulators(account_id,network_id,seed,max_delay_seconds,unknown_rate_bp,configured_by) VALUES($1,$2,$3,$4,$5,$6)`, request.AccountID, request.NetworkID, result.Seed, result.MaxDelaySeconds, result.UnknownRateBP, request.Actor)

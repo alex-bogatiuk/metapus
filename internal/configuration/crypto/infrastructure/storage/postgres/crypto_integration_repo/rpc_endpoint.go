@@ -9,7 +9,6 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/postgres/catalog_repo"
 )
@@ -48,8 +47,8 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfi
 		}
 		return nil
 	}
-	var provider integrations.Provider
-	if err := q.QueryRow(ctx, `SELECT provider FROM cat_integration_pools WHERE id=$1 AND NOT deletion_mark`, e.PoolID).Scan(&provider); err != nil {
+	provider, err := catalog_repo.PoolProvider(ctx, *e.PoolID)
+	if err != nil {
 		return apperror.NewValidation("Выберите существующий пул аккаунтов")
 	}
 	if !cryptointegrations.Catalog().Supports(provider, cryptointegrations.KindRPC) {
@@ -76,8 +75,14 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfi
 	}
 	definition, _ := cryptointegrations.Catalog().Definition(provider)
 	if e.IsActive && definition.AccountMinRequestIntervalMS > 0 {
+		// Endpoints of every pool that shares an account with this one spend
+		// the same account quota, so they must pace requests alike.
+		pools, err := catalog_repo.PoolsSharingAccounts(ctx, *e.PoolID)
+		if err != nil {
+			return err
+		}
 		var conflicting bool
-		if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sys_crypto_rpc_endpoints other JOIN sys_integration_pool_accounts own ON own.pool_id=$1 JOIN sys_integration_pool_accounts shared ON shared.pool_id=other.pool_id AND shared.account_id=own.account_id WHERE other.id<>$2 AND other.is_active AND NOT other.deletion_mark AND other._deleted_at IS NULL AND GREATEST(other.min_request_interval_ms,$4::int)<>GREATEST($3::int,$4::int))`, e.PoolID, e.ID, e.MinRequestIntervalMS, definition.AccountMinRequestIntervalMS).Scan(&conflicting); err != nil {
+		if err := q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sys_crypto_rpc_endpoints other WHERE other.pool_id=ANY($1) AND other.id<>$2 AND other.is_active AND NOT other.deletion_mark AND other._deleted_at IS NULL AND GREATEST(other.min_request_interval_ms,$4::int)<>GREATEST($3::int,$4::int))`, pools, e.ID, e.MinRequestIntervalMS, definition.AccountMinRequestIntervalMS).Scan(&conflicting); err != nil {
 			return err
 		}
 		if conflicting {

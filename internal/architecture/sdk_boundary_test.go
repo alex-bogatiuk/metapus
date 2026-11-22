@@ -5,7 +5,9 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -165,6 +167,52 @@ func TestConfigurationsDoNotHoldTheEncryptionKey(t *testing.T) {
 				if ok && literal.Kind == token.STRING && strings.Contains(literal.Value, "AUTOMATION_ENCRYPTION_KEY") {
 					rel, _ := filepath.Rel(repoRoot, path)
 					t.Errorf("%s names AUTOMATION_ENCRYPTION_KEY; seal credentials with pkg/sdk/secretbox", filepath.ToSlash(rel))
+				}
+				return true
+			})
+			return nil
+		})
+		require.NoError(t, err)
+	}
+}
+
+// TestConfigurationsDoNotQueryIntegrationTables keeps the platform's
+// integration storage behind pkg/sdk/postgres/catalog_repo: a configuration
+// asks it for providers, pool members and usable accounts and joins its own
+// tables with the IDs it gets, so the platform may change how it stores
+// accounts and pools. Migrations still reference the tables (foreign keys,
+// the configuration's CHECKs) and tests still seed them.
+func TestConfigurationsDoNotQueryIntegrationTables(t *testing.T) {
+	t.Parallel()
+	repoRoot := repositoryRoot(t)
+	migrations, err := filepath.Glob(filepath.Join(repoRoot, "db", "migrations", "*.sql"))
+	require.NoError(t, err)
+	created := regexp.MustCompile(`CREATE TABLE ((?:cat|sys)_integration_[a-z_]+)`)
+	var tables []string
+	for _, path := range migrations {
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		for _, match := range created.FindAllStringSubmatch(string(raw), -1) {
+			tables = append(tables, match[1])
+		}
+	}
+	require.NotEmpty(t, tables, "platform migrations create no integration tables")
+	named := regexp.MustCompile(`\b(` + strings.Join(tables, "|") + `)\b`)
+	for _, name := range sdkConfigurations {
+		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+				return walkErr
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if err != nil {
+				return err
+			}
+			ast.Inspect(file, func(node ast.Node) bool {
+				literal, ok := node.(*ast.BasicLit)
+				if ok && literal.Kind == token.STRING && named.MatchString(literal.Value) {
+					rel, _ := filepath.Rel(repoRoot, path)
+					t.Errorf("%s names platform table %s; read integration accounts and pools through pkg/sdk/postgres/catalog_repo",
+						filepath.ToSlash(rel), named.FindString(literal.Value))
 				}
 				return true
 			})

@@ -24,6 +24,7 @@ import (
 	"metapus/pkg/sdk/integrations/transport"
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 	"metapus/pkg/sdk/postgres/integration_repo"
 	"metapus/pkg/sdk/tenant"
 )
@@ -92,17 +93,18 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 			}
 			q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 			var pool *id.ID
-			var provider *integrations.Provider
 			var b transport.Binding
-			err := q.QueryRow(ctx, `SELECT e.url,e.pool_id,p.provider,e.credential_slot,e.min_request_interval_ms FROM sys_crypto_rpc_endpoints e LEFT JOIN cat_integration_pools p ON p.id=e.pool_id WHERE e.id=$1 AND e.is_active AND NOT e.deletion_mark AND e._deleted_at IS NULL`, uid).Scan(&b.URL, &pool, &provider, &b.Slot, &b.MinRequestIntervalMS)
+			err := q.QueryRow(ctx, `SELECT url,pool_id,credential_slot,min_request_interval_ms FROM sys_crypto_rpc_endpoints WHERE id=$1 AND is_active AND NOT deletion_mark AND _deleted_at IS NULL`, uid).Scan(&b.URL, &pool, &b.Slot, &b.MinRequestIntervalMS)
 			if err != nil {
 				return b, fmt.Errorf("RPC endpoint unavailable")
 			}
 			if pool != nil {
+				// A pool in use cannot be marked for deletion, so an active
+				// endpoint always finds its provider.
 				b.PoolID = *pool
-			}
-			if provider != nil {
-				b.Provider = *provider
+				if b.Provider, err = catalog_repo.PoolProvider(ctx, *pool); err != nil {
+					return b, fmt.Errorf("RPC endpoint unavailable")
+				}
 			}
 			// A managed key can only be delivered to its provider's supported endpoint.
 			u, e := url.Parse(b.URL)

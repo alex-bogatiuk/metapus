@@ -74,6 +74,7 @@ frontend/{components,lib,hooks,stores,types}   платформа; frontend/conf
 | `pkg/sdk` — только алиасы и тонкие обёртки, своих типов нет | `TestSDKIsAFacade` |
 | `pkg/sdk/sdktest` — только в `_test.go` и пакетах `*test` | `TestSDKTestStaysInTests` |
 | Рабочий код конфигурации не называет `AUTOMATION_ENCRYPTION_KEY`: учётные данные шифрует `pkg/sdk/secretbox`, аккаунты интеграций открывает `catalog_repo.AccountCredentials` | `TestConfigurationsDoNotHoldTheEncryptionKey` |
+| Рабочий код конфигурации не называет таблиц интеграций платформы (`cat_integration_*`, `sys_integration_*`): провайдеры, пулы и годные аккаунты даёт `catalog_repo`, свои таблицы соединяются с ID через `= ANY($n)` | `TestConfigurationsDoNotQueryIntegrationTables` |
 | Код и миграции платформы не называют таблиц конфигурации; тесты платформы не импортируют конфигурацию | `configuration_storage_test.go` |
 | Каждая команда `cmd/` отнесена к платформе или конфигурации; платформенные не знают конфигураций | `configuration_commands_test.go` |
 | `encoding/json` — только в фасаде `internal/core/json` | `TestEncodingJSONV1IsIsolatedToCompatibilityFacades` |
@@ -146,6 +147,7 @@ make check-configurations                 # если менялась грани
 - `pkg/sdk/postgres`, `pkg/sdk/http/...` или gin/pgx в `domain/`.
 - Ручная привязка тенанта, сборка `TxManager` над сырым пулом или цепочки middleware в конфигурации — для этого есть `BindTenant`, `ProtectedGroup`, `Authenticated`.
 - Ключ шифрования или шифротекст учётных данных в руках конфигурации — для этого есть `secretbox.Seal/Open`, `catalog_repo.AccountCredentials`, `PoolAccountKeys`, `AccountKeysOf`.
+- SQL конфигурации по таблицам интеграций платформы (`JOIN cat_integration_accounts`, `INSERT INTO cat_integration_accounts`) — спроси у `catalog_repo` (`PoolProvider`, `UsableAccountIDs`, `LockUsableAccount`, `CreateKeylessAccount`…) и соедини свои таблицы с ID.
 - Бизнес-условие в HTTP-обработчике; запрос к БД в `Validate`; side effect в `GenerateMovements`.
 - RPC или подпись внутри транзакции; обязательный аудит в `After*`-хуке.
 - `SELECT FOR UPDATE` по несортированным ключам; UPDATE/DELETE финансовых движений.

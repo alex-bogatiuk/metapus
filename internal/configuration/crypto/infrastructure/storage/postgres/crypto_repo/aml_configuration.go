@@ -5,9 +5,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/configuration/crypto/domain/crypto"
+	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // ReadAMLConfiguration finishes its read-only snapshot before any Vault calls.
@@ -36,13 +38,17 @@ func (r *AMLRepository) ReadAMLConfiguration(ctx context.Context, networkCode st
 		if !result.NamespaceEnrolled {
 			result.Blockers = append(result.Blockers, "vault_namespace_not_enrolled")
 		}
+		emulators, err := catalog_repo.ProviderAccountIDs(ctx, aml.TestnetProvider)
+		if err != nil {
+			return err
+		}
 		rows, err := q.Query(ctx, `WITH scopes AS (SELECT * FROM sys_crypto_aml_routing_scopes WHERE enabled)
  SELECT n.id,n.code,n.chain_family,n.network_identifier,COALESCE((SELECT t.id FROM cat_tokens t WHERE t.network_id=n.id AND t.token_standard='native'),'00000000-0000-0000-0000-000000000000'::uuid),n.native_token_symbol,n.native_decimals,n.confirmations_needed,n.finality_mode,n.is_active AND NOT n.deletion_mark,
  EXISTS(SELECT 1 FROM sys_crypto_custody_policies WHERE network_id=n.id AND enforced),
  COALESCE((SELECT enabled FROM sys_crypto_network_policies WHERE network_id=n.id),FALSE),
  EXISTS(SELECT 1 FROM reg_crypto_network_holds WHERE network_id=n.id AND status='open'),
  (SELECT COUNT(*) FROM scopes WHERE network_id=n.id),
- (SELECT COUNT(*) FROM scopes s JOIN cat_integration_accounts a ON a.id=s.provider_account_id WHERE s.network_id=n.id AND a.provider='testnet_aml'),
+ (SELECT COUNT(*) FROM scopes s WHERE s.network_id=n.id AND s.provider_account_id=ANY($2)),
  (SELECT COUNT(DISTINCT merchant_id) FROM scopes WHERE network_id=n.id),
  (SELECT COUNT(DISTINCT s.merchant_id) FROM scopes s WHERE s.network_id=n.id AND NOT EXISTS(SELECT 1 FROM scopes native JOIN cat_tokens t ON t.id=native.token_id AND t.token_standard='native' WHERE native.merchant_id=s.merchant_id AND native.network_id=s.network_id)),
  (SELECT COUNT(*) FROM cat_wallets w WHERE w.network_id=n.id AND w.custody_merchant_id IS NULL AND w.wallet_role IN ('merchant_pool','liquidity_hot') AND EXISTS(SELECT 1 FROM reg_crypto_balance_balances b WHERE b.wallet_id=w.id AND b.amount<>0 AND EXISTS(SELECT 1 FROM scopes s WHERE s.network_id=n.id AND s.token_id=b.token_id))),
@@ -52,7 +58,7 @@ func (r *AMLRepository) ReadAMLConfiguration(ctx context.Context, networkCode st
  AND (p.token_id IS NULL OR scope.token_id=p.token_id OR EXISTS(SELECT 1 FROM cat_tokens native WHERE native.id=scope.token_id AND native.token_standard='native')) AND baseline.wallet_id IS NULL)),
  (SELECT COUNT(*) FROM reg_crypto_aml_preflight_jobs j JOIN scopes s ON s.token_id=j.token_id JOIN cat_wallets w ON w.id=j.wallet_id AND w.custody_merchant_id=s.merchant_id AND w.network_id=s.network_id WHERE s.network_id=n.id AND j.status IN ('retry_wait','processing')),
  (SELECT COUNT(*) FROM reg_crypto_aml_preflight_jobs j JOIN scopes s ON s.token_id=j.token_id JOIN cat_wallets w ON w.id=j.wallet_id AND w.custody_merchant_id=s.merchant_id AND w.network_id=s.network_id WHERE s.network_id=n.id AND j.status='needs_attention')
- FROM cat_blockchain_networks n WHERE ($1<>'' AND n.code=$1) OR ($1='' AND EXISTS(SELECT 1 FROM scopes s WHERE s.network_id=n.id)) ORDER BY n.code,n.id`, networkCode)
+ FROM cat_blockchain_networks n WHERE ($1<>'' AND n.code=$1) OR ($1='' AND EXISTS(SELECT 1 FROM scopes s WHERE s.network_id=n.id)) ORDER BY n.code,n.id`, networkCode, emulators)
 		if err != nil {
 			return err
 		}

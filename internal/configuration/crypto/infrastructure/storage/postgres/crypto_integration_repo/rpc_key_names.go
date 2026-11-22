@@ -74,13 +74,9 @@ func rpcBindingFor(ctx context.Context, networkID id.ID, role, url, trustGroup, 
 // RPCKeyOptions describes the key names an endpoint bound to the pool may use.
 func (RPCPoolConsumer) RPCKeyOptions(ctx context.Context, q rpcconfig.RPCKeyQuery) (rpcconfig.RPCKeyOptions, error) {
 	out := rpcconfig.RPCKeyOptions{Names: []string{}, Accounts: []integrations.AccountKeys{}}
-	var provider integrations.Provider
-	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT provider FROM cat_integration_pools WHERE id=$1 AND NOT deletion_mark AND _deleted_at IS NULL`, q.PoolID).Scan(&provider)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return out, apperror.NewNotFound("integration_pool", q.PoolID.String())
-	}
+	provider, err := catalog_repo.PoolProvider(ctx, q.PoolID)
 	if err != nil {
-		return out, fmt.Errorf("read integration pool provider: %w", err)
+		return out, err
 	}
 	if !id.IsNil(q.NetworkID) {
 		b, err := rpcBindingFor(ctx, q.NetworkID, q.Role, q.URL, "", "")
@@ -114,7 +110,11 @@ func (RPCPoolConsumer) ValidatePool(ctx context.Context, p *integrations.Pool) e
 // ValidateAccount checks new credentials against endpoints of every pool
 // that contains the account.
 func (RPCPoolConsumer) ValidateAccount(ctx context.Context, a *integrations.Account) error {
-	users, err := loadRPCKeyUsers(ctx, `SELECT DISTINCT e.name,e.credential_slot FROM sys_crypto_rpc_endpoints e JOIN sys_integration_pool_accounts m ON m.pool_id=e.pool_id WHERE m.account_id=$1 AND NOT e.deletion_mark AND e._deleted_at IS NULL ORDER BY e.name`, a.ID)
+	pools, err := catalog_repo.AccountPoolIDs(ctx, a.ID)
+	if err != nil || len(pools) == 0 {
+		return err
+	}
+	users, err := loadRPCKeyUsers(ctx, `SELECT DISTINCT name,credential_slot FROM sys_crypto_rpc_endpoints WHERE pool_id=ANY($1) AND NOT deletion_mark AND _deleted_at IS NULL ORDER BY name`, pools)
 	if err != nil || len(users) == 0 {
 		return err
 	}

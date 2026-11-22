@@ -13,6 +13,7 @@
 - `http/middleware`: `BindTenant` — привязка тенанта для маршрутов, которые находят его сами; `http/v1`: `RouteContext.ProtectedGroup`, `RouteContext.Authenticated` — группы под своим префиксом с цепочкой платформы.
 - `postgres`: `ReferenceResolver.Resolve(ctx)` — без неиспользуемого аргумента-пула.
 - `secretbox`: `Seal`, `Open`, `Ready`, `ErrNotConfigured` — учётные данные шифрует платформа своим ключом; `encryption` с ключом-параметром в фасад не вынесен. `postgres/catalog_repo`: `AccountCredentials`, `PoolAccountKeys`, `AccountKeysOf`; ключ шифрования интеграций (`IntegrationEncryptionKey`), `PoolMemberIDs` и `AccountKeyNamesOf` с шифротекстом-параметром не вынесены.
+- `postgres/catalog_repo`: `PoolProvider`, `AccountPoolIDs`, `PoolsSharingAccounts`, `AccountProvider`, `ProviderAccountIDs`, `UsableAccountIDs`, `RequireUsableAccount`, `LockUsableAccount`, `CreateKeylessAccount` — конфигурация читает пулы и аккаунты интеграций через платформу, а не SQL по её таблицам.
 - `sdktest` (только для тестов): `Migrate`, `OpenPool`, `NewTxManager`, `TxManager`, `TxOptions`, `WithPool`, а с тегом `integration` — `NewTenantWithMigrations`, `Tenant.Context`, `NewExchangeRateDatabase`. Менеджер транзакций над сырым пулом, `ManagedPool` и `RunAll` в рабочие пакеты не вынесены.
 
 ## 3.0.0 — 2026-11-22

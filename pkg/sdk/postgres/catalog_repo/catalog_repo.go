@@ -67,3 +67,52 @@ func NewIntegrationPoolRepo(consumers ...integrations.PoolConsumer) *core.Integr
 func PoolAccountKeys(ctx context.Context, poolID id.ID) ([]integrations.AccountKeys, error) {
 	return core.PoolAccountKeys(ctx, poolID)
 }
+
+// PoolProvider returns the provider of a pool that is not marked for deletion.
+func PoolProvider(ctx context.Context, poolID id.ID) (integrations.Provider, error) {
+	return core.PoolProvider(ctx, poolID)
+}
+
+// AccountPoolIDs lists the pools that contain the account.
+func AccountPoolIDs(ctx context.Context, accountID id.ID) ([]id.ID, error) {
+	return core.AccountPoolIDs(ctx, accountID)
+}
+
+// PoolsSharingAccounts lists the pools that hold any account of the pool.
+func PoolsSharingAccounts(ctx context.Context, poolID id.ID) ([]id.ID, error) {
+	return core.PoolsSharingAccounts(ctx, poolID)
+}
+
+// AccountProvider returns the provider of an account that is not deleted.
+func AccountProvider(ctx context.Context, accountID id.ID) (integrations.Provider, error) {
+	return core.AccountProvider(ctx, accountID)
+}
+
+// ProviderAccountIDs lists the provider's accounts that are not deleted.
+func ProviderAccountIDs(ctx context.Context, provider integrations.Provider) ([]id.ID, error) {
+	return core.ProviderAccountIDs(ctx, provider)
+}
+
+// UsableAccountIDs lists the provider's active accounts that are not marked
+// for deletion.
+func UsableAccountIDs(ctx context.Context, provider integrations.Provider) ([]id.ID, error) {
+	return core.UsableAccountIDs(ctx, provider)
+}
+
+// RequireUsableAccount fails with NotFound unless the account is usable and
+// belongs to the provider.
+func RequireUsableAccount(ctx context.Context, accountID id.ID, provider integrations.Provider) error {
+	return core.RequireUsableAccount(ctx, accountID, provider)
+}
+
+// LockUsableAccount checks the account like RequireUsableAccount and locks it
+// until the transaction ends.
+func LockUsableAccount(ctx context.Context, accountID id.ID, provider integrations.Provider) error {
+	return core.LockUsableAccount(ctx, accountID, provider)
+}
+
+// CreateKeylessAccount stores an active account without credentials for a
+// provider the configuration serves itself, such as an emulator.
+func CreateKeylessAccount(ctx context.Context, accountID id.ID, code, name string, provider integrations.Provider) error {
+	return core.CreateKeylessAccount(ctx, accountID, code, name, provider)
+}

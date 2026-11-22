@@ -9,10 +9,12 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
+	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 type AMLRepository struct{}
@@ -46,10 +48,11 @@ func (r *AMLRepository) EnqueueAMLCheck(ctx context.Context, input EnqueueAMLInp
 	var jobID id.ID
 	err = txm.RunInTransaction(ctx, func(txCtx context.Context) error {
 		q := txm.GetQuerier(txCtx)
-		var actualProvider string
-		if err := q.QueryRow(txCtx, `SELECT provider FROM cat_integration_accounts WHERE id=$1`, input.ProviderAccountID).Scan(&actualProvider); err != nil {
+		provider, err := catalog_repo.AccountProvider(txCtx, input.ProviderAccountID)
+		if err != nil {
 			return err
 		}
+		actualProvider := string(provider)
 		if (actualProvider != "getblock_net" && actualProvider != aml.TestnetProvider) || (input.Provider != "" && input.Provider != actualProvider) {
 			return apperror.NewValidation("AML job provider does not match its account")
 		}
@@ -57,7 +60,7 @@ func (r *AMLRepository) EnqueueAMLCheck(ctx context.Context, input EnqueueAMLInp
 
 		var subjectID id.ID
 		var generation int64
-		err := q.QueryRow(txCtx, `INSERT INTO reg_crypto_aml_subjects
+		err = q.QueryRow(txCtx, `INSERT INTO reg_crypto_aml_subjects
 			(merchant_id,network_id,token_id,wallet_id,subject_kind,request_digest,request_payload,mapping_version)
 			SELECT $1,$2,$3,w.id,$5,$6,$7::jsonb,$8 FROM cat_wallets w JOIN cat_tokens t ON t.id=$3 AND t.network_id=w.network_id
 			JOIN cat_blockchain_networks n ON n.id=w.network_id
@@ -117,17 +120,26 @@ func (r *AMLRepository) ClaimAMLJob(ctx context.Context, now time.Time, lease ti
 		if err != nil {
 			return fmt.Errorf("expire AML job deadline: %w", err)
 		}
+		// Only usable accounts of the job's provider may take a new paid submit.
+		testnet, err := catalog_repo.UsableAccountIDs(txCtx, aml.TestnetProvider)
+		if err != nil {
+			return err
+		}
+		getblock, err := catalog_repo.UsableAccountIDs(txCtx, cryptointegrations.GetBlockNet)
+		if err != nil {
+			return err
+		}
 		var payload, ticket []byte
 		leaseToken := id.New()
 		err = q.QueryRow(txCtx, `WITH candidate AS (
 			SELECT j.id FROM reg_crypto_aml_jobs j WHERE j.status IN ('pending_submit','awaiting_result')
             AND j.next_attempt_at <= $1 AND j.deadline_at > $1 AND j._deleted_at IS NULL
             AND (j.status='awaiting_result' OR EXISTS(
-                SELECT 1 FROM sys_crypto_aml_account_policies p JOIN cat_integration_accounts a ON a.id=p.account_id
+                SELECT 1 FROM sys_crypto_aml_account_policies p
                 WHERE p.account_id=j.provider_account_id AND p.allow_submissions
-                  AND a.provider=j.provider AND a.is_active AND NOT a.deletion_mark AND a._deleted_at IS NULL
-                  AND (j.provider='testnet_aml' OR (j.provider='getblock_net' AND COALESCE((SELECT SUM(units) FROM reg_crypto_aml_package_credits WHERE account_id=a.id),0)>
-                      (SELECT COUNT(*) FROM reg_crypto_aml_paid_admissions WHERE account_id=a.id)))
+                  AND p.account_id=ANY(CASE j.provider WHEN 'testnet_aml' THEN $5::uuid[] WHEN 'getblock_net' THEN $6::uuid[] END)
+                  AND (j.provider='testnet_aml' OR (j.provider='getblock_net' AND COALESCE((SELECT SUM(units) FROM reg_crypto_aml_package_credits WHERE account_id=p.account_id),0)>
+                      (SELECT COUNT(*) FROM reg_crypto_aml_paid_admissions WHERE account_id=p.account_id)))
                   AND EXISTS(SELECT 1 FROM reg_crypto_aml_subjects s JOIN sys_crypto_aml_provider_mappings m
                       ON m.network_id=s.network_id AND m.token_id=s.token_id AND m.version=j.mapping_version AND m.capability_accepted
                       WHERE s.id=j.subject_id)
@@ -140,7 +152,7 @@ func (r *AMLRepository) ClaimAMLJob(ctx context.Context, now time.Time, lease ti
 			FROM candidate c WHERE j.id=c.id
 			RETURNING j.id,j.subject_id,j.generation,j.provider,j.provider_account_id,j.request_payload,
 			j.request_digest,j.mapping_version,j.submit_request_id,COALESCE(j.poll_request_id,''),j.ticket,
-			j.status,j.lease_token,j.lease_expires_at,j.deadline_at`, now, leaseToken, now.Add(lease), id.Compact(id.New())).Scan(
+			j.status,j.lease_token,j.lease_expires_at,j.deadline_at`, now, leaseToken, now.Add(lease), id.Compact(id.New()), testnet, getblock).Scan(
 			&job.ID, &job.SubjectID, &job.Generation, &job.Provider, &job.ProviderAccountID, &payload, &job.RequestDigest,
 			&job.MappingVersion, &job.SubmitRequestID, &job.PollRequestID, &ticket, &job.Status, &job.LeaseToken, &job.LeaseExpiresAt, &job.DeadlineAt)
 		if errors.Is(err, pgx.ErrNoRows) {
