@@ -462,15 +462,12 @@ func (r *MerchantWebhookRepo) CreateManualJob(ctx context.Context, merchantID id
 	`, eventID, merchantID).Scan(&payload, &aggregateID, &eventType); err != nil {
 		return err
 	}
-	messageID := id.New()
 	business := telemetry.BusinessIDs(ctx, eventID)
-	_, err = q.Exec(ctx, `
-		INSERT INTO sys_outbox(id,aggregate_type,aggregate_id,event_type,payload,status,created_at,
-		                       traceparent,correlation_id,causation_id)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, messageID, crypto.MerchantWebhookAggregateType, aggregateID, eventType, payload, postgres.OutboxStatusPending, now,
-		telemetry.Traceparent(ctx), business.CorrelationID, eventID)
-	return err
+	return postgres.EnqueueOutbox(ctx, postgres.OutboxRecord{
+		AggregateType: crypto.MerchantWebhookAggregateType, AggregateID: aggregateID, EventType: eventType,
+		Payload: payload, CreatedAt: now,
+		Traceparent: telemetry.Traceparent(ctx), CorrelationID: business.CorrelationID, CausationID: eventID,
+	})
 }
 
 func scanWebhookEndpoint(_ context.Context, row pgx.Row) (*crypto.MerchantWebhookEndpoint, error) {

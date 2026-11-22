@@ -200,7 +200,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 
 	// Invoice service with outbox decorator.
 	// EventProcessor uses this instead of raw repo so that invoice status changes
-	// (overpaid, confirmed, expired) fire automation events via sys_outbox.
+	// (overpaid, confirmed, expired) fire automation events via the platform outbox.
 	num := infraNumerator.New()
 	invoiceService := crypto_invoice.NewService(invoiceRepo, postingEngine, num, contextTxManager{})
 	lifecycleWebhookPublisher := crypto_repo.NewLifecycleWebhookOutbox()

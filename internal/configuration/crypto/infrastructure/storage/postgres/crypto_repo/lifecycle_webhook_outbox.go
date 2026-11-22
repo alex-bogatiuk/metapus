@@ -106,12 +106,11 @@ func (p *LifecycleWebhookOutbox) PublishLifecycleWebhook(ctx context.Context, ev
 		return nil
 	}
 
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO sys_outbox(id,aggregate_type,aggregate_id,event_type,payload,status,created_at,
-		                       traceparent,correlation_id,causation_id)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, messageID, crypto.MerchantWebhookAggregateType, event.AggregateID, event.Event, payload, postgres.OutboxStatusPending, now,
-		traceparent, business.CorrelationID, event.CausationKey); err != nil {
+	if err := postgres.EnqueueOutbox(ctx, postgres.OutboxRecord{
+		ID: messageID, AggregateType: crypto.MerchantWebhookAggregateType, AggregateID: event.AggregateID,
+		EventType: string(event.Event), Payload: payload, CreatedAt: now,
+		Traceparent: traceparent, CorrelationID: business.CorrelationID, CausationID: event.CausationKey,
+	}); err != nil {
 		return fmt.Errorf("insert lifecycle webhook outbox message: %w", err)
 	}
 	return nil

@@ -198,6 +198,16 @@ func TestConfigurationSeedsUseThePlatformDemoSeed(t *testing.T) {
 		"seed currencies, rate mappings and notifications through pkg/sdk/demoseed")
 }
 
+// TestConfigurationsUseThePlatformOutbox keeps the transactional outbox in
+// the platform: a configuration enqueues messages with
+// postgres.OutboxPublisher or postgres.EnqueueOutbox and asks
+// PendingOutboxPayloadValues what is still on its way.
+func TestConfigurationsUseThePlatformOutbox(t *testing.T) {
+	t.Parallel()
+	requireConfigurationsDoNotName(t, `sys_outbox[a-z_]*`,
+		"enqueue outbox messages through pkg/sdk/postgres (OutboxPublisher, EnqueueOutbox)")
+}
+
 // requireConfigurationsDoNotName fails for every string literal in the
 // production code of an SDK configuration that names a table the platform's
 // migrations create and the pattern matches.

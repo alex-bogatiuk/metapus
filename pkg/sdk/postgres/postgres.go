@@ -63,10 +63,9 @@ type (
 	// RetryPolicy controls retries for one outbox message without imposing
 	// webhook-specific limits on unrelated outbox consumers.
 	RetryPolicy = core.RetryPolicy
-)
-
-const (
-	OutboxStatusPending = core.OutboxStatusPending
+	// OutboxRecord is an outbox message whose payload and trace context the
+	// caller has already fixed.
+	OutboxRecord = core.OutboxRecord
 )
 
 // DefaultTxOptions returns production-safe defaults.
@@ -149,4 +148,16 @@ func WebhookBackoff() core.BackoffStrategy { return core.WebhookBackoff() }
 
 func WebhookRetryPolicy(msg *core.OutboxMessage) core.RetryPolicy {
 	return core.WebhookRetryPolicy(msg)
+}
+
+// EnqueueOutbox writes pending messages in the caller's transaction, all or
+// none.
+func EnqueueOutbox(ctx context.Context, records ...OutboxRecord) error {
+	return core.EnqueueOutbox(ctx, records...)
+}
+
+// PendingOutboxPayloadValues lists the payload field's values of the
+// aggregate type's messages that are not yet delivered.
+func PendingOutboxPayloadValues(ctx context.Context, aggregateType, field string) ([]string, error) {
+	return core.PendingOutboxPayloadValues(ctx, aggregateType, field)
 }

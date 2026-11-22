@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 )
@@ -186,11 +187,15 @@ func (r *WorkerRuntimeRepo) RecoverMerchantWebhookClaims(ctx context.Context) (i
 }
 
 func (r *WorkerRuntimeRepo) EnqueueMissingMerchantWebhooks(ctx context.Context) error {
+	// Events whose delivery message is still on its way are not lost. Every
+	// merchant event has the merchant webhook aggregate type.
+	pending, err := postgres.PendingOutboxPayloadValues(ctx, crypto.MerchantWebhookAggregateType, "id")
+	if err != nil {
+		return err
+	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	_, err := q.Exec(ctx, `
-		INSERT INTO sys_outbox(id,aggregate_type,aggregate_id,event_type,payload,status,created_at,
-		                       traceparent,correlation_id,causation_id)
-		SELECT gen_random_uuid_v7(),me.aggregate_type,me.aggregate_id,me.event_type,me.payload,'pending',NOW(),
+	rows, err := q.Query(ctx, `
+		SELECT me.aggregate_type,me.aggregate_id,me.event_type,me.payload,
 		       me.traceparent,COALESCE(NULLIF(me.correlation_id,''),me.event_id),me.causation_key
 		FROM sys_merchant_events me
 		WHERE me.created_at >= NOW()-INTERVAL '30 days'
@@ -224,12 +229,23 @@ func (r *WorkerRuntimeRepo) EnqueueMissingMerchantWebhooks(ctx context.Context) 
 					)
 				)
 		  )
-		  AND NOT EXISTS (
-			SELECT 1 FROM sys_outbox o
-			WHERE o.aggregate_type=me.aggregate_type AND o.payload->>'id'=me.event_id
-			  AND o.status IN ('pending','processing')
-		  )
+		  AND me.event_id<>ALL($1::text[])
 		LIMIT 500
-	`)
-	return err
+	`, pending)
+	if err != nil {
+		return fmt.Errorf("find merchant events without delivery: %w", err)
+	}
+	defer rows.Close()
+	var lost []postgres.OutboxRecord
+	for rows.Next() {
+		var m postgres.OutboxRecord
+		if err := rows.Scan(&m.AggregateType, &m.AggregateID, &m.EventType, &m.Payload, &m.Traceparent, &m.CorrelationID, &m.CausationID); err != nil {
+			return fmt.Errorf("scan merchant event without delivery: %w", err)
+		}
+		lost = append(lost, m)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("find merchant events without delivery: %w", err)
+	}
+	return postgres.EnqueueOutbox(ctx, lost...)
 }

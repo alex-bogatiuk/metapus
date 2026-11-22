@@ -144,7 +144,7 @@ func (Visitor) CollectMovements(ctx context.Context, doc posting.Postable, set *
 | `Transaction*` | в транзакции, после записи | откатывает | **обязательные** последствия: аудит, outbox, связанная запись |
 | `After*` | `tx.OnCommit`, после внешнего коммита | логируется | необязательное: кэш, уведомление «хорошо бы» |
 
-Внешнюю доставку (webhook, письмо, RPC) делает не хук, а relay outbox воркера: хук `Transaction*` пишет событие в `sys_outbox` атомарно с записью, воркер доставляет с повторами. Маршрут outbox конфигурация отдаёт в `configuration.Worker`.
+Внешнюю доставку (webhook, письмо, RPC) делает не хук, а relay outbox воркера: хук `Transaction*` ставит событие в outbox платформы (`OutboxPublisher.Publish` или `postgres.EnqueueOutbox`) атомарно с записью, воркер доставляет с повторами. Маршрут outbox конфигурация отдаёт в `configuration.Worker`.
 
 **Где.** `internal/domain/repository.go` (`HookRegistry`, события `Transaction*`), `internal/domain/service.go`, `docs/systems/crud-pipeline.md`, `docs/systems/automation-engine.md`.
 
