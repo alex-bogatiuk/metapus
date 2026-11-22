@@ -15,8 +15,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/pkg/sdk/encryption"
 	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/secretbox"
 	"metapus/pkg/sdk/types"
 )
 
@@ -457,7 +457,7 @@ func TestResolveProviderForAccountReplacesRotatedAdapter(t *testing.T) {
 	key := []byte("12345678901234567890123456789012")
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", string(key))
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY_FILE", "")
-	enc, err := encryption.Encrypt([]byte(`{"apiKey":"first"}`), key)
+	enc, err := secretbox.Seal([]byte(`{"apiKey":"first"}`))
 	require.NoError(t, err)
 	account := &providerAccountRecord{ID: id.New(), NetworkID: id.New(), Provider: crypto.ResourceProviderITRX,
 		CredentialsEnc: enc, CredentialsVersion: 1}
@@ -474,7 +474,7 @@ func TestResolveProviderForAccountReplacesRotatedAdapter(t *testing.T) {
 	require.Equal(t, 1, builds)
 
 	account.CredentialsVersion = 2
-	account.CredentialsEnc, err = encryption.Encrypt([]byte(`{"apiKey":"second"}`), key)
+	account.CredentialsEnc, err = secretbox.Seal([]byte(`{"apiKey":"second"}`))
 	require.NoError(t, err)
 	_, err = preparer.resolveProviderForAccount(context.Background(), account)
 	require.NoError(t, err)

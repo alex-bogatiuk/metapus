@@ -9,9 +9,8 @@ import (
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/pkg/sdk/encryption"
 	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/secretfile"
+	"metapus/pkg/sdk/secretbox"
 	"metapus/pkg/sdk/types"
 )
 
@@ -109,14 +108,7 @@ func decryptProviderCredentials(enc []byte) ([]byte, error) {
 	if len(enc) == 0 {
 		return nil, nil
 	}
-	keyStr, err := secretfile.Get("AUTOMATION_ENCRYPTION_KEY", "")
-	if err != nil {
-		return nil, fmt.Errorf("load encryption key: %w", err)
-	}
-	if len(keyStr) != 32 {
-		return nil, fmt.Errorf("encryption key must be 32 bytes, got %d", len(keyStr))
-	}
-	return encryption.Decrypt(enc, []byte(keyStr))
+	return secretbox.Open(enc)
 }
 
 type resourceProviderCircuit struct {

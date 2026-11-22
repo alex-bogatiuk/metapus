@@ -7,41 +7,19 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/core/apperror"
-	"metapus/internal/core/crypto"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/automations"
-	"metapus/internal/platform/secretfile"
+	"metapus/internal/infrastructure/secretbox"
 )
 
 // AutomationAccountRepo implements automations.AccountRepository and automations.CredentialManager.
-type AutomationAccountRepo struct {
-	encryptionKey []byte
-}
+// Credentials are sealed with the platform key (secretbox).
+type AutomationAccountRepo struct{}
 
 // NewAutomationAccountRepo creates a new repository.
-// Encryption key is loaded from AUTOMATION_ENCRYPTION_KEY env var on first use.
 func NewAutomationAccountRepo() *AutomationAccountRepo {
 	return &AutomationAccountRepo{}
-}
-
-func (r *AutomationAccountRepo) getEncryptionKey() ([]byte, error) {
-	if len(r.encryptionKey) > 0 {
-		return r.encryptionKey, nil
-	}
-	keyStr, err := secretfile.Get("AUTOMATION_ENCRYPTION_KEY", "")
-	if err != nil {
-		return nil, fmt.Errorf("load AUTOMATION_ENCRYPTION_KEY: %w", err)
-	}
-	if keyStr == "" {
-		return nil, fmt.Errorf("AUTOMATION_ENCRYPTION_KEY environment variable is not set")
-	}
-	key := []byte(keyStr)
-	if len(key) != 32 {
-		return nil, fmt.Errorf("AUTOMATION_ENCRYPTION_KEY must be 32 bytes, got %d", len(key))
-	}
-	r.encryptionKey = key
-	return key, nil
 }
 
 // scanAccount is a helper to scan a row into an Account struct.
@@ -138,11 +116,7 @@ func (r *AutomationAccountRepo) Create(ctx context.Context, req automations.Crea
 	// Encrypt credentials at application level
 	var credEnc []byte
 	if req.Credentials != "" {
-		key, keyErr := r.getEncryptionKey()
-		if keyErr != nil {
-			return nil, apperror.NewInternal(keyErr)
-		}
-		credEnc, err = crypto.Encrypt([]byte(req.Credentials), key)
+		credEnc, err = secretbox.Seal([]byte(req.Credentials))
 		if err != nil {
 			return nil, apperror.NewInternal(fmt.Errorf("encrypt credentials: %w", err))
 		}
@@ -238,12 +212,7 @@ func (r *AutomationAccountRepo) UpdateLastResult(ctx context.Context, accountID 
 
 // WriteCredentials encrypts and saves credentials for an account.
 func (r *AutomationAccountRepo) WriteCredentials(ctx context.Context, accountID id.ID, credentials []byte) error {
-	key, err := r.getEncryptionKey()
-	if err != nil {
-		return apperror.NewInternal(err)
-	}
-
-	credEnc, err := crypto.Encrypt(credentials, key)
+	credEnc, err := secretbox.Seal(credentials)
 	if err != nil {
 		return apperror.NewInternal(fmt.Errorf("encrypt credentials: %w", err))
 	}
@@ -265,8 +234,7 @@ func (r *AutomationAccountRepo) WriteCredentials(ctx context.Context, accountID 
 
 // ReadCredentials retrieves and decrypts credentials for an account.
 func (r *AutomationAccountRepo) ReadCredentials(ctx context.Context, accountID id.ID) ([]byte, error) {
-	key, err := r.getEncryptionKey()
-	if err != nil {
+	if err := secretbox.Ready(); err != nil {
 		return nil, apperror.NewInternal(err)
 	}
 
@@ -285,7 +253,7 @@ func (r *AutomationAccountRepo) ReadCredentials(ctx context.Context, accountID i
 		return nil, nil // No credentials stored
 	}
 
-	plaintext, err := crypto.Decrypt(credEnc, key)
+	plaintext, err := secretbox.Open(credEnc)
 	if err != nil {
 		return nil, apperror.NewInternal(fmt.Errorf("decrypt credentials: %w", err))
 	}

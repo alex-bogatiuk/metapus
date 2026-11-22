@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"metapus/internal/core/apperror"
-	corecrypto "metapus/internal/core/crypto"
 	"metapus/internal/core/id"
 	"metapus/internal/core/json"
 	"metapus/internal/domain"
 	"metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/secretbox"
 	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/platform/secretfile"
 )
 
 type IntegrationAccountRepo struct {
@@ -27,16 +26,6 @@ type IntegrationAccountRepo struct {
 // of the account's pools.
 func NewIntegrationAccountRepo(consumers ...integrations.PoolConsumer) *IntegrationAccountRepo {
 	return &IntegrationAccountRepo{NewCatalogRepoForDefinition[*integrations.Account](integrations.AccountDefinition, postgres.ExtractDBColumns[integrations.Account](), func() *integrations.Account { return &integrations.Account{} }), consumers}
-}
-func IntegrationEncryptionKey() ([]byte, error) {
-	s, err := secretfile.Get("AUTOMATION_ENCRYPTION_KEY", "")
-	if err != nil {
-		return nil, fmt.Errorf("load integrations encryption key: %w", err)
-	}
-	if len(s) != 32 {
-		return nil, apperror.NewValidation("Для ключей интеграций необходим настроенный 32-байтовый ключ шифрования")
-	}
-	return []byte(s), nil
 }
 func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Account, definition integrations.ProviderDefinition) error {
 	if _, err := time.LoadLocation(a.ResetTimezone); err != nil {
@@ -78,17 +67,9 @@ func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Ac
 			}
 			a.CredentialsVersion = previous.CredentialsVersion
 			if len(previous.CredentialsEnc) > 0 && a.PendingCredentials != nil && len(a.PendingCredentials.Keys) > 0 {
-				key, err := IntegrationEncryptionKey()
+				old, err := OpenCredentials(previous.CredentialsEnc)
 				if err != nil {
 					return err
-				}
-				raw, err := corecrypto.Decrypt(previous.CredentialsEnc, key)
-				if err != nil {
-					return apperror.NewInternal(fmt.Errorf("decrypt current integration credentials"))
-				}
-				var old integrations.Credentials
-				if err = json.Unmarshal(raw, &old); err != nil {
-					return apperror.NewInternal(fmt.Errorf("decode current integration credentials"))
 				}
 				next := a.PendingCredentials.Keys[0]
 				if value, ok := old.Key(next.Name); ok {
@@ -103,8 +84,9 @@ func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Ac
 	if a.PendingCredentials == nil {
 		return nil
 	}
-	key, err := IntegrationEncryptionKey()
-	if err != nil {
+	// Even clearing credentials needs the key: the account stays usable only
+	// on an installation that can seal its next credentials.
+	if err := secretbox.Ready(); err != nil {
 		return err
 	}
 	if len(a.PendingCredentials.Keys) == 0 && a.PendingCredentials.APISecret == "" && a.PendingCredentials.Username == "" {
@@ -114,7 +96,7 @@ func (r *IntegrationAccountRepo) Prepare(ctx context.Context, a *integrations.Ac
 		if err != nil {
 			return fmt.Errorf("encode integration credentials: %w", err)
 		}
-		enc, err := corecrypto.Encrypt(raw, key)
+		enc, err := secretbox.Seal(raw)
 		if err != nil {
 			return fmt.Errorf("encrypt integration credentials: %w", err)
 		}

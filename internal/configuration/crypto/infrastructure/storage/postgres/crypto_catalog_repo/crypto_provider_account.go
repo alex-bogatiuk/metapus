@@ -6,12 +6,11 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
 	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/encryption"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/postgres/catalog_repo"
-	"metapus/pkg/sdk/secretfile"
+	"metapus/pkg/sdk/secretbox"
 )
 
 type CryptoProviderAccountRepo struct {
@@ -26,33 +25,13 @@ func NewCryptoProviderAccountRepo() *CryptoProviderAccountRepo {
 		})}
 }
 
-func getCryptoProviderEncryptionKey() ([]byte, error) {
-	keyStr, err := secretfile.Get("AUTOMATION_ENCRYPTION_KEY", "")
-	if err != nil {
-		return nil, fmt.Errorf("load encryption key: %w", err)
-	}
-	if keyStr == "" {
-		return nil, fmt.Errorf("AUTOMATION_ENCRYPTION_KEY environment variable is not set")
-	}
-	key := []byte(keyStr)
-	if len(key) != 32 {
-		return nil, fmt.Errorf("encryption key must be 32 bytes, got %d", len(key))
-	}
-	return key, nil
-}
-
 func (r *CryptoProviderAccountRepo) SetCredentials(ctx context.Context, accountID id.ID, creds crypto_provider_account.ProviderCredentials) error {
-	key, err := getCryptoProviderEncryptionKey()
-	if err != nil {
-		return apperror.NewInternal(err)
-	}
-
 	payload, err := json.Marshal(creds)
 	if err != nil {
 		return apperror.NewInternal(fmt.Errorf("marshal credentials: %w", err))
 	}
 
-	enc, err := encryption.Encrypt(payload, key)
+	enc, err := secretbox.Seal(payload)
 	if err != nil {
 		return apperror.NewInternal(fmt.Errorf("encrypt credentials: %w", err))
 	}
@@ -90,12 +69,7 @@ func (r *CryptoProviderAccountRepo) GetCredentials(ctx context.Context, accountI
 		return &crypto_provider_account.ProviderCredentials{}, nil
 	}
 
-	key, err := getCryptoProviderEncryptionKey()
-	if err != nil {
-		return nil, apperror.NewInternal(err)
-	}
-
-	dec, err := encryption.Decrypt(enc, key)
+	dec, err := secretbox.Open(enc)
 	if err != nil {
 		return nil, apperror.NewInternal(fmt.Errorf("decrypt credentials: %w", err))
 	}

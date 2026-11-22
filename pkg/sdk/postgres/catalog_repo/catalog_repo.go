@@ -27,12 +27,17 @@ func AccountKeyNames(ctx context.Context, accountIDs []id.ID) ([]integrations.Ac
 	return core.AccountKeyNames(ctx, accountIDs)
 }
 
-// AccountKeyNamesOf decrypts the credentials only to list their key names.
-func AccountKeyNamesOf(accountID id.ID, name string, encrypted []byte) (integrations.AccountKeys, error) {
-	return core.AccountKeyNamesOf(accountID, name, encrypted)
+// AccountKeysOf lists the key names of an account's credentials as they are
+// about to be written.
+func AccountKeysOf(account *integrations.Account) (integrations.AccountKeys, error) {
+	return core.AccountKeysOf(account)
 }
 
-func IntegrationEncryptionKey() ([]byte, error) { return core.IntegrationEncryptionKey() }
+// AccountCredentials opens the stored credentials of an integration account;
+// the platform key stays in the platform.
+func AccountCredentials(ctx context.Context, accountID id.ID) (integrations.Credentials, error) {
+	return core.AccountCredentials(ctx, accountID)
+}
 
 // Catalog mutations share a short tenant-local lock to validate cross-catalog profiles.
 // Runtime selection uses its own pool-local row locks and never holds this lock over HTTP.
@@ -58,7 +63,7 @@ func NewIntegrationPoolRepo(consumers ...integrations.PoolConsumer) *core.Integr
 	return core.NewIntegrationPoolRepo(consumers...)
 }
 
-// PoolMemberIDs lists pool accounts in selection order.
-func PoolMemberIDs(ctx context.Context, poolID id.ID) ([]id.ID, error) {
-	return core.PoolMemberIDs(ctx, poolID)
+// PoolAccountKeys reads the key names of the pool's accounts in selection order.
+func PoolAccountKeys(ctx context.Context, poolID id.ID) ([]integrations.AccountKeys, error) {
+	return core.PoolAccountKeys(ctx, poolID)
 }

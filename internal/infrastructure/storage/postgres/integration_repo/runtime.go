@@ -9,9 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/core/apperror"
-	corecrypto "metapus/internal/core/crypto"
 	"metapus/internal/core/id"
-	"metapus/internal/core/json"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
@@ -109,7 +107,6 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 			}
 		}
 		now := r.Now()
-		var key []byte
 		var unavailable integrations.PoolUnavailableError
 		exhaustedCount, expiredCount, missingKeyCount := 0, 0, 0
 		noteRetry := func(at time.Time) {
@@ -162,19 +159,9 @@ func (r *Runtime) Select(ctx context.Context, poolID id.ID, slot string, provide
 				return err
 			}
 
-			if key == nil {
-				key, err = catalog_repo.IntegrationEncryptionKey()
-				if err != nil {
-					return err
-				}
-			}
-			raw, err := corecrypto.Decrypt(a.CredentialsEnc, key)
+			credentials, err := catalog_repo.OpenCredentials(a.CredentialsEnc)
 			if err != nil {
-				return apperror.NewInternal(fmt.Errorf("decrypt integration account credentials"))
-			}
-			var credentials integrations.Credentials
-			if err := json.Unmarshal(raw, &credentials); err != nil {
-				return apperror.NewInternal(fmt.Errorf("decode integration account credentials"))
+				return err
 			}
 			secret, ok := credentials.Key(slot)
 			if !ok {

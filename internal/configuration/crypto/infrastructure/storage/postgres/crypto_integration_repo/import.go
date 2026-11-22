@@ -17,7 +17,6 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/encryption"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/integrations"
 	"metapus/pkg/sdk/json"
@@ -252,17 +251,9 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 			return report, fmt.Errorf("existing account period differs from import; renew explicitly")
 		}
 		// Re-import never overwrites a manually replaced key or clears the only copy.
-		key, err := catalog_repo.IntegrationEncryptionKey()
+		stored, err := catalog_repo.AccountCredentials(ctx, a.ID)
 		if err != nil {
-			return report, err
-		}
-		raw, err := encryption.Decrypt(a.CredentialsEnc, key)
-		if err != nil {
-			return report, fmt.Errorf("existing account credentials unreadable")
-		}
-		var stored integrations.Credentials
-		if json.Unmarshal(raw, &stored) != nil {
-			return report, fmt.Errorf("existing account credentials invalid")
+			return report, fmt.Errorf("existing account credentials unreadable: %w", err)
 		}
 		for slot, expected := range item.keys {
 			actual, ok := stored.Key(slot)

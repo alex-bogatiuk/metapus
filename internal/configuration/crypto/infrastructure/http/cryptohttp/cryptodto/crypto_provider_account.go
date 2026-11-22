@@ -4,12 +4,11 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
-	"metapus/pkg/sdk/encryption"
 	"metapus/pkg/sdk/entity"
 	"metapus/pkg/sdk/http/dto"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/secretfile"
+	"metapus/pkg/sdk/secretbox"
 )
 
 type CreateCryptoProviderAccountRequest struct {
@@ -24,14 +23,6 @@ type CreateCryptoProviderAccountRequest struct {
 	APISecret          string `json:"apiSecret"`
 	CallbackURL        string `json:"callbackUrl"`
 	IsActive           bool   `json:"isActive"`
-}
-
-func getCredentialsEncryptionKey() ([]byte, error) {
-	keyStr, err := secretfile.Get("AUTOMATION_ENCRYPTION_KEY", "")
-	if err != nil || len(keyStr) != 32 {
-		return nil, err
-	}
-	return []byte(keyStr), nil
 }
 
 func (r CreateCryptoProviderAccountRequest) ToEntity() *crypto_provider_account.CryptoProviderAccount {
@@ -50,12 +41,10 @@ func (r CreateCryptoProviderAccountRequest) ToEntity() *crypto_provider_account.
 			CallbackURL: r.CallbackURL,
 		}
 		if payload, err := json.Marshal(creds); err == nil {
-			if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-				if enc, err := encryption.Encrypt(payload, key); err == nil {
-					account.CredentialsEnc = enc
-					now := time.Now()
-					account.CredentialsUpdatedAt = &now
-				}
+			if enc, err := secretbox.Seal(payload); err == nil {
+				account.CredentialsEnc = enc
+				now := time.Now()
+				account.CredentialsUpdatedAt = &now
 			}
 		}
 	}
@@ -78,10 +67,8 @@ func (r UpdateCryptoProviderAccountRequest) ApplyTo(account *crypto_provider_acc
 	if r.APIKey != "" || r.APISecret != "" || r.BaseURL != "" || r.CallbackURL != "" {
 		creds := crypto_provider_account.ProviderCredentials{}
 		if len(account.CredentialsEnc) > 0 {
-			if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-				if dec, err := encryption.Decrypt(account.CredentialsEnc, key); err == nil {
-					_ = json.Unmarshal(dec, &creds)
-				}
+			if dec, err := secretbox.Open(account.CredentialsEnc); err == nil {
+				_ = json.Unmarshal(dec, &creds)
 			}
 		}
 		if r.BaseURL != "" {
@@ -98,13 +85,11 @@ func (r UpdateCryptoProviderAccountRequest) ApplyTo(account *crypto_provider_acc
 		}
 
 		if payload, err := json.Marshal(creds); err == nil {
-			if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-				if enc, err := encryption.Encrypt(payload, key); err == nil {
-					account.CredentialsEnc = enc
-					account.CredentialsVersion++
-					now := time.Now()
-					account.CredentialsUpdatedAt = &now
-				}
+			if enc, err := secretbox.Seal(payload); err == nil {
+				account.CredentialsEnc = enc
+				account.CredentialsVersion++
+				now := time.Now()
+				account.CredentialsUpdatedAt = &now
 			}
 		}
 	}
@@ -150,12 +135,10 @@ func FromCryptoProviderAccount(account *crypto_provider_account.CryptoProviderAc
 	}
 	if len(account.CredentialsEnc) > 0 {
 		resp.HasCredentials = true
-		if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-			if dec, err := encryption.Decrypt(account.CredentialsEnc, key); err == nil {
-				var creds crypto_provider_account.ProviderCredentials
-				if json.Unmarshal(dec, &creds) == nil {
-					resp.MaskedAPIKey = creds.MaskedKey()
-				}
+		if dec, err := secretbox.Open(account.CredentialsEnc); err == nil {
+			var creds crypto_provider_account.ProviderCredentials
+			if json.Unmarshal(dec, &creds) == nil {
+				resp.MaskedAPIKey = creds.MaskedKey()
 			}
 		}
 	}

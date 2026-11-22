@@ -1,6 +1,6 @@
 // Package crypto provides application-level encryption for sensitive data.
-// Used by the Automation Engine to encrypt/decrypt credentials (Bot Tokens, SMTP passwords, API keys).
-// Key is loaded from AUTOMATION_ENCRYPTION_KEY environment variable (32 bytes = AES-256).
+// The caller passes the 32-byte AES-256 key; stored credentials go through
+// internal/infrastructure/secretbox, which owns the platform key.
 package crypto
 
 import (

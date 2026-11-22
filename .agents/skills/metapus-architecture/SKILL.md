@@ -73,6 +73,7 @@ frontend/{components,lib,hooks,stores,types}   платформа; frontend/conf
 | Конфигурация импортирует из платформы **только** `metapus/pkg/sdk/...` — и в коде, и в тестах | `TestSDKConfigurationsUseOnlyThePublicAPI` |
 | `pkg/sdk` — только алиасы и тонкие обёртки, своих типов нет | `TestSDKIsAFacade` |
 | `pkg/sdk/sdktest` — только в `_test.go` и пакетах `*test` | `TestSDKTestStaysInTests` |
+| Рабочий код конфигурации не называет `AUTOMATION_ENCRYPTION_KEY`: учётные данные шифрует `pkg/sdk/secretbox`, аккаунты интеграций открывает `catalog_repo.AccountCredentials` | `TestConfigurationsDoNotHoldTheEncryptionKey` |
 | Код и миграции платформы не называют таблиц конфигурации; тесты платформы не импортируют конфигурацию | `configuration_storage_test.go` |
 | Каждая команда `cmd/` отнесена к платформе или конфигурации; платформенные не знают конфигураций | `configuration_commands_test.go` |
 | `encoding/json` — только в фасаде `internal/core/json` | `TestEncodingJSONV1IsIsolatedToCompatibilityFacades` |
@@ -144,6 +145,7 @@ make check-configurations                 # если менялась грани
 - Тип, объявленный в `pkg/sdk` (не алиас), или поведение, которого платформа не выполняет.
 - `pkg/sdk/postgres`, `pkg/sdk/http/...` или gin/pgx в `domain/`.
 - Ручная привязка тенанта, сборка `TxManager` над сырым пулом или цепочки middleware в конфигурации — для этого есть `BindTenant`, `ProtectedGroup`, `Authenticated`.
+- Ключ шифрования или шифротекст учётных данных в руках конфигурации — для этого есть `secretbox.Seal/Open`, `catalog_repo.AccountCredentials`, `PoolAccountKeys`, `AccountKeysOf`.
 - Бизнес-условие в HTTP-обработчике; запрос к БД в `Validate`; side effect в `GenerateMovements`.
 - RPC или подпись внутри транзакции; обязательный аудит в `After*`-хуке.
 - `SELECT FOR UPDATE` по несортированным ключам; UPDATE/DELETE финансовых движений.

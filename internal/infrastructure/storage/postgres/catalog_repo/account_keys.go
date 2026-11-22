@@ -2,9 +2,13 @@ package catalog_repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
+	"github.com/jackc/pgx/v5"
+
+	"metapus/internal/core/apperror"
 	"metapus/internal/core/id"
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/storage/postgres"
@@ -57,11 +61,7 @@ func AccountKeyNamesOf(accountID id.ID, name string, encrypted []byte) (integrat
 	if !account.HasCredentials {
 		return account, nil
 	}
-	key, err := IntegrationEncryptionKey()
-	if err != nil {
-		return account, err
-	}
-	credentials, err := decodeIntegrationCredentials(encrypted, key)
+	credentials, err := OpenCredentials(encrypted)
 	if err != nil {
 		return account, err
 	}
@@ -88,4 +88,38 @@ func PoolMemberIDs(ctx context.Context, poolID id.ID) ([]id.ID, error) {
 		out = append(out, uid)
 	}
 	return out, rows.Err()
+}
+
+// PoolAccountKeys reads the key names, never values, of the pool's accounts
+// in selection order.
+func PoolAccountKeys(ctx context.Context, poolID id.ID) ([]integrations.AccountKeys, error) {
+	members, err := PoolMemberIDs(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	return AccountKeyNames(ctx, members)
+}
+
+// AccountKeysOf lists the key names of an account's credentials as they are
+// about to be written, so a pool consumer can check them before the write.
+func AccountKeysOf(account *integrations.Account) (integrations.AccountKeys, error) {
+	return AccountKeyNamesOf(account.ID, account.Name, account.CredentialsEnc)
+}
+
+// AccountCredentials opens the stored credentials of an integration account
+// for a caller that talks to the account's provider itself. The platform key
+// stays in the platform; a deleted account has none.
+func AccountCredentials(ctx context.Context, accountID id.ID) (integrations.Credentials, error) {
+	var sealed []byte
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT credentials_enc FROM cat_integration_accounts WHERE id=$1 AND _deleted_at IS NULL`, accountID).Scan(&sealed)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return integrations.Credentials{}, apperror.NewNotFound("integration_account", accountID.String())
+	}
+	if err != nil {
+		return integrations.Credentials{}, fmt.Errorf("load integration account credentials: %w", err)
+	}
+	if len(sealed) == 0 {
+		return integrations.Credentials{}, nil
+	}
+	return OpenCredentials(sealed)
 }

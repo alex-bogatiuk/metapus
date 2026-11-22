@@ -26,7 +26,7 @@
 
 | Группа | Пакеты `pkg/sdk/...` | Что фронтируют в `internal/` |
 |---|---|---|
-| Ядро запроса | `appctx`, `tenant`, `tx`, `tenantdb`, `json`, `logger`, `encryption`, `numerator`, `workerjob` | `core/context`, `core/tenant`, `core/tx`, `infrastructure/tenantdb`, `core/json`, `pkg/logger`, `core/crypto`, `core/numerator`, `core/workerjob` |
+| Ядро запроса | `appctx`, `tenant`, `tx`, `tenantdb`, `json`, `logger`, `secretbox`, `numerator`, `workerjob` | `core/context`, `core/tenant`, `core/tx`, `infrastructure/tenantdb`, `core/json`, `pkg/logger`, `infrastructure/secretbox`, `core/numerator`, `core/workerjob` |
 | Безопасность | `security`, `security_profile`, `readaccess`, `readpolicy` | политики RLS, CEL и полей, авторизованное чтение |
 | Сервисы | `domain`, `audit`, `cursor`, `filter`, `eventlog`, `notifications`, `settings`, `command` | базовые сервисы справочников и документов, хуки, удаление, ссылки, события, outbox, идемпотентные команды |
 | Регистры и отчёты | `registers/exchange_rate`, `reports/schema`, `reports/contract`, `reports/compiler`, `printing`, `printing/render` | регистр курсов, наборы данных отчётов, печатные формы |
@@ -43,7 +43,7 @@
 - **Тестовые фикстуры.** Своя база для теста — `sdktest.Migrate`, `sdktest.OpenPool`, `sdktest.NewTxManager`, `sdktest.WithPool`. Рабочий код конфигурации `sdktest` не импортирует (`TestSDKTestStaysInTests`; исключение — пакеты тестовой поддержки с именем `*test`).
 - **Проверки платформы — в платформе.** Сверка служебных маршрутов платформы (автоматизация, аутентификация, списки) с контрактами живёт в `internal/configuration/none`, конфигурация проверяет только свои.
 
-Следующий кандидат — работа крипто с хранилищем интеграций платформы (`postgres/catalog_repo`: блокировка конфигурации интеграций, ключ шифрования учётных данных, имена ключей аккаунтов пула). Её заменит сервис платформы для эндпоинтов, ссылающихся на пулы интеграций.
+- **Ключ шифрования — у платформы.** Ключ учётных данных (`AUTOMATION_ENCRYPTION_KEY`) читает только `secretbox`. Конфигурация шифрует учётные данные своих провайдеров `secretbox.Seal`/`Open` и проверяет готовность ключа `secretbox.Ready`. Расшифрованные учётные данные аккаунта интеграции она получает `catalog_repo.AccountCredentials(ctx, id)`, а имена ключей для проверок пула — `PoolAccountKeys(ctx, poolID)`, `AccountKeyNames(ctx, ids)` и `AccountKeysOf(account)`. Ни ключа, ни шифротекста учётных данных интеграций в фасаде нет. Рабочий код конфигурации не называет секрет ключа (`TestConfigurationsDoNotHoldTheEncryptionKey`). Блокировка `LockIntegrationConfiguration` остаётся в фасаде: это общий контракт всех потребителей пулов (`integrations.PoolConsumer`).
 
 Типы — это алиасы платформенных, функции — тонкие обёртки. Собственных типов у фасада нет, кроме ограничений для дженериков и тестового `sdktest.Tenant`. Это проверяет `internal/architecture` (`TestSDKIsAFacade`).
 

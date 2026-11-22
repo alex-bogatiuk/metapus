@@ -142,3 +142,34 @@ func TestSDKTestStaysInTests(t *testing.T) {
 		require.NoError(t, err)
 	}
 }
+
+// TestConfigurationsDoNotHoldTheEncryptionKey keeps the platform's
+// credential key in the platform: a configuration seals and opens its
+// credentials through pkg/sdk/secretbox and reads integration accounts
+// through pkg/sdk/postgres/catalog_repo, so no production file of it names
+// the key's secret. Tests may set it for their fixtures.
+func TestConfigurationsDoNotHoldTheEncryptionKey(t *testing.T) {
+	t.Parallel()
+	repoRoot := repositoryRoot(t)
+	for _, name := range sdkConfigurations {
+		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+				return walkErr
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if err != nil {
+				return err
+			}
+			ast.Inspect(file, func(node ast.Node) bool {
+				literal, ok := node.(*ast.BasicLit)
+				if ok && literal.Kind == token.STRING && strings.Contains(literal.Value, "AUTOMATION_ENCRYPTION_KEY") {
+					rel, _ := filepath.Rel(repoRoot, path)
+					t.Errorf("%s names AUTOMATION_ENCRYPTION_KEY; seal credentials with pkg/sdk/secretbox", filepath.ToSlash(rel))
+				}
+				return true
+			})
+			return nil
+		})
+		require.NoError(t, err)
+	}
+}

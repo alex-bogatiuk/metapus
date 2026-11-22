@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"metapus/internal/core/apperror"
-	corecrypto "metapus/internal/core/crypto"
 	"metapus/internal/core/json"
 	"metapus/internal/domain/integrations"
+	"metapus/internal/infrastructure/secretbox"
 	"metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -47,11 +47,7 @@ func (r *IntegrationAccountRepo) validateUniqueKeys(ctx context.Context, a *inte
 	if a.DeletionMark || len(a.CredentialsEnc) == 0 {
 		return nil
 	}
-	key, err := IntegrationEncryptionKey()
-	if err != nil {
-		return err
-	}
-	credentials, err := decodeIntegrationCredentials(a.CredentialsEnc, key)
+	credentials, err := OpenCredentials(a.CredentialsEnc)
 	if err != nil {
 		return err
 	}
@@ -75,7 +71,7 @@ func (r *IntegrationAccountRepo) validateUniqueKeys(ctx context.Context, a *inte
 		if len(encrypted) == 0 {
 			continue
 		}
-		stored, err := decodeIntegrationCredentials(encrypted, key)
+		stored, err := OpenCredentials(encrypted)
 		if err != nil {
 			return err
 		}
@@ -94,14 +90,20 @@ func (r *IntegrationAccountRepo) validateUniqueKeys(ctx context.Context, a *inte
 	return rows.Err()
 }
 
-func decodeIntegrationCredentials(encrypted, key []byte) (integrations.Credentials, error) {
+// OpenCredentials decodes an integration account's sealed credentials. A
+// missing or invalid platform key keeps its validation error; a value that
+// does not open is an internal error that names no secret.
+func OpenCredentials(sealed []byte) (integrations.Credentials, error) {
 	var credentials integrations.Credentials
-	raw, err := corecrypto.Decrypt(encrypted, key)
+	if err := secretbox.Ready(); err != nil {
+		return credentials, err
+	}
+	raw, err := secretbox.Open(sealed)
 	if err != nil {
-		return credentials, apperror.NewInternal(fmt.Errorf("decrypt integration credentials for uniqueness check"))
+		return credentials, apperror.NewInternal(fmt.Errorf("decrypt integration credentials"))
 	}
 	if err := json.Unmarshal(raw, &credentials); err != nil {
-		return credentials, apperror.NewInternal(fmt.Errorf("decode integration credentials for uniqueness check"))
+		return credentials, apperror.NewInternal(fmt.Errorf("decode integration credentials"))
 	}
 	return credentials, nil
 }

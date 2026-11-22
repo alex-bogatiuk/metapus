@@ -67,11 +67,7 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfi
 	if err := rpcconfig.ValidateRPCBinding(provider, binding); err != nil {
 		return err
 	}
-	members, err := catalog_repo.PoolMemberIDs(ctx, *e.PoolID)
-	if err != nil {
-		return err
-	}
-	accounts, err := catalog_repo.AccountKeyNames(ctx, members)
+	accounts, err := catalog_repo.PoolAccountKeys(ctx, *e.PoolID)
 	if err != nil {
 		return err
 	}

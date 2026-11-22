@@ -9,10 +9,10 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/pkg/sdk/configuration"
-	"metapus/pkg/sdk/encryption"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/logger"
 	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/secretbox"
 	"metapus/pkg/sdk/secretfile"
 )
 
@@ -374,13 +374,11 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 func seedAutomationData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
 	log.Info("seeding automation data...")
 
-	encKey, err := secretfile.Get("AUTOMATION_ENCRYPTION_KEY", "")
-	if err != nil {
-		return fmt.Errorf("load AUTOMATION_ENCRYPTION_KEY: %w", err)
-	}
-	if encKey == "" {
-		log.Warn("AUTOMATION_ENCRYPTION_KEY not set; skipping automation seed")
+	if err := secretbox.Ready(); errors.Is(err, secretbox.ErrNotConfigured) {
+		log.Warn("platform encryption key not configured; skipping automation seed")
 		return nil
+	} else if err != nil {
+		return fmt.Errorf("check the encryption key: %w", err)
 	}
 
 	botToken, err := secretfile.Get("AUTOMATION_TG_BOT_TOKEN", "")
@@ -403,7 +401,7 @@ func seedAutomationData(ctx context.Context, pool *postgres.Pool, log *logger.Lo
 	accountName := "Metapus TG Bot"
 
 	// Encrypt bot token
-	credEnc, err := encryption.Encrypt([]byte(botToken), []byte(encKey))
+	credEnc, err := secretbox.Seal([]byte(botToken))
 	if err != nil {
 		return fmt.Errorf("encrypt bot token: %w", err)
 	}

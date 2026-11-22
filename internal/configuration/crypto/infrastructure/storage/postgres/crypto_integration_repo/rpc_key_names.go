@@ -89,11 +89,7 @@ func (RPCPoolConsumer) RPCKeyOptions(ctx context.Context, q rpcconfig.RPCKeyQuer
 		}
 		out.Required = rpcconfig.RPCKeyName(provider, b)
 	}
-	members, err := catalog_repo.PoolMemberIDs(ctx, q.PoolID)
-	if err != nil {
-		return out, err
-	}
-	accounts, err := catalog_repo.AccountKeyNames(ctx, members)
+	accounts, err := catalog_repo.PoolAccountKeys(ctx, q.PoolID)
 	if err != nil {
 		return out, err
 	}
@@ -122,7 +118,7 @@ func (RPCPoolConsumer) ValidateAccount(ctx context.Context, a *integrations.Acco
 	if err != nil || len(users) == 0 {
 		return err
 	}
-	account, err := catalog_repo.AccountKeyNamesOf(a.ID, a.Name, a.CredentialsEnc)
+	account, err := catalog_repo.AccountKeysOf(a)
 	if err != nil {
 		return err
 	}

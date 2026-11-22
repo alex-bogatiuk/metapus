@@ -7,9 +7,6 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/encryption"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/json"
 	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/postgres/catalog_repo"
 )
@@ -19,16 +16,15 @@ func (r *AMLRepository) LoadAMLRuntimeConfig(ctx context.Context, job aml.Job) (
 	if (job.Provider != string(cryptointegrations.GetBlockNet) && job.Provider != aml.TestnetProvider) || job.RequestDigest != job.Request.Digest(job.MappingVersion) {
 		return cfg, apperror.NewValidation("invalid pinned AML provider context")
 	}
-	var encrypted []byte
 	var seed *string
 	var delay, unknown *int
-	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT a.id,a.credentials_enc,a.provider,n.chain_family,n.network_identifier,e.seed,e.max_delay_seconds,e.unknown_rate_bp,
+	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, `SELECT a.id,a.provider,n.chain_family,n.network_identifier,e.seed,e.max_delay_seconds,e.unknown_rate_bp,
  m.version,m.contract_version,m.network_id,m.token_id,m.contract_address,m.currency,m.provider_token_id,m.native,m.pending_statuses,m.failure_statuses
  FROM cat_integration_accounts a JOIN sys_crypto_aml_provider_mappings m ON m.network_id=$2 AND m.token_id=$3 AND m.version=$4 AND m.capability_accepted
  JOIN cat_blockchain_networks n ON n.id=m.network_id
  LEFT JOIN sys_crypto_aml_testnet_emulators e ON e.account_id=a.id AND e.network_id=n.id
  WHERE a.id=$1 AND a.provider=$5 AND a.is_active AND NOT a.deletion_mark AND a._deleted_at IS NULL`, job.ProviderAccountID, job.Request.NetworkID, job.Request.TokenID, job.MappingVersion, job.Provider).Scan(
-		&cfg.AccountID, &encrypted, &cfg.Provider, &cfg.NetworkFamily, &cfg.NetworkIdentifier, &seed, &delay, &unknown, &cfg.MappingVersion, &cfg.ContractVersion, &cfg.NetworkID, &cfg.TokenID, &cfg.ContractAddress, &cfg.Currency, &cfg.ProviderTokenID, &cfg.Native, &cfg.PendingStatuses, &cfg.FailureStatuses)
+		&cfg.AccountID, &cfg.Provider, &cfg.NetworkFamily, &cfg.NetworkIdentifier, &seed, &delay, &unknown, &cfg.MappingVersion, &cfg.ContractVersion, &cfg.NetworkID, &cfg.TokenID, &cfg.ContractAddress, &cfg.Currency, &cfg.ProviderTokenID, &cfg.Native, &cfg.PendingStatuses, &cfg.FailureStatuses)
 	if err != nil {
 		return cfg, fmt.Errorf("load pinned AML account/mapping: %w", err)
 	}
@@ -39,16 +35,11 @@ func (r *AMLRepository) LoadAMLRuntimeConfig(ctx context.Context, job aml.Job) (
 		cfg.Emulator = &aml.EmulatorConfig{Seed: *seed, MaxDelaySeconds: *delay, UnknownRateBP: *unknown}
 		return cfg, cfg.Emulator.Validate(cfg.NetworkFamily, cfg.NetworkIdentifier)
 	}
-	key, err := catalog_repo.IntegrationEncryptionKey()
+	credentials, err := catalog_repo.AccountCredentials(ctx, cfg.AccountID)
 	if err != nil {
-		return cfg, err
+		return cfg, fmt.Errorf("open AML account credentials: %w", err)
 	}
-	raw, err := encryption.Decrypt(encrypted, key)
-	if err != nil {
-		return cfg, apperror.NewInternal(fmt.Errorf("decrypt AML account credentials"))
-	}
-	var credentials integrations.Credentials
-	if json.Unmarshal(raw, &credentials) != nil || credentials.Validate() != nil {
+	if credentials.Validate() != nil {
 		return cfg, apperror.NewValidation("AML account credentials are unavailable")
 	}
 	bearer, ok := credentials.Key("default")
