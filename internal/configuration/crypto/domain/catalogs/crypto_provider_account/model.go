@@ -52,6 +52,10 @@ type CryptoProviderAccount struct {
 	// SubmittedBaseURL is the base URL of credentials submitted with this
 	// write. Credentials are stored encrypted, so it is validated here.
 	SubmittedBaseURL string `db:"-" json:"-"`
+	// CredentialsErr is why credentials submitted with this write could not
+	// be sealed. The HTTP mapper cannot fail, so it records the error here and
+	// Validate rejects the write instead of saving the account without them.
+	CredentialsErr error `db:"-" json:"-"`
 }
 
 func New(code, name, provider string, networkID, balanceTokenID id.ID) *CryptoProviderAccount {
@@ -68,6 +72,9 @@ func New(code, name, provider string, networkID, balanceTokenID id.ID) *CryptoPr
 func (a *CryptoProviderAccount) Validate(ctx context.Context) error {
 	if err := a.Catalog.Validate(ctx); err != nil {
 		return err
+	}
+	if a.CredentialsErr != nil {
+		return a.CredentialsErr
 	}
 	if a.Provider == "" {
 		return apperror.NewValidation("provider is required").WithDetail("field", "provider")

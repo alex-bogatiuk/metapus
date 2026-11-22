@@ -1,9 +1,11 @@
 package cryptodto
 
 import (
+	"fmt"
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
+	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/entity"
 	"metapus/pkg/sdk/http/dto"
 	"metapus/pkg/sdk/id"
@@ -40,15 +42,33 @@ func (r CreateCryptoProviderAccountRequest) ToEntity() *crypto_provider_account.
 			APISecret:   r.APISecret,
 			CallbackURL: r.CallbackURL,
 		}
-		if payload, err := json.Marshal(creds); err == nil {
-			if enc, err := secretbox.Seal(payload); err == nil {
-				account.CredentialsEnc = enc
-				now := time.Now()
-				account.CredentialsUpdatedAt = &now
-			}
+		enc, err := sealCredentials(creds)
+		if err != nil {
+			account.CredentialsErr = err
+			return account
 		}
+		account.CredentialsEnc = enc
+		now := time.Now()
+		account.CredentialsUpdatedAt = &now
 	}
 	return account
+}
+
+// sealCredentials keeps the key error (a validation error asking for a
+// configured key) and reports any other failure as internal.
+func sealCredentials(creds crypto_provider_account.ProviderCredentials) ([]byte, error) {
+	payload, err := json.Marshal(creds)
+	if err != nil {
+		return nil, apperror.NewInternal(fmt.Errorf("encode provider credentials: %w", err))
+	}
+	if err := secretbox.Ready(); err != nil {
+		return nil, err
+	}
+	enc, err := secretbox.Seal(payload)
+	if err != nil {
+		return nil, apperror.NewInternal(fmt.Errorf("encrypt provider credentials: %w", err))
+	}
+	return enc, nil
 }
 
 type UpdateCryptoProviderAccountRequest struct {
@@ -65,10 +85,22 @@ func (r UpdateCryptoProviderAccountRequest) ApplyTo(account *crypto_provider_acc
 	account.SubmittedBaseURL = r.BaseURL
 
 	if r.APIKey != "" || r.APISecret != "" || r.BaseURL != "" || r.CallbackURL != "" {
+		// Fields left empty keep their stored values, so stored credentials
+		// that cannot be read fail the write rather than being replaced by
+		// a partial set.
 		creds := crypto_provider_account.ProviderCredentials{}
 		if len(account.CredentialsEnc) > 0 {
-			if dec, err := secretbox.Open(account.CredentialsEnc); err == nil {
-				_ = json.Unmarshal(dec, &creds)
+			if err := secretbox.Ready(); err != nil {
+				account.CredentialsErr = err
+				return
+			}
+			dec, err := secretbox.Open(account.CredentialsEnc)
+			if err == nil {
+				err = json.Unmarshal(dec, &creds)
+			}
+			if err != nil {
+				account.CredentialsErr = apperror.NewInternal(fmt.Errorf("open stored provider credentials: %w", err))
+				return
 			}
 		}
 		if r.BaseURL != "" {
@@ -84,14 +116,15 @@ func (r UpdateCryptoProviderAccountRequest) ApplyTo(account *crypto_provider_acc
 			creds.CallbackURL = r.CallbackURL
 		}
 
-		if payload, err := json.Marshal(creds); err == nil {
-			if enc, err := secretbox.Seal(payload); err == nil {
-				account.CredentialsEnc = enc
-				account.CredentialsVersion++
-				now := time.Now()
-				account.CredentialsUpdatedAt = &now
-			}
+		enc, err := sealCredentials(creds)
+		if err != nil {
+			account.CredentialsErr = err
+			return
 		}
+		account.CredentialsEnc = enc
+		account.CredentialsVersion++
+		now := time.Now()
+		account.CredentialsUpdatedAt = &now
 	}
 }
 
