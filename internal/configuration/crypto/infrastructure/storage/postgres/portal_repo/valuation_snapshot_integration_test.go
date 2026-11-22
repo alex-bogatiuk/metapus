@@ -12,21 +12,21 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	er "metapus/internal/domain/registers/exchange_rate"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
-	"metapus/internal/infrastructure/storage/postgres/testsupport"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/migration"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/registers"
+	"metapus/pkg/sdk/registers/exchange_rate"
+	"metapus/pkg/sdk/sdktest"
+	"metapus/pkg/sdk/tenant"
 )
 
 // valuationFixture is a fresh database with a configured rate source and a
 // USDT mapping, as the platform's exchange-rate tests use.
-func valuationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *register_repo.ExchangeRateRepo, er.Configuration) {
+func valuationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *registers.ExchangeRateRepo, exchange_rate.Configuration) {
 	t.Helper()
-	dsn := testsupport.ExchangeRateDSN(t)
+	dsn := sdktest.NewExchangeRateDatabase(t)
 	output, err := migration.RunAll(dsn, cryptoschema.Migration())
 	require.NoError(t, err, output)
 	ctx := context.Background()
@@ -44,12 +44,12 @@ func valuationFixture(t *testing.T) (context.Context, *pgxpool.Pool, *register_r
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `UPDATE sys_settings SET exchange_rates=jsonb_build_object('sourceId',$1::text),version=version+1`, source)
 	require.NoError(t, err)
-	repo := register_repo.NewExchangeRateRepo()
+	repo := registers.NewExchangeRateRepo()
 	cfg, err := repo.LoadConfiguration(ctx)
 	require.NoError(t, err)
 	var currency id.ID
 	require.NoError(t, pool.QueryRow(ctx, `SELECT id FROM cat_currencies WHERE iso_code='USDT'`).Scan(&currency))
-	_, err = repo.PutMapping(ctx, er.Mapping{SourceID: source, Currency: er.CurrencyRef{ID: currency}, BaseCurrency: cfg.BaseCurrency, ExternalID: "tether", IsActive: true}, 0)
+	_, err = repo.PutMapping(ctx, exchange_rate.Mapping{SourceID: source, Currency: exchange_rate.CurrencyRef{ID: currency}, BaseCurrency: cfg.BaseCurrency, ExternalID: "tether", IsActive: true}, 0)
 	require.NoError(t, err)
 	return ctx, pool, repo, cfg
 }
@@ -95,14 +95,14 @@ func TestExchangeRateValuationUsesOneRepeatableSnapshot(t *testing.T) {
 		require.NoError(t, e)
 		require.NoError(t, tx.Commit(ctx))
 	}}
-	service := cryptoapp.NewValuationService(wrapper, er.NewService(repo), register_repo.RateSnapshot)
+	service := cryptoapp.NewValuationService(wrapper, exchange_rate.NewService(repo), registers.RateSnapshot)
 	first, err := service.Calculate(ctx, []id.ID{merchant})
 	require.NoError(t, err)
 	require.Len(t, first.ByToken, 1)
 	require.Equal(t, "15", first.ByToken[0].RawAmount)
 	require.Equal(t, "5", first.ByToken[0].PendingRaw)
 	require.Equal(t, "10", first.ByToken[0].AvailableRaw)
-	latest, err := cryptoapp.NewValuationService(balances, er.NewService(repo), register_repo.RateSnapshot).Calculate(ctx, []id.ID{merchant})
+	latest, err := cryptoapp.NewValuationService(balances, exchange_rate.NewService(repo), registers.RateSnapshot).Calculate(ctx, []id.ID{merchant})
 	require.NoError(t, err)
 	require.Equal(t, "15", latest.ByToken[0].RawAmount)
 	require.Equal(t, "0", latest.ByToken[0].PendingRaw)

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 const invoiceReconciliationPeriod = time.Minute

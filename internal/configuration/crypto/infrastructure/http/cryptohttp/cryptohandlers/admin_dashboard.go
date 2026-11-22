@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"metapus/internal/configuration/crypto/application/dashboardapp"
-	"metapus/internal/core/apperror"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
 )
 
 type AdminDashboardHandler struct {

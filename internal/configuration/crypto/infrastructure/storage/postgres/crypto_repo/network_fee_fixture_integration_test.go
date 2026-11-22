@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 // testTRONAddress returns a unique syntactically valid TRON base58 address.

@@ -9,10 +9,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 // seriesNumbers numbers documents in their series, one after another.

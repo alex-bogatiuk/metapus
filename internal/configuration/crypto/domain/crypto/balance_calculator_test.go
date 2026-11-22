@@ -1,16 +1,16 @@
 package crypto
 
 import (
-	er "metapus/internal/domain/registers/exchange_rate"
+	"metapus/pkg/sdk/registers/exchange_rate"
 	"testing"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 func TestBalanceCalculatorPreservesTokenDecimalPlaces(t *testing.T) {
-	cfg := er.Configuration{BaseCurrency: er.CurrencyRef{ID: id.New(), Code: "USD", DecimalPlaces: 2}}
+	cfg := exchange_rate.Configuration{BaseCurrency: exchange_rate.CurrencyRef{ID: id.New(), Code: "USD", DecimalPlaces: 2}}
 
 	tokenID := id.New()
 	networkID := id.New()

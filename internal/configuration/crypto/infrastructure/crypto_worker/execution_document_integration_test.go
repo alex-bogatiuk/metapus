@@ -16,10 +16,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/outbound_settlement"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 func TestExecutionDraftsAreIdempotent(t *testing.T) {

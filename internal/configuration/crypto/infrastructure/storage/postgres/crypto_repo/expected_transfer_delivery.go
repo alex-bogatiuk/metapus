@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // NudgePending asks the existing receipt workers to poll their own accepted

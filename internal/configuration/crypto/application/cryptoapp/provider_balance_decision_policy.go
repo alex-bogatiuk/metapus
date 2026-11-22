@@ -6,11 +6,11 @@ import (
 	"slices"
 
 	pbo "metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/security"
 )
 
 type ProviderOpeningAdminAuthority struct {

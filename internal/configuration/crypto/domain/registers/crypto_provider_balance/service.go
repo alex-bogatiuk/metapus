@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
 )
 
 type Repository interface {

@@ -18,10 +18,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -127,7 +127,7 @@ func (f sweepFinalFixture) broadcast(t *testing.T) {
 
 func (f sweepFinalFixture) executor(t *testing.T) *outboundapp.SweepExecutor {
 	t.Helper()
-	engine := posting.NewEngine(postgres.NewDocLocker())
+	engine := posting.NewLockingEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	return outboundapp.NewSweepExecutor(outboundapp.SweepConfig{Repository: NewOutboundRepo(), Documents: crypto_document_repo.NewCryptoSweepRepo(), Posting: engine, Drivers: f.registry(t, 0)})
 }

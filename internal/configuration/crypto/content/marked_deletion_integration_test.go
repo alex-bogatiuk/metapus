@@ -5,7 +5,7 @@ package content
 import (
 	"context"
 	"errors"
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 	"os"
 	"slices"
 	"testing"
@@ -13,13 +13,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/readaccess"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/readaccess"
+	"metapus/pkg/sdk/tenant"
 )
 
 // markedFixture runs fn in a transaction that is always rolled back, with

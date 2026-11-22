@@ -1,6 +1,6 @@
 package aml
 
-import "metapus/internal/core/id"
+import "metapus/pkg/sdk/id"
 
 // RuntimeConfig contains one immutable accepted mapping and credentials for
 // the exact account pinned by a job. It never participates in HTTP responses.

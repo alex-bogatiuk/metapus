@@ -7,8 +7,8 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 // FeeScheduleHandler handles HTTP requests for fee schedule management.

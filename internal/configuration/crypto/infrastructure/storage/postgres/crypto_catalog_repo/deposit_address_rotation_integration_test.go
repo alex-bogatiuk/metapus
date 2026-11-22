@@ -24,12 +24,12 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/migration"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 type rotationFixture struct {

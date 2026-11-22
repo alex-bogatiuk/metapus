@@ -11,7 +11,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 var vaultMountPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)

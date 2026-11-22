@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 type checkoutPageRepoStub struct {

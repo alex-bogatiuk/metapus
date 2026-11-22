@@ -11,11 +11,11 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/json"
 )
 
 type rpcKeyNamesRepo struct {

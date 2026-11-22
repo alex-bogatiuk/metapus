@@ -11,7 +11,7 @@ package content
 import (
 	"context"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
@@ -21,12 +21,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
-	"metapus/internal/domain"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/metadata"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenantdb"
 )
 
 func init() {

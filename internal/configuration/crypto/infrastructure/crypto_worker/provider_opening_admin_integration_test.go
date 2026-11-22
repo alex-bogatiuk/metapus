@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"metapus/internal/application/command"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	pbo "metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
@@ -16,12 +15,13 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/command"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
 
 	"github.com/stretchr/testify/require"
 )
@@ -179,7 +179,7 @@ func (w providerFaultAudit) Write(ctx context.Context, e eventlog.Event) error {
 	return postgres.NewEventLogRepo().Write(ctx, e)
 }
 func (f providerOpeningFixture) serviceWithAudit(audit providerFaultAudit) *cryptoapp.ProviderBalanceWorkflowService {
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
 	return cryptoapp.NewProviderBalanceWorkflowService(crypto_document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine, command.NewExecutor(f.txm, postgres.NewCommandRepository()), f.stepUp, crypto_repo.NewProviderOpeningAuthorityRepo(), audit)
@@ -300,7 +300,7 @@ func TestProviderOpeningStepUpExpiresAtAuthorityLock(t *testing.T) {
 		withProviderOpening(t, func(f providerOpeningFixture) {
 			ctx := f.admin(t, true)
 			doc := f.prepare(t)
-			engine := posting.NewEngine(nil)
+			engine := posting.NewEngine()
 			engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
 			engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
 			service := cryptoapp.NewProviderBalanceWorkflowService(crypto_document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(), fixedNetworkOperationNumerator{}, engine,

@@ -10,7 +10,7 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/crypto/custody"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // AMLConfigurationPreflight owns readiness ports only. It cannot start worker

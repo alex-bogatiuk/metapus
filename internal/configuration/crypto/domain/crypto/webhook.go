@@ -3,7 +3,7 @@ package crypto
 
 import (
 	"context"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 	"time"
 )
 

@@ -2,8 +2,8 @@ package cryptodto
 
 import (
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/pkg/sdk/http/dto"
+	"metapus/pkg/sdk/id"
 )
 
 type CryptoRPCEndpointFields struct {

@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/notifications"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/notifications"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 // DeliverIngestionAlert reuses ERP notifications. Event IDs are saved by the

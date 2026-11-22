@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 type ProposeFinancialAdjustmentRequest struct {

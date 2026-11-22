@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/dto"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // CryptoProviderBalanceOperationResponse is a maker-checker correction of a

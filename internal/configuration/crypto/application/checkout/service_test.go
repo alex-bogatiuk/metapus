@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"metapus/internal/configuration/crypto/domain/crypto/publicref"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 func TestResolveTenantUsesMetaReferenceWithoutTenantHint(t *testing.T) {

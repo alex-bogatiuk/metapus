@@ -10,9 +10,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
-	"metapus/internal/domain/integrations"
-	integrationhttp "metapus/internal/infrastructure/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/providerpolicy"
+	"metapus/pkg/sdk/integrations/transport"
 )
 
 const (
@@ -58,9 +58,9 @@ func rpcErrorCategory(err error) string {
 		return "response_limit"
 	case errors.Is(err, providerpolicy.ErrUnsupported):
 		return "unsupported"
-	case errors.Is(err, integrationhttp.ErrAttemptBudget):
+	case errors.Is(err, transport.ErrAttemptBudget):
 		return "account_attempt_budget"
-	case errors.Is(err, integrationhttp.ErrAccessDenied):
+	case errors.Is(err, transport.ErrAccessDenied):
 		return "access_denied"
 	case errors.Is(err, context.DeadlineExceeded):
 		return "timeout"

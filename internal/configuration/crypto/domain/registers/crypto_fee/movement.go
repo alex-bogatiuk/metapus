@@ -3,9 +3,9 @@ package crypto_fee
 import (
 	"time"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 // FeeType defines the type of crypto processing fee.

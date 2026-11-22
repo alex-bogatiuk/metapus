@@ -2,7 +2,9 @@
 // a configuration declares (aliases of the platform's model).
 package entity
 
-import core "metapus/internal/core/entity"
+import (
+	core "metapus/internal/core/entity"
+)
 
 // Definitions.
 type (
@@ -50,3 +52,29 @@ const (
 
 // NewMovementBase returns the common part of a register movement.
 var NewMovementBase = core.NewMovementBase
+
+type (
+	// ActionAvailability is an advisory, actor-specific read projection. A command
+	// must authorize again; this value is never accepted in a mutation DTO.
+	ActionAvailability = core.ActionAvailability
+	// Attributes represents JSONB custom fields with type-safe accessors.
+	// Implements sql.Scanner and driver.Valuer for PostgreSQL JSONB mapping.
+	//
+	// CRITICAL: Uses json.Number to preserve numeric precision.
+	// Default Go JSON decoder converts numbers to float64, losing precision for decimals.
+	Attributes = core.Attributes
+)
+
+const (
+	// CodeDerived means the catalog's own hooks derive the code from its
+	// attributes (an ISO code, a ticker); the platform only requires the
+	// result to be non-empty.
+	CodeDerived = core.CodeDerived
+	// PartSeparator joins a header table name and a part key. It is reserved for
+	// physical table parts: no other table name may contain it.
+	PartSeparator = core.PartSeparator
+)
+
+// NewCatalog creates a new Catalog with generated ID.
+// In Database-per-Tenant architecture, tenantID is not required.
+func NewCatalog(code string, name string) core.Catalog { return core.NewCatalog(code, name) }

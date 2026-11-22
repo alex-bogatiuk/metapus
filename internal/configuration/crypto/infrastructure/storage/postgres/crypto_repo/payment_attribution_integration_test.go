@@ -14,9 +14,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +55,7 @@ func newPaymentAttributionFixture(t *testing.T) paymentAttributionFixture {
 }
 
 func (f paymentAttributionFixture) engineWith(merchant, fee bool) *posting.Engine {
-	e := posting.NewEngine(nil)
+	e := posting.NewEngine()
 	e.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	e.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 	e.AddVisitor(&cryptoposting.CryptoFeeVisitor{})

@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 // --- Request DTOs ---

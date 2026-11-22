@@ -11,10 +11,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"metapus/extensions"
-	"metapus/internal/configuration"
 	"metapus/internal/configuration/crypto/content"
-	"metapus/internal/infrastructure/http/contracts"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/contracts"
 )
 
 // The generated frontend files describe the assembled application: the
@@ -22,7 +21,7 @@ import (
 // top of them. Generating the platform layer alone also proves that no
 // platform route depends on a configuration contract.
 func TestHTTPArtifactsStayCurrent(t *testing.T) {
-	artifacts, _, err := configuration.HTTPArtifacts(content.Crypto(content.Services{}), extensions.Register)
+	artifacts, _, err := configuration.HTTPArtifacts(content.Crypto(content.Services{}), configuration.Extensions)
 	require.NoError(t, err)
 	require.Len(t, artifacts, 6)
 	for _, artifact := range artifacts {
@@ -33,7 +32,7 @@ func TestHTTPArtifactsStayCurrent(t *testing.T) {
 }
 
 func TestRegistryCoversOwnedJSONDTOs(t *testing.T) {
-	bundles := configuration.HTTPContractBundles(content.Crypto(content.Services{}), extensions.Register)
+	bundles := configuration.HTTPContractBundles(content.Crypto(content.Services{}), configuration.Extensions)
 	registered := map[string]bool{}
 	for _, contract := range contracts.Registry(bundles...) {
 		registered[contract.Name] = true

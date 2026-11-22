@@ -11,10 +11,10 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
 )
 
 // ChainObservation preserves each distinct watcher observation before the
@@ -65,7 +65,7 @@ func (r *ChainObservationRepo) capture(ctx context.Context, event crypto.Blockch
 		ON CONFLICT (network_id,payload_hash) DO NOTHING
 	`, event.NetworkID, stream, event.TxHash, event.EffectiveEventKind(), event.EventIndex,
 		event.BlockNumber, event.BlockHash, hex.EncodeToString(hash[:]), string(payload),
-		platformtelemetry.Traceparent(ctx),
+		telemetry.Traceparent(ctx),
 		fmt.Sprintf("%s:%s:%s:%d", event.NetworkID, event.TxHash, event.EffectiveEventKind(), event.EventIndex),
 		event.BlockHash, status)
 	if err != nil {

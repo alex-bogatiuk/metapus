@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 type shadowHandlerRepo struct {

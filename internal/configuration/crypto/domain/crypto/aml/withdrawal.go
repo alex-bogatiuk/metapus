@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"slices"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 type Source struct {

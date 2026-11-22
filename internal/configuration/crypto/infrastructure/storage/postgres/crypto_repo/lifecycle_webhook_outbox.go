@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
 )
 
 // LifecycleWebhookOutbox atomically and idempotently publishes merchant
@@ -82,8 +82,8 @@ func (p *LifecycleWebhookOutbox) PublishLifecycleWebhook(ctx context.Context, ev
 	if err != nil {
 		return fmt.Errorf("marshal lifecycle webhook: %w", err)
 	}
-	business := platformtelemetry.BusinessIDs(ctx, event.CausationKey)
-	traceparent := platformtelemetry.Traceparent(ctx)
+	business := telemetry.BusinessIDs(ctx, event.CausationKey)
+	traceparent := telemetry.Traceparent(ctx)
 	var inserted bool
 	if err := tx.QueryRow(ctx, `
 		WITH claimed AS (

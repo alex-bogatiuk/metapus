@@ -16,11 +16,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/tenant"
 )
 
 type remediationApprovalSigner struct {
@@ -138,7 +138,7 @@ func TestRemediationTreasurySigningJobCompletesOutsideRequest(t *testing.T) {
 		repo := money_movement_repo.New()
 		intent, err := repo.BuildTreasuryIntent(ctx, tenant.GetTenantID(ctx), withdrawalID)
 		require.NoError(t, err)
-		_, err = platformtelemetry.ConfigureTracing(ctx, "remediation-test", "dev", func(string) string { return "" })
+		_, err = telemetry.ConfigureTracing(ctx, "remediation-test", "dev", func(string) string { return "" })
 		require.NoError(t, err)
 		traceID, err := oteltrace.TraceIDFromHex("33333333333333333333333333333333")
 		require.NoError(t, err)

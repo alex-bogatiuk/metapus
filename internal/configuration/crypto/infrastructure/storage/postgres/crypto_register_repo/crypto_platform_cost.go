@@ -8,8 +8,8 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers"
 )
 
 const _cryptoPlatformCostMovementsTable = "reg_crypto_platform_cost_movements"
@@ -32,13 +32,13 @@ func cryptoPlatformCostMovementRowMapper(m crypto_platform_cost.CryptoPlatformCo
 
 // CryptoPlatformCostRepo implements crypto_platform_cost.Repository.
 type CryptoPlatformCostRepo struct {
-	register_repo.BaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement]
+	registers.BaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement]
 }
 
 // NewCryptoPlatformCostRepo creates a new crypto platform cost register repository.
 func NewCryptoPlatformCostRepo() *CryptoPlatformCostRepo {
 	return &CryptoPlatformCostRepo{
-		BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement](
+		BaseAccumulationRepo: registers.NewBaseAccumulationRepo[crypto_platform_cost.CryptoPlatformCostMovement](
 			_cryptoPlatformCostMovementsTable,
 			_cryptoPlatformCostMovementColumns,
 			cryptoPlatformCostMovementRowMapper,

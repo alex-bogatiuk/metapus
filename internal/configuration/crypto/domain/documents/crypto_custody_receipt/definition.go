@@ -1,6 +1,6 @@
 package crypto_custody_receipt
 
-import "metapus/internal/core/entity"
+import "metapus/pkg/sdk/entity"
 
 const DocumentType = "CryptoCustodyReceipt"
 

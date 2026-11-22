@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/urlsafe"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/urlsafe"
 )
 
 func TestValidateWebhookURL(t *testing.T) {

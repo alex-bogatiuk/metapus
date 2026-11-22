@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 func TestRPCPoolFailsClosedWhenAnyEndpointReportsWrongChain(t *testing.T) {

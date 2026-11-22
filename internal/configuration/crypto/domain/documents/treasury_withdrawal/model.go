@@ -9,11 +9,11 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/outbound_settlement"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 )
 
 // Status represents the lifecycle state of a treasury withdrawal.

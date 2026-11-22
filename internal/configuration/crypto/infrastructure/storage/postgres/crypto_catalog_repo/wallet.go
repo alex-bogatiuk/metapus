@@ -10,12 +10,12 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // WalletRepo implements wallet.Repository.

@@ -3,9 +3,9 @@ package crypto_provider_balance
 import (
 	"time"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 // CryptoProviderBalanceMovement tracks platform prepayments held by an

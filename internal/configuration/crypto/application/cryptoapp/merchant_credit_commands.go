@@ -5,13 +5,13 @@ import (
 	"errors"
 	"strings"
 
-	"metapus/internal/application/command"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/command"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/security"
+	"metapus/pkg/sdk/types"
 )
 
 // MerchantCreditResult is the stored outcome of an operator command.

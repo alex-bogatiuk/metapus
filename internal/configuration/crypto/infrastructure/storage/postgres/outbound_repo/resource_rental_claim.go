@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 // Validate only after account -> rental locks, using wall time after any wait.

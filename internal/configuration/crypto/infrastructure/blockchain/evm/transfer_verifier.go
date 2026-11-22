@@ -14,8 +14,8 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 func (d *Driver) VerificationRequired() bool { return d.rpc != nil }

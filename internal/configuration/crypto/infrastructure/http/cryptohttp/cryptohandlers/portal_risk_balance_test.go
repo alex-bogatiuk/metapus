@@ -13,9 +13,9 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 type riskBalanceFixture struct {

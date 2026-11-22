@@ -3,7 +3,7 @@ package wallet
 import (
 	"net/http"
 
-	"metapus/internal/core/apperror"
+	"metapus/pkg/sdk/apperror"
 )
 
 // Wallet pool and merchant address admission error codes, part of the public

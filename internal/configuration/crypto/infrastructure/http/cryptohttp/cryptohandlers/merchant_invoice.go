@@ -17,11 +17,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
 )
 
 const (

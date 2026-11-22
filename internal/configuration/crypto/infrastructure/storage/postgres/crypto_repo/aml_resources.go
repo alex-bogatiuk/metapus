@@ -10,11 +10,11 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 // RegisterAMLOperatingReceipt records a control-plane attestation of service

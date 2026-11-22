@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 type withdrawalFailureFixture struct {

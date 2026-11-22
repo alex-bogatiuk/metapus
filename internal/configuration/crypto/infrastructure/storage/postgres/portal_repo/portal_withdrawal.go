@@ -15,11 +15,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/types"
 )
 
 // ── Withdrawal Address Whitelist ──────────────────────────────────────
@@ -171,7 +171,7 @@ func (r *DashboardRepo) EnqueueApprovalSigning(ctx context.Context, intent crypt
 		(basis_type,basis_id,intent_payload,intent_fingerprint,traceparent,correlation_id,causation_id)
 		VALUES ('WithdrawalRequest',$1,$2::jsonb,$3,$4,$5,$6)`,
 		intent.BasisID, string(payload), fingerprint,
-		platformtelemetry.Traceparent(ctx), intent.IntentID, intent.BasisID.String())
+		telemetry.Traceparent(ctx), intent.IntentID, intent.BasisID.String())
 	if err != nil {
 		return fmt.Errorf("enqueue withdrawal approval signing: %w", err)
 	}

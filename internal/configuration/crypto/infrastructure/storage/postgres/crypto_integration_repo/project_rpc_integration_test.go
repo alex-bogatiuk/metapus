@@ -14,10 +14,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
-	integrationhttp "metapus/internal/infrastructure/integrations"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/transport"
+	"metapus/pkg/sdk/postgres/integration_repo"
 )
 
 func TestProjectRPCPoolProbes(t *testing.T) {
@@ -69,7 +69,7 @@ func TestProjectRPCPoolProbes(t *testing.T) {
 				reply = `{"blockID":"` + strings.Repeat("a", 64) + `","block_header":{"raw_data":{"number":100}}}`
 			}
 			calls := 0
-			prober := integrationhttp.ConnectionProber{Profiles: cryptoprofiles.Registry(), EndpointProbe: RPCProbe, EndpointTransport: RPCTransport, Base: mockRPCTransport(func(req *http.Request) (*http.Response, error) {
+			prober := transport.ConnectionProber{Profiles: cryptoprofiles.Registry(), EndpointProbe: RPCProbe, EndpointTransport: RPCTransport, Base: mockRPCTransport(func(req *http.Request) (*http.Response, error) {
 				calls++
 				require.Equal(t, tt.base+tt.wireSuffix, req.URL.String())
 				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(reply))}, nil

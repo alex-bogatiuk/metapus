@@ -7,8 +7,8 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 	"os"
 	"testing"
 )

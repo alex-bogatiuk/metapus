@@ -2,7 +2,7 @@ package cryptodto
 
 import (
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/pkg/sdk/http/dto"
 )
 
 type PortalMerchantListResponse struct {

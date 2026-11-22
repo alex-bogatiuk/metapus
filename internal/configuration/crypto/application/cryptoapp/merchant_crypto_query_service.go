@@ -9,10 +9,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 type MerchantTokenContext struct {

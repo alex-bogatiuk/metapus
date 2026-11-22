@@ -8,24 +8,24 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/readaccess"
 	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/testsupport"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/metadata"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/readaccess"
+	"metapus/pkg/sdk/sdktest"
+	"metapus/pkg/sdk/security"
 )
 
 // The unit tests fix the projection field names and Go types the builder
 // expects; this test proves the production authorized reader supplies them.
 func TestCryptoInvoicePrintReadsReferencesThroughAuthorizedReader(t *testing.T) {
-	tenant := testsupport.NewSecurityTenants(t, cryptoschema.Migration())[0]
+	tenant := sdktest.NewTenantWithMigrations(t, cryptoschema.Migration())
 	reg := metadata.NewRegistry()
 	for _, entry := range []struct {
 		model any

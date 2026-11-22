@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/application/portalapp"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // ── Webhook Secret ────────────────────────────────────────────────────

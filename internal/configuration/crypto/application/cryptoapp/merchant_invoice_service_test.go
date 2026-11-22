@@ -11,11 +11,11 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 func TestCreateMerchantInvoice_ReplayReturnsExistingInvoice(t *testing.T) {

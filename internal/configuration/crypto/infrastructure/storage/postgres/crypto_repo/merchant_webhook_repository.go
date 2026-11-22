@@ -9,11 +9,11 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/workerjob"
 )
 
 type MerchantWebhookRepo struct{}
@@ -463,13 +463,13 @@ func (r *MerchantWebhookRepo) CreateManualJob(ctx context.Context, merchantID id
 		return err
 	}
 	messageID := id.New()
-	business := platformtelemetry.BusinessIDs(ctx, eventID)
+	business := telemetry.BusinessIDs(ctx, eventID)
 	_, err = q.Exec(ctx, `
 		INSERT INTO sys_outbox(id,aggregate_type,aggregate_id,event_type,payload,status,created_at,
 		                       traceparent,correlation_id,causation_id)
 		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 	`, messageID, crypto.MerchantWebhookAggregateType, aggregateID, eventType, payload, postgres.OutboxStatusPending, now,
-		platformtelemetry.Traceparent(ctx), business.CorrelationID, eventID)
+		telemetry.Traceparent(ctx), business.CorrelationID, eventID)
 	return err
 }
 

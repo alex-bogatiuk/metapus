@@ -20,11 +20,11 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/tron"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 type shadowTestDeriver struct{}

@@ -10,10 +10,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tx"
-	"metapus/internal/core/types"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/tx"
+	"metapus/pkg/sdk/types"
 )
 
 const _accountActivationBasisType = crypto_network_operation.ActivationTaskBasisType

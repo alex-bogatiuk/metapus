@@ -20,10 +20,10 @@ import (
 	"unicode/utf8"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/urlsafe"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/urlsafe"
 )
 
 // _webhookDialTimeout limits the TCP connect phase.

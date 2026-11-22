@@ -11,8 +11,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 // MerchantAddressHandler handles /merchant/v1/addresses endpoints.

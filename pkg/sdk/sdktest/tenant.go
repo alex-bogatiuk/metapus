@@ -11,6 +11,7 @@ import (
 	"metapus/internal/configuration"
 	appctx "metapus/internal/core/context"
 	"metapus/internal/core/id"
+	"metapus/internal/infrastructure/storage/postgres/migration"
 	"metapus/internal/infrastructure/storage/postgres/testsupport"
 )
 
@@ -41,4 +42,27 @@ func (t *Tenant) AdminContext() context.Context {
 // platform runs a posting.
 func (t *Tenant) RunInTransaction(ctx context.Context, fn func(context.Context) error) error {
 	return t.tenant.Tx.RunInTransaction(ctx, fn)
+}
+
+// NewTenantWithMigrations is NewTenant for a test inside a configuration's
+// own packages, which cannot import the configuration itself: the tenant
+// database is migrated with opts (migration.WithConfiguration) instead.
+func NewTenantWithMigrations(t *testing.T, opts ...migration.Option) *Tenant {
+	t.Helper()
+	tenant := testsupport.NewSecurityTenants(t, opts...)[0]
+	return &Tenant{tenant: tenant, Pool: tenant.Pool}
+}
+
+// Context is the context of user in the tenant: the platform's
+// repositories run in it under user's permissions.
+func (t *Tenant) Context(user appctx.UserContext) context.Context {
+	return t.tenant.Context(user)
+}
+
+// NewExchangeRateDatabase creates a fresh empty database in the exchange
+// rate test cluster (METAPUS_TEST_EXCHANGE_RATES_DSN) and returns its DSN;
+// the test migrates it itself (migration.RunAll).
+func NewExchangeRateDatabase(t *testing.T) string {
+	t.Helper()
+	return testsupport.ExchangeRateDSN(t)
 }

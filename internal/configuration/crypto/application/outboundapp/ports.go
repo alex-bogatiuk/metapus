@@ -10,8 +10,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
 	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 	"time"
 )
 

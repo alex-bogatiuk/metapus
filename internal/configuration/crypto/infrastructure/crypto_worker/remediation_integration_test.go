@@ -18,11 +18,11 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/types"
 )
 
 type remediationFixture struct {
@@ -261,7 +261,7 @@ func TestRemediationUnmatchedReplayDoesNotStarveNewEvent(t *testing.T) {
 func TestRemediationWatcherAcknowledgesDurableObservations(t *testing.T) {
 	withRemediationFixture(t, func(ctx context.Context, txm *postgres.TxManager, f remediationFixture) {
 		processor := &CryptoProcessor{}
-		_, err := platformtelemetry.ConfigureTracing(ctx, "remediation-test", "dev", func(string) string { return "" })
+		_, err := telemetry.ConfigureTracing(ctx, "remediation-test", "dev", func(string) string { return "" })
 		require.NoError(t, err)
 		traceID, err := oteltrace.TraceIDFromHex("11111111111111111111111111111111")
 		require.NoError(t, err)

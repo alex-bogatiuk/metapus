@@ -8,10 +8,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 )
 
 func outflowDecisionError(err error) error {

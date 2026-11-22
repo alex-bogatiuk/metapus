@@ -8,14 +8,14 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain"
-	"metapus/internal/domain/printing"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	printadapter "metapus/internal/infrastructure/printing"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/printing"
+	"metapus/pkg/sdk/printing/render"
+	"metapus/pkg/sdk/settings"
+	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoInvoiceHandler handles HTTP requests for CryptoInvoice documents.
@@ -29,7 +29,7 @@ type CryptoInvoiceHandler struct {
 // DocumentPrintDeps are the shared print engine parts a document handler uses.
 type DocumentPrintDeps struct {
 	Registry    *printing.PrintFormRegistry
-	Renderer    *printadapter.Renderer
+	Renderer    *render.Renderer
 	PDFRenderer printing.PDFRenderer
 }
 

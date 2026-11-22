@@ -10,8 +10,8 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 type IngestionStreamReport struct {

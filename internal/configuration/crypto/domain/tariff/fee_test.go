@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 )
 
 func amount(v int64) types.RawAmount { return types.NewRawAmountFromInt64(v) }

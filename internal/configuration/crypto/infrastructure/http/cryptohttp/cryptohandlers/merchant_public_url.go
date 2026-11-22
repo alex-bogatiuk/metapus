@@ -1,6 +1,6 @@
 package cryptohandlers
 
-import "metapus/internal/infrastructure/urlsafe"
+import "metapus/pkg/sdk/urlsafe"
 
 // ValidateNotificationURL enforces the public HTTPS boundary for an
 // invoice-specific webhook destination.

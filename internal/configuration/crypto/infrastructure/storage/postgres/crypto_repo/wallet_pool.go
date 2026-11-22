@@ -14,10 +14,10 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 const (

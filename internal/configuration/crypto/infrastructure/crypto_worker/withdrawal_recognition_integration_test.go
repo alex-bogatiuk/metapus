@@ -20,11 +20,11 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -111,7 +111,7 @@ func (f withdrawalFinalFixture) registry(t *testing.T) *crypto.ChainDriverRegist
 }
 func (f withdrawalFinalFixture) executor(t *testing.T) *outboundapp.WithdrawalExecutor {
 	t.Helper()
-	engine := posting.NewEngine(postgres.NewDocLocker())
+	engine := posting.NewLockingEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})

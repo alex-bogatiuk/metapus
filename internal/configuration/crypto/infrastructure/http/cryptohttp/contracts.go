@@ -3,7 +3,7 @@ package cryptohttp
 import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/infrastructure/http/contracts/spec"
+	spec "metapus/pkg/sdk/contracts"
 )
 
 // HTTPContracts declares the wire contracts of the crypto routes that this

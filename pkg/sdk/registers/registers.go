@@ -2,6 +2,8 @@
 package registers
 
 import (
+	"context"
+
 	core "metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
@@ -18,4 +20,14 @@ type (
 // columns, in the order mapper returns their values.
 func NewBaseAccumulationRepo[T any](table string, columns []string, mapper MovementRowMapper[T]) BaseAccumulationRepo[T] {
 	return core.NewBaseAccumulationRepo(table, columns, mapper)
+}
+
+type (
+	ExchangeRateRepo = core.ExchangeRateRepo
+)
+
+func NewExchangeRateRepo() *core.ExchangeRateRepo { return core.NewExchangeRateRepo() }
+
+func RateSnapshot(ctx context.Context, fn func(context.Context) error) error {
+	return core.RateSnapshot(ctx, fn)
 }

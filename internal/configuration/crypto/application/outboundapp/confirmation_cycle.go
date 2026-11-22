@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 )
 
 var ErrNativeFundingPending = outbound_repo.ErrNativeFundingPending

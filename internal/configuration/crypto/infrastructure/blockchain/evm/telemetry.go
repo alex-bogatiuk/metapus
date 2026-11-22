@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 var evmOperationalMetrics = newEVMOperationalMetrics()

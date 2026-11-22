@@ -3,7 +3,9 @@
 // movements and a recorder that writes them.
 package posting
 
-import core "metapus/internal/domain/posting"
+import (
+	core "metapus/internal/domain/posting"
+)
 
 type (
 	// Module installs registers into the posting engine
@@ -27,3 +29,25 @@ type (
 
 // NewEngine returns an engine without document locking, for tests.
 func NewEngine() *Engine { return core.NewEngine(nil) }
+
+// DocumentLocker locks a document while the engine posts it.
+type DocumentLocker = core.DocumentLocker
+
+// NewLockingEngine returns an engine that locks each document with
+// docLocker while it posts it and writes movements with recorders.
+func NewLockingEngine(docLocker DocumentLocker, recorders ...RegisterRecorder) *Engine {
+	return core.NewEngine(docLocker, recorders...)
+}
+
+type (
+	// LineCounter is an optional interface for Postable documents
+	// that can report their line count for pre-allocation hints.
+	LineCounter = core.LineCounter
+	// PostingResourceLocker runs before evidence validators, balances and old
+	// movement reversals. It locks a complete resource set, without writing money.
+	PostingResourceLocker = core.PostingResourceLocker
+	// UnpostGuard is an optional domain-level invariant for documents whose
+	// movements may only be corrected by a new compensating document. The engine
+	// checks it before opening a transaction or reversing any register movements.
+	UnpostGuard = core.UnpostGuard
+)

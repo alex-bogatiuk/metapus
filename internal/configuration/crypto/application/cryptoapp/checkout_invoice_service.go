@@ -7,8 +7,8 @@ import (
 	"metapus/internal/configuration/crypto/application/checkout"
 	"metapus/internal/configuration/crypto/domain/crypto/publicref"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
 )
 
 // CheckoutInvoiceService decorates CryptoInvoice creation with public checkout

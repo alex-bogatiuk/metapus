@@ -7,9 +7,9 @@ import (
 	"errors"
 	"testing"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 
 	"github.com/stretchr/testify/require"
 )

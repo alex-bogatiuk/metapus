@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/core/id"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/postgres/integration_repo"
 )
 
 type mockRPCTransport func(*http.Request) (*http.Response, error)
@@ -25,16 +25,16 @@ func TestRPCBindingPicksUpTenantChangesWithoutRestart(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, db := fixtureDB(t)
 	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
-	var accounts []*model.Account
+	var accounts []*integrations.Account
 	for _, code := range []string{"A", "B"} {
-		a := model.NewAccount(code, code)
+		a := integrations.NewAccount(code, code)
 		a.Provider = cryptointegrations.Alchemy
-		a.PendingCredentials = &model.Credentials{Keys: []model.NamedKey{{Name: "default", Value: "key-" + code}}}
+		a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "default", Value: "key-" + code}}}
 		require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 		require.NoError(t, ar.Create(ctx, a))
 		accounts = append(accounts, a)
 	}
-	pool := model.NewPool("ALCHEMY", "Alchemy")
+	pool := integrations.NewPool("ALCHEMY", "Alchemy")
 	pool.Provider = cryptointegrations.Alchemy
 	pool.AccountIDs = []id.ID{accounts[0].ID, accounts[1].ID}
 	require.NoError(t, pr.Create(ctx, pool))
@@ -73,7 +73,7 @@ func TestRPCBindingPicksUpTenantChangesWithoutRestart(t *testing.T) {
 	read(worker)
 	read(monitor)
 	require.Equal(t, "/v2/key-B", observed[len(observed)-1])
-	accounts[1].PendingCredentials = &model.Credentials{Keys: []model.NamedKey{{Name: "default", Value: "replacement-B"}}}
+	accounts[1].PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "default", Value: "replacement-B"}}}
 	require.NoError(t, ar.Prepare(ctx, accounts[1], appDefinition(accounts[1].Provider)))
 	require.NoError(t, ar.Update(ctx, accounts[1]))
 	now = now.Add(11 * time.Second)

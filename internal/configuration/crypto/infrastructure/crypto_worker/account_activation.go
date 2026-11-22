@@ -8,10 +8,10 @@ import (
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/workerjob"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/workerjob"
 )
 
 const _accountActivationPeriod = outboundapp.ActivationRetryPeriod

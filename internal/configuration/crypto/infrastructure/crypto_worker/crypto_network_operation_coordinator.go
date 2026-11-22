@@ -7,8 +7,8 @@ import (
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 // Compatibility facade used by runtime composition; application owns the transaction.

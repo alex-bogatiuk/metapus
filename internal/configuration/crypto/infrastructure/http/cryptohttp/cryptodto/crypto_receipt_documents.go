@@ -6,10 +6,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_custody_receipt"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/dto"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // The custody receipt and its manual attributions are system-owned documents:

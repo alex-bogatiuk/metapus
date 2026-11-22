@@ -10,9 +10,9 @@ import (
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 type ActivationWorkflowStore struct{}

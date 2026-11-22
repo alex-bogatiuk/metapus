@@ -3,8 +3,8 @@ package crypto
 import (
 	"testing"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )

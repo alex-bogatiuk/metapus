@@ -7,10 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
 )
 
 // MerchantPortal extracts merchant grants and per-merchant roles from the

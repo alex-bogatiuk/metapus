@@ -6,15 +6,15 @@ import (
 	"strconv"
 	"time"
 
-	"metapus/internal/application/readaccess"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/printing"
-	printadapter "metapus/internal/infrastructure/printing"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/metadata"
+	"metapus/pkg/sdk/printing"
+	"metapus/pkg/sdk/printing/render"
+	"metapus/pkg/sdk/readaccess"
+	"metapus/pkg/sdk/security"
+	"metapus/pkg/sdk/types"
 )
 
 const (
@@ -51,7 +51,7 @@ func buildCryptoInvoicePrintData(ctx context.Context, doc *crypto_invoice.Crypto
 			return _printHidden
 		}
 		if refs.hasTokenDecimals {
-			return printadapter.FormatRawUnits(value, refs.tokenDecimals) + suffix(refs.tokenSymbol)
+			return render.FormatRawUnits(value, refs.tokenDecimals) + suffix(refs.tokenSymbol)
 		}
 		// Without an authorized scale the exact raw units are shown as such.
 		return value.String() + " мин. ед." + suffix(refs.tokenSymbol)

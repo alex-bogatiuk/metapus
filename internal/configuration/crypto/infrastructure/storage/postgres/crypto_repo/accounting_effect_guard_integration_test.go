@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )

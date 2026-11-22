@@ -4,7 +4,7 @@ package portalapp
 import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 	"time"
 )
 

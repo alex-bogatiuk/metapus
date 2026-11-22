@@ -1,7 +1,7 @@
 package content
 
 import (
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 	"net/http"
 	"testing"
 
@@ -10,9 +10,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/metadata"
 )
 
 func TestCryptoSweepHTTPExposesReadRoutesAndRetry(t *testing.T) {

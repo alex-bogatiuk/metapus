@@ -10,7 +10,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/crypto/evm_vault_signer"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 func TestAMLReadinessRejectsCustodyOnlyPluginsForBothFamilies(t *testing.T) {

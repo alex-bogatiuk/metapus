@@ -19,12 +19,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 )
 
 // Proofs persists an independent transfer verification.
@@ -105,7 +105,7 @@ func Record(t testing.TB, ctx context.Context, deps Deps, transfer Transfer) (re
 	})
 	require.NoError(t, err)
 	event.VerificationID = &proofID
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 type adminRejectionFixture struct {

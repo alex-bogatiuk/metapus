@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/http/dto"
+	"metapus/pkg/sdk/postgres"
 )
 
 // CryptoNetworkOperationResponse is a wallet activation transaction and the

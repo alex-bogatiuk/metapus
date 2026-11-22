@@ -1,6 +1,6 @@
 package rpcconfig
 
-import "metapus/internal/core/apperror"
+import "metapus/pkg/sdk/apperror"
 
 // RPCNetworkSettings keeps read limits and notification policy in one versioned
 // administrative command. Zero numeric values select the documented defaults.

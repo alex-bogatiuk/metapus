@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
 )
 
 // Repository defines storage operations for platform cost movements.

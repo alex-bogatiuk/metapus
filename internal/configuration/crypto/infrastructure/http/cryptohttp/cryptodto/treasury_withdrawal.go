@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 // CreateTreasuryWithdrawalRequest is the request body for creating a treasury withdrawal.

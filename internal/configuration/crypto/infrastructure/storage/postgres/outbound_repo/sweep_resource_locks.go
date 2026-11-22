@@ -5,9 +5,9 @@ import (
 	"sort"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func lockSweepDraftResources(ctx context.Context, attempts []id.ID, candidate *crypto_sweep.CryptoSweep) error {

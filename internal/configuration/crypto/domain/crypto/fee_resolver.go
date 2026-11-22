@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // FeeScheduleRepository defines storage operations for fee schedule entries.

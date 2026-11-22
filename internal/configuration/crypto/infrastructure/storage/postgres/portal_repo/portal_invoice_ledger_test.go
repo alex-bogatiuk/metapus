@@ -2,7 +2,7 @@ package portal_repo
 
 import (
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 	"testing"
 	"time"
 )

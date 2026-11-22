@@ -21,8 +21,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations/providerpolicy"
+	"metapus/pkg/sdk/json"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

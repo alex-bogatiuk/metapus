@@ -1,10 +1,10 @@
 package crypto_resource_rental
 
 import (
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tx"
-	"metapus/internal/domain"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tx"
 )
 
 type Service struct {

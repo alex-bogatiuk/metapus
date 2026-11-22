@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // FundingEvidence runs before settlement, outside its financial transaction.

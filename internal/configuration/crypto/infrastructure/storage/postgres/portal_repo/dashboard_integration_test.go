@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 func TestPortalTransactionItemsIncludeExplorerURLTemplate(t *testing.T) {

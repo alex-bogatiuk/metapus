@@ -4,14 +4,14 @@ import (
 	"context"
 	"io"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	integrationhttp "metapus/internal/infrastructure/integrations"
+	"metapus/pkg/sdk/integrations/transport"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	model "metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 )
 
 type infuraAccounts struct {
@@ -19,7 +19,7 @@ type infuraAccounts struct {
 	retry time.Time
 }
 
-func (a *infuraAccounts) Report(ctx context.Context, s model.Selection, f model.Failure, retry time.Time) error {
+func (a *infuraAccounts) Report(ctx context.Context, s integrations.Selection, f integrations.Failure, retry time.Time) error {
 	a.retry = retry
 	return a.memoryAccounts.Report(ctx, s, f, retry)
 }
@@ -33,7 +33,7 @@ func TestInfuraAccountFailoverPreservesRPCAndDoesNotExposeKeys(t *testing.T) {
 			now := time.Date(2026, 10, 22, 23, 59, 55, 0, time.UTC)
 			var paths []string
 			payload := `{"jsonrpc":"2.0","id":37,"method":"eth_getBlockByNumber","params":["0xb46013",true]}`
-			tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Infura, Slot: "sepolia", Repository: repo, Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			tr := &transport.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Infura, Slot: "sepolia", Repository: repo, Now: func() time.Time { return now }, Base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				paths = append(paths, r.URL.Path)
 				body, err := io.ReadAll(r.Body)
 				require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestInfuraAccountFailoverPreservesRPCAndDoesNotExposeKeys(t *testing.T) {
 			require.Equal(t, []string{"/v3/" + strings.Repeat("a", 32), "/v3/" + strings.Repeat("b", 32)}, paths)
 			require.Equal(t, "/v3/", req.URL.Path)
 			if status == 402 {
-				require.Equal(t, []model.Failure{model.Throttled}, repo.reports)
+				require.Equal(t, []integrations.Failure{integrations.Throttled}, repo.reports)
 				require.Equal(t, time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC), repo.retry)
 			}
 		})
@@ -66,7 +66,7 @@ func TestInfuraRejectsWrongHostsCredentialURLsAndUnsafeKeys(t *testing.T) {
 	for _, target := range []string{"https://evil.test/v3/", "https://sepolia.infura.io.evil.test/v3/", "https://mainnet.infura.io/v3/", "https://sepolia.infura.io/v3/key", "https://sepolia.infura.io/v3/?", "http://sepolia.infura.io/v3/"} {
 		repo := fixture()
 		repo.selections[0].Key = strings.Repeat("a", 32)
-		tr := &integrationhttp.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Infura, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		tr := &transport.Transport{Profiles: Registry(), PoolID: repo.selections[0].PoolID, Provider: cryptointegrations.Infura, Repository: repo, Base: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			t.Fatal("unsafe target must not receive credentials")
 			return nil, nil
 		})}
@@ -77,6 +77,6 @@ func TestInfuraRejectsWrongHostsCredentialURLsAndUnsafeKeys(t *testing.T) {
 		require.NotContains(t, err.Error(), target)
 		require.NotContains(t, err.Error(), repo.selections[0].Key)
 	}
-	require.Equal(t, model.Throttled, classifyFor(cryptointegrations.Infura, 402, []byte(`{"error":{"code":402,"event":-33000}}`)))
-	require.Equal(t, model.Throttled, classifyFor(cryptointegrations.Infura, 429, nil))
+	require.Equal(t, integrations.Throttled, classifyFor(cryptointegrations.Infura, 402, []byte(`{"error":{"code":402,"event":-33000}}`)))
+	require.Equal(t, integrations.Throttled, classifyFor(cryptointegrations.Infura, 429, nil))
 }

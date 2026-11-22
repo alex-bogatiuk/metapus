@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tx"
-	"metapus/internal/domain/eventlog"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tx"
 )
 
 type RPCConfigurationService struct {

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func TestSigningBasisRejectsUntrustedIdentifiersBeforeDatabaseAccess(t *testing.T) {

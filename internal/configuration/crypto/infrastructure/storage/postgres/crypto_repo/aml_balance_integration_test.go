@@ -11,8 +11,8 @@ import (
 
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // amlAttributionSQL posts the attribution of a fixture payment to its

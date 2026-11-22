@@ -12,8 +12,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/posting"
 )
 
 // Registers holds the crypto register services backed by PostgreSQL.

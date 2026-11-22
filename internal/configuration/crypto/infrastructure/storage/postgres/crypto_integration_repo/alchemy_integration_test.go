@@ -14,8 +14,8 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/tron"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
 )
 
 func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func TestValidateResourceProviderCode(t *testing.T) {

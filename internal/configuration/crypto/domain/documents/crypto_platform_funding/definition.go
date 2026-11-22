@@ -1,6 +1,6 @@
 package crypto_platform_funding
 
-import "metapus/internal/core/entity"
+import "metapus/pkg/sdk/entity"
 
 const DocumentType = "CryptoPlatformFunding"
 

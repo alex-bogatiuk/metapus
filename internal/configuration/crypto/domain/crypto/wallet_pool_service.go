@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/eventlog"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 // WalletPoolAdminService owns all synchronous wallet-pool use cases. It keeps

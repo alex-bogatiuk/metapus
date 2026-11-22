@@ -14,13 +14,13 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // TreasuryWorkflowHandler exposes treasury withdrawal document workflow operations.

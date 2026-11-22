@@ -5,8 +5,8 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func (r *AMLRepository) ClaimAMLBatchSweepCandidate(ctx context.Context) (aml.BatchSweepRequest, bool, error) {

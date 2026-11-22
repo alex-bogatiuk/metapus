@@ -6,9 +6,9 @@ import (
 
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func (r *OutboundRepo) PrepareSweepMaintenance(ctx context.Context) (cryptoapp.SweepMaintenanceBatch, error) {

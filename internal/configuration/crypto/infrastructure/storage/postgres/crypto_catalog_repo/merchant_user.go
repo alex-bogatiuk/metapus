@@ -7,9 +7,9 @@ import (
 	"github.com/Masterminds/squirrel"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 const _merchantUserTable = "sys_merchant_users"

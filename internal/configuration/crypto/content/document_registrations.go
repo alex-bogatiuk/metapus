@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/application/command"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/application/portalapp"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
@@ -24,14 +23,15 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/domain"
-	"metapus/internal/domain/audit"
-	"metapus/internal/domain/printing"
-	"metapus/internal/domain/registers/exchange_rate"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/audit"
+	"metapus/pkg/sdk/command"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/metadata"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/printing"
+	"metapus/pkg/sdk/registers"
+	"metapus/pkg/sdk/registers/exchange_rate"
 )
 
 func init() {
@@ -635,7 +635,7 @@ func (r *WithdrawalRequestRegistration) RegisterRoutes(group *gin.RouterGroup, d
 		cryptoapp.NewWithdrawalApprovalService(repo, moneyMovementApprovals, approvals),
 		deps.StepUpChecker,
 		cryptoapp.NewWithdrawalRejectionService(repo, crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())),
-		portalapp.NewWithdrawalValuationService(repo, exchange_rate.NewService(register_repo.NewExchangeRateRepo())),
+		portalapp.NewWithdrawalValuationService(repo, exchange_rate.NewService(registers.NewExchangeRateRepo())),
 		deps.MovementProviders,
 		deps.MovementRefResolver,
 	)

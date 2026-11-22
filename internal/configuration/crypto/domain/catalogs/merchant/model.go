@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
 )
 
 // KYBStatus represents the Know-Your-Business verification state.

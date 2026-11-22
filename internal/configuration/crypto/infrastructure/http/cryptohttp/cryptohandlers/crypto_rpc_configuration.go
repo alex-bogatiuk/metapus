@@ -9,12 +9,12 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/security"
 )
 
 type CryptoRPCConfigurationHandler struct {

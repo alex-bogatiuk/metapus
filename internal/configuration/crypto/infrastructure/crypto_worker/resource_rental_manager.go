@@ -9,10 +9,10 @@ import (
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/platform/secretfile"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/secretfile"
+	"metapus/pkg/sdk/types"
 )
 
 const (
@@ -116,7 +116,7 @@ func decryptProviderCredentials(enc []byte) ([]byte, error) {
 	if len(keyStr) != 32 {
 		return nil, fmt.Errorf("encryption key must be 32 bytes, got %d", len(keyStr))
 	}
-	return corecrypto.Decrypt(enc, []byte(keyStr))
+	return encryption.Decrypt(enc, []byte(keyStr))
 }
 
 type resourceProviderCircuit struct {

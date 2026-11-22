@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func (r *OutboundRepo) applyExactAuthorizationRenewal(ctx context.Context, record SigningAuthorizationRecord) (SigningAuthorizationRecord, error) {

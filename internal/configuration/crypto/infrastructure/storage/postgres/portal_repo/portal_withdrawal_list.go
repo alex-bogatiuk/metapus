@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"metapus/internal/infrastructure/readpolicy"
+	"metapus/pkg/sdk/readpolicy"
 	"slices"
 	"strings"
 
@@ -13,14 +13,14 @@ import (
 
 	"metapus/internal/configuration/crypto/application/portalapp"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/domain/cursor"
-	domainfilter "metapus/internal/domain/filter"
-	"metapus/internal/infrastructure/storage/postgres"
-	pgfilter "metapus/internal/infrastructure/storage/postgres/filter"
-	"metapus/internal/infrastructure/storage/postgres/keyset"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/cursor"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/filter"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	pgfilter "metapus/pkg/sdk/postgres/filter"
+	"metapus/pkg/sdk/postgres/keyset"
 )
 
 const adminWithdrawalColumns = `
@@ -101,7 +101,7 @@ func (r *DashboardRepo) ListAdminWithdrawalRequestsPage(ctx context.Context, f d
 	if f.DataScope != nil {
 		conditions = append(conditions, readpolicy.ApplyConditions(f.DataScope, "withdrawal_request", map[string]string{"merchant": "wr.merchant_id"})...)
 	}
-	search, advanced := domainfilter.ExtractSearchQuery(f.AdvancedFilters)
+	search, advanced := filter.ExtractSearchQuery(f.AdvancedFilters)
 	if strings.TrimSpace(f.Search) != "" {
 		search = f.Search
 	}
@@ -116,7 +116,7 @@ func (r *DashboardRepo) ListAdminWithdrawalRequestsPage(ctx context.Context, f d
 		if !ok {
 			return result, apperror.NewValidation("invalid withdrawal request filter").WithDetail("field", item.Field)
 		}
-		resolved, err := domainfilter.Resolve(item, field)
+		resolved, err := filter.Resolve(item, field)
 		if err != nil {
 			return result, apperror.NewValidation("invalid withdrawal request filter").WithCause(err)
 		}

@@ -10,8 +10,8 @@ import (
 	chainfunding "metapus/internal/configuration/crypto/infrastructure/blockchain/funding"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/tron"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 	"strings"
 )
 

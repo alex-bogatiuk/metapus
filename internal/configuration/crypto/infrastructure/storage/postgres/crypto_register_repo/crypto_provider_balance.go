@@ -8,8 +8,8 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers"
 )
 
 const _cryptoProviderBalanceMovementsTable = "reg_crypto_provider_balance_movements"
@@ -25,11 +25,11 @@ func cryptoProviderBalanceMovementRowMapper(m crypto_provider_balance.CryptoProv
 }
 
 type CryptoProviderBalanceRepo struct {
-	register_repo.BaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement]
+	registers.BaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement]
 }
 
 func NewCryptoProviderBalanceRepo() *CryptoProviderBalanceRepo {
-	return &CryptoProviderBalanceRepo{BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement](
+	return &CryptoProviderBalanceRepo{BaseAccumulationRepo: registers.NewBaseAccumulationRepo[crypto_provider_balance.CryptoProviderBalanceMovement](
 		_cryptoProviderBalanceMovementsTable, _cryptoProviderBalanceMovementColumns, cryptoProviderBalanceMovementRowMapper,
 	)}
 }

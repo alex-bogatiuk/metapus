@@ -6,8 +6,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // ReadAMLConfiguration finishes its read-only snapshot before any Vault calls.

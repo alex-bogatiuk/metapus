@@ -7,9 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
 )
 
 func TestRPCConfigurationHTTPPermissionAndStepUpBoundaries(t *testing.T) {

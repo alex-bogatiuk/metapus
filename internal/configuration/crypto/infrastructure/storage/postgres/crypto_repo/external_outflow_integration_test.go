@@ -22,12 +22,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 func TestExternalOutflowCreatesOneIncidentAndFailClosedHolds(t *testing.T) {
@@ -225,7 +225,7 @@ func TestConcurrentExternalOutflowWorkflowCreatesOneAdjustmentAndSelectiveResolu
 
 			workflowRepo := NewExternalOutflowWorkflowRepo()
 			holds := cryptoapp.NewOperationalHoldService(txm, NewOperationalHoldRepo())
-			postingEngine := posting.NewEngine(postgres.NewDocLocker())
+			postingEngine := posting.NewLockingEngine(postgres.NewDocLocker())
 			postingEngine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 			postingEngine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 			postingEngine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

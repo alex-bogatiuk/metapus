@@ -4,12 +4,12 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/platform/secretfile"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/dto"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/secretfile"
 )
 
 type CreateCryptoProviderAccountRequest struct {
@@ -51,7 +51,7 @@ func (r CreateCryptoProviderAccountRequest) ToEntity() *crypto_provider_account.
 		}
 		if payload, err := json.Marshal(creds); err == nil {
 			if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-				if enc, err := corecrypto.Encrypt(payload, key); err == nil {
+				if enc, err := encryption.Encrypt(payload, key); err == nil {
 					account.CredentialsEnc = enc
 					now := time.Now()
 					account.CredentialsUpdatedAt = &now
@@ -79,7 +79,7 @@ func (r UpdateCryptoProviderAccountRequest) ApplyTo(account *crypto_provider_acc
 		creds := crypto_provider_account.ProviderCredentials{}
 		if len(account.CredentialsEnc) > 0 {
 			if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-				if dec, err := corecrypto.Decrypt(account.CredentialsEnc, key); err == nil {
+				if dec, err := encryption.Decrypt(account.CredentialsEnc, key); err == nil {
 					_ = json.Unmarshal(dec, &creds)
 				}
 			}
@@ -99,7 +99,7 @@ func (r UpdateCryptoProviderAccountRequest) ApplyTo(account *crypto_provider_acc
 
 		if payload, err := json.Marshal(creds); err == nil {
 			if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-				if enc, err := corecrypto.Encrypt(payload, key); err == nil {
+				if enc, err := encryption.Encrypt(payload, key); err == nil {
 					account.CredentialsEnc = enc
 					account.CredentialsVersion++
 					now := time.Now()
@@ -151,7 +151,7 @@ func FromCryptoProviderAccount(account *crypto_provider_account.CryptoProviderAc
 	if len(account.CredentialsEnc) > 0 {
 		resp.HasCredentials = true
 		if key, err := getCredentialsEncryptionKey(); err == nil && len(key) == 32 {
-			if dec, err := corecrypto.Decrypt(account.CredentialsEnc, key); err == nil {
+			if dec, err := encryption.Decrypt(account.CredentialsEnc, key); err == nil {
 				var creds crypto_provider_account.ProviderCredentials
 				if json.Unmarshal(dec, &creds) == nil {
 					resp.MaskedAPIKey = creds.MaskedKey()

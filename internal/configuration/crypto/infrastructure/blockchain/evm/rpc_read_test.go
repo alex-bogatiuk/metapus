@@ -16,8 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/json"
 )
 
 // PublicNode's failure mode: valid fast headers and a started full-block

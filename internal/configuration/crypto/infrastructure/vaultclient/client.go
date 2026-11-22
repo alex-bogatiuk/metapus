@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 // HTTPError preserves the Vault response status so callers can make narrow,

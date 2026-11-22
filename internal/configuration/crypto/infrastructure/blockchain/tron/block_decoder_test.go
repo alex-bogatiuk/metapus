@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations/providerpolicy"
+	"metapus/pkg/sdk/json"
 )
 
 const testFromHex = "411111111111111111111111111111111111111111"

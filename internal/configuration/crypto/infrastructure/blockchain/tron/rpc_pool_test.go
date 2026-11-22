@@ -15,7 +15,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 func TestRPCPoolReadFailsOverOnTransientAndStopsOnDeterministicError(t *testing.T) {

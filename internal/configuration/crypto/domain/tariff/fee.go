@@ -2,7 +2,7 @@
 // credits a merchant: invoice payments and manual merchant credits.
 package tariff
 
-import "metapus/internal/core/types"
+import "metapus/pkg/sdk/types"
 
 // Fee is a processing tariff in token minor units:
 // clamp(Fixed + gross × PercentBP / 10000, Min, Max). A zero Min or Max means

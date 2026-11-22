@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )

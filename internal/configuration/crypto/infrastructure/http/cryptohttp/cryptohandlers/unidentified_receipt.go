@@ -6,13 +6,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/application/command"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/command"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
 )
 
 // UnidentifiedReceiptHandler serves the journal of unidentified custody

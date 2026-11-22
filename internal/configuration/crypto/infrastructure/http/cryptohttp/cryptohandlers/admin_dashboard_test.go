@@ -3,8 +3,8 @@ package cryptohandlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/http/middleware"
 	"net/http"
 	"net/http/httptest"
 	"testing"

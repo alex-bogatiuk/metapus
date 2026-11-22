@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 )
 
 // LoadIngestionAlertSettings reads one tenant snapshot on each monitor tick.

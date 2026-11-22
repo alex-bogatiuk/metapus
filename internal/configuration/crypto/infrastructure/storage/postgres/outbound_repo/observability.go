@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 )
 
 type FeeBudgetObserver interface {

@@ -2,8 +2,8 @@ package crypto_document_repo
 
 import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_custody_receipt"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/document_repo"
 )
 
 type CryptoCustodyReceiptRepo struct {

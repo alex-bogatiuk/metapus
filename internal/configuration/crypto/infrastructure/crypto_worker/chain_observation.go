@@ -15,8 +15,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/json"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/telemetry"
 )
 
 const _observationPollPeriod = time.Second
@@ -72,8 +72,8 @@ func (p *CryptoProcessor) processChainObservations(ctx context.Context) error {
 }
 
 func (p *CryptoProcessor) processClaimedChainObservation(ctx context.Context, repo *crypto_repo.ChainObservationRepo, observation crypto_repo.ChainObservation) error {
-	workCtx := platformtelemetry.ContinueTrace(ctx, observation.Traceparent)
-	workCtx = platformtelemetry.WithBusinessContext(workCtx, observation.CorrelationID, observation.CausationID)
+	workCtx := telemetry.ContinueTrace(ctx, observation.Traceparent)
+	workCtx = telemetry.WithBusinessContext(workCtx, observation.CorrelationID, observation.CausationID)
 	workCtx, span := otel.Tracer("metapus/crypto/observation").Start(workCtx, "chain.observation.process",
 		oteltrace.WithSpanKind(oteltrace.SpanKindConsumer), oteltrace.WithAttributes(
 			attribute.String("chain.observation_id", observation.ID.String()),

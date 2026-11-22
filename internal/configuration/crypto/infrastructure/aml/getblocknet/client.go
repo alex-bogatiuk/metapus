@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 const (

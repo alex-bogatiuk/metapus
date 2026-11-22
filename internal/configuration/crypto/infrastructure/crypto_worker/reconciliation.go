@@ -11,8 +11,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 const _reconciliationRequestPoll = 5 * time.Second

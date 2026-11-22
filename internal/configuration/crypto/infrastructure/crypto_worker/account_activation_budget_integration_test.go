@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 func TestIntegrationAccountActivationBudgetReservationUsesLedgerAndConcurrency(t *testing.T) {

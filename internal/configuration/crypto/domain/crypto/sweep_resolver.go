@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // MerchantTokenConfigRepository defines storage for merchant token config overrides.

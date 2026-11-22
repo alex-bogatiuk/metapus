@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tx"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tx"
 )
 
 var ErrWithdrawalMayHaveExternalEffect = errors.New("withdrawal requires recovery: an authorization may have an external effect")

@@ -5,25 +5,25 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	er "metapus/internal/domain/registers/exchange_rate"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers/exchange_rate"
+	"metapus/pkg/sdk/types"
 )
 
 type ValuationService struct {
 	balances crypto.BalanceQueryRepo
-	rates    *er.Service
-	snapshot er.Snapshot
+	rates    *exchange_rate.Service
+	snapshot exchange_rate.Snapshot
 }
 
-func NewValuationService(balances crypto.BalanceQueryRepo, rates *er.Service, snapshot er.Snapshot) *ValuationService {
+func NewValuationService(balances crypto.BalanceQueryRepo, rates *exchange_rate.Service, snapshot exchange_rate.Snapshot) *ValuationService {
 	return &ValuationService{balances: balances, rates: rates, snapshot: snapshot}
 }
 func (s *ValuationService) Calculate(ctx context.Context, merchants []id.ID) (crypto.MerchantBalance, error) {
-	var cfg er.Configuration
+	var cfg exchange_rate.Configuration
 	var rows []crypto.BalanceRow
 	var pending map[string]types.RawAmount
-	var rates map[id.ID]er.Resolution
+	var rates map[id.ID]exchange_rate.Resolution
 	var at time.Time
 	err := s.snapshot(ctx, func(ctx context.Context) error {
 		at = time.Now().UTC()

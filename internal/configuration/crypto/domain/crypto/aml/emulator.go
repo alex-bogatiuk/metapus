@@ -1,8 +1,8 @@
 package aml
 
 import (
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 const TestnetProvider = "testnet_aml"

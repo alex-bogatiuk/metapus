@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func (r *OutboundRepo) InsertSigningAuthorization(ctx context.Context, auth crypto.SigningAuthorization, jws string, unsigned crypto.UnsignedTxEnvelope, bundle ...crypto.ApprovalBundle) (id.ID, error) {

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/eventlog"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 type NetworkPolicyAdminService struct {

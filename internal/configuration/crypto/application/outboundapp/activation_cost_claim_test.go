@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 type costRepairStoreStub struct {

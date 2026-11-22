@@ -8,7 +8,7 @@ import (
 
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 
 	"github.com/stretchr/testify/require"
 )

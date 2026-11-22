@@ -8,12 +8,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/configuration"
-	appCrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/platform/secretfile"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/secretfile"
 )
 
 // Seed adds the crypto demo data after the platform's: crypto currencies and
@@ -403,7 +403,7 @@ func seedAutomationData(ctx context.Context, pool *postgres.Pool, log *logger.Lo
 	accountName := "Metapus TG Bot"
 
 	// Encrypt bot token
-	credEnc, err := appCrypto.Encrypt([]byte(botToken), []byte(encKey))
+	credEnc, err := encryption.Encrypt([]byte(botToken), []byte(encKey))
 	if err != nil {
 		return fmt.Errorf("encrypt bot token: %w", err)
 	}

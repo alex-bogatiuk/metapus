@@ -6,8 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 // ReferenceRepository updates merchant reconciliation data independently of

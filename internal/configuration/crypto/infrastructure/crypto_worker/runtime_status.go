@@ -6,7 +6,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 const networkRuntimeStatusPeriod = 30 * time.Second

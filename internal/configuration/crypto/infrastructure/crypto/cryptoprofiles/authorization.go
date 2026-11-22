@@ -4,17 +4,17 @@ import (
 	"errors"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations/profiles"
 	"net/http"
 	"strings"
 
-	model "metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 )
 
 // tronHeader is TronGrid's API key header, cleared before any profile authorizes.
 const tronHeader = "TRON-PRO-API-KEY"
 
-func pathSuffix(provider model.Provider, format model.CredentialKeyFormat) func(*http.Request, string) error {
+func pathSuffix(provider integrations.Provider, format integrations.CredentialKeyFormat) func(*http.Request, string) error {
 	return func(r *http.Request, key string) error {
 		if _, ok := rpcconfig.RPCProfileForURL(provider, r.URL.String()); !ok || key == "" || !format.Valid(key) || strings.ContainsAny(key, "/?#%") {
 			return errors.New("invalid " + providerLabel(provider) + " HTTP binding or key")
@@ -26,12 +26,12 @@ func pathSuffix(provider model.Provider, format model.CredentialKeyFormat) func(
 	}
 }
 
-func pathPrefix(provider model.Provider) func(*http.Request, string) error {
+func pathPrefix(provider integrations.Provider) func(*http.Request, string) error {
 	return func(r *http.Request, key string) error {
 		profile, ok := rpcconfig.RPCProfileForURL(provider, r.URL.Scheme+"://"+r.URL.Host)
 		tronPath := profile.Family == "tron" && (strings.HasPrefix(r.URL.Path, "/wallet/") || strings.HasPrefix(r.URL.Path, "/walletsolidity/"))
 		evmPath := profile.Family == "evm" && (r.URL.Path == "" || r.URL.Path == "/")
-		if !ok || !model.CredentialURLSafe.Valid(key) || (!tronPath && !evmPath) || r.URL.RawPath != "" || r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.User != nil || r.URL.Fragment != "" {
+		if !ok || !integrations.CredentialURLSafe.Valid(key) || (!tronPath && !evmPath) || r.URL.RawPath != "" || r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.User != nil || r.URL.Fragment != "" {
 			return errors.New("invalid " + providerLabel(provider) + " HTTP binding or token")
 		}
 		profiles.ClearAuthorization(r, tronHeader)
@@ -44,7 +44,7 @@ func pathPrefix(provider model.Provider) func(*http.Request, string) error {
 	}
 }
 
-func providerLabel(provider model.Provider) string {
+func providerLabel(provider integrations.Provider) string {
 	d, ok := cryptointegrations.Catalog().Definition(provider)
 	if ok {
 		return d.Label
@@ -54,7 +54,7 @@ func providerLabel(provider model.Provider) string {
 
 // chainPathKey inserts a project key after a registered EVM or native TRON base.
 // Only TRON accepts a node role and a single method after the base.
-func chainPathKey(provider model.Provider, format model.CredentialKeyFormat) func(*http.Request, string) error {
+func chainPathKey(provider integrations.Provider, format integrations.CredentialKeyFormat) func(*http.Request, string) error {
 	return func(r *http.Request, key string) error {
 		invalid := func() error { return errors.New("invalid " + providerLabel(provider) + " HTTP binding or key") }
 		if r.URL.RawPath != "" || key == "" || !format.Valid(key) || strings.ContainsAny(key, "/\\?#%\r\n\t ") {

@@ -22,15 +22,15 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/domain"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/migration"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -117,7 +117,7 @@ func (f fundingFixture) record() (Result, error) {
 }
 
 func (f fundingFixture) receipt() error {
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

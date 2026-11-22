@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/tenant"
 )
 
 func accountWithKeys(code string, provider integrations.Provider, keys ...integrations.NamedKey) *integrations.Account {

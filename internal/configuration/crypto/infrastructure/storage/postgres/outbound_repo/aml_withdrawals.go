@@ -7,8 +7,8 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func (r *OutboundRepo) ClaimAMLWithdrawalLines(ctx context.Context, limit int) ([]WithdrawalTask, error) {

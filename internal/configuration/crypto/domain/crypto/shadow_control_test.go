@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 type shadowControlRepoStub struct {

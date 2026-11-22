@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 type AMLCheckpointResolver func(id.ID) (crypto.EmptyCheckpointReader, error)

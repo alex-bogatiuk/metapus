@@ -1,8 +1,8 @@
 package crypto_provider_balance_operation
 
 import (
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 type DecisionMode string

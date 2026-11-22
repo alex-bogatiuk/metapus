@@ -14,10 +14,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
-	integrationhttp "metapus/internal/infrastructure/integrations"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/transport"
+	"metapus/pkg/sdk/postgres/integration_repo"
 )
 
 func TestAnkrFreemiumSepoliaPoolProbe(t *testing.T) {
@@ -52,7 +52,7 @@ func TestAnkrFreemiumSepoliaPoolProbe(t *testing.T) {
 
 	reply := `{"jsonrpc":"2.0","id":1,"result":"0xaa36a7"}`
 	headers := http.Header{}
-	prober := integrationhttp.ConnectionProber{
+	prober := transport.ConnectionProber{
 		Profiles: cryptoprofiles.Registry(), EndpointProbe: RPCProbe, EndpointTransport: RPCTransport,
 		Base: mockRPCTransport(func(r *http.Request) (*http.Response, error) {
 			require.Equal(t, base+"/"+key, r.URL.String())

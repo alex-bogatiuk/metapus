@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/command"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	pbo "metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
@@ -20,12 +19,13 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/command"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 )
 
 type providerTestStepUp struct{ denied atomic.Bool }
@@ -62,7 +62,7 @@ func withProviderOpening(t *testing.T, fn func(providerOpeningFixture)) {
 }
 
 func (f providerOpeningFixture) newService(commands command.Repository) *cryptoapp.ProviderBalanceWorkflowService {
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoProviderBalanceVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoProviderBalanceRecorder(crypto_provider_balance.NewService(crypto_register_repo.NewCryptoProviderBalanceRepo())))
 	return cryptoapp.NewProviderBalanceWorkflowService(crypto_document_repo.NewCryptoProviderBalanceOperationRepo(), crypto_repo.NewProviderBalanceWorkflowRepo(),

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 const SigningAuthorizationTTL = 10 * time.Minute

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
 )
 
 // WalletStatus defines the availability state of a wallet.

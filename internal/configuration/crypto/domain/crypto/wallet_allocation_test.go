@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func TestWalletAllocationCovers(t *testing.T) {

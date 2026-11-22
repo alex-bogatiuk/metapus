@@ -8,7 +8,7 @@ import (
 
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/postgres"
 
 	"github.com/stretchr/testify/require"
 )

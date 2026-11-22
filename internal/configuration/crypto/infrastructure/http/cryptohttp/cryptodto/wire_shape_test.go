@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/jsoncodec"
+	"metapus/pkg/sdk/http/jsoncodec"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 func TestWebhookTestResultPreservesOmittedNullAndZero(t *testing.T) {

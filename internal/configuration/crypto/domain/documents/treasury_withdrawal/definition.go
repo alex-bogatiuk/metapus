@@ -1,6 +1,6 @@
 package treasury_withdrawal
 
-import "metapus/internal/core/entity"
+import "metapus/pkg/sdk/entity"
 
 var Definition = entity.Definition{
 	Key:   "treasury_withdrawal",

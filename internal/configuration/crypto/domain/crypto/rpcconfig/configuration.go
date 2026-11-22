@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 const MaxRPCConfigurationEndpoints = 256

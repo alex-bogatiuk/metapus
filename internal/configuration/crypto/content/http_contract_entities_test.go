@@ -1,19 +1,19 @@
 package content_test
 
 import (
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/content"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/numerator"
-	"metapus/internal/domain/posting"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/posting"
 )
 
 // No command is executed. These non-nil ports permit building all production
@@ -26,7 +26,7 @@ type routeSigners struct {
 func TestEveryBuiltInEntityDerivesIdentityAndConcreteRoutesFromItsDefinition(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	factories := configuration.Compose(content.Crypto(content.Services{MoneyMovementSigners: routeSigners{}}))
-	deps := v1.DocumentDeps{BaseHandler: handlers.NewBaseHandler(), Numerator: numerator.Noop(), PostingEngine: posting.NewEngine(nil), StepUpChecker: routeStepUp{}, StepUpGuard: func(string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }}
+	deps := v1.DocumentDeps{BaseHandler: handlers.NewBaseHandler(), Numerator: numerator.Noop(), PostingEngine: posting.NewEngine(), StepUpChecker: routeStepUp{}, StepUpGuard: func(string) gin.HandlerFunc { return func(c *gin.Context) { c.Next() } }}
 	identities := map[string]bool{}
 	checkIdentity := func(reg entity.DefinitionProvider) {
 		def := reg.EntityDefinition()

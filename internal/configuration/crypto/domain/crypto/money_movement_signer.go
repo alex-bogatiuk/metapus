@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 type MoneyMovementApprovalArtifacts struct {

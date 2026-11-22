@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tx"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tx"
 )
 
 const balanceIncidentOwner = "reconciliation_incident"

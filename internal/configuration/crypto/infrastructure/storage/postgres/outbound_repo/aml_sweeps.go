@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func (r *OutboundRepo) CancelSweepAttemptAllocation(ctx context.Context, sweepAttemptID id.ID, reason, actor string) error {

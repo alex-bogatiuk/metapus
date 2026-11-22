@@ -1,6 +1,6 @@
 package wallet
 
-import "metapus/internal/core/entity"
+import "metapus/pkg/sdk/entity"
 
 var Definition = entity.Definition{
 	Key:   "wallet",

@@ -6,7 +6,7 @@ import (
 
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // This adapter exposes public account metadata and an opaque connection bound

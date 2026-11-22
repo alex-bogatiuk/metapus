@@ -14,7 +14,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
 	"metapus/internal/configuration/crypto/infrastructure/crypto_worker"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 const historyFileBytes = 8 << 20

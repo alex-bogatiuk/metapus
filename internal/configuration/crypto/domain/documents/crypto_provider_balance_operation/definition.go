@@ -1,6 +1,6 @@
 package crypto_provider_balance_operation
 
-import "metapus/internal/core/entity"
+import "metapus/pkg/sdk/entity"
 
 var Definition = entity.Definition{
 	Key:    "crypto_provider_balance_operation",

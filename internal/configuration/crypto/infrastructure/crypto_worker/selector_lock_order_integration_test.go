@@ -16,10 +16,10 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -163,7 +163,7 @@ func TestActivationFinalizationLocksTargetBeforeWorkflowRow(t *testing.T) {
 			require.NoError(t, err)
 			_, err = q.Exec(f.ctx, `INSERT INTO reg_crypto_account_activations(id,wallet_id,network_id,status) VALUES($1,$2,$3,'signing')`, f.reservation.BasisID, target, f.reservation.NetworkID)
 			require.NoError(t, err)
-			engine := posting.NewEngine(postgres.NewDocLocker())
+			engine := posting.NewLockingEngine(postgres.NewDocLocker())
 			engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 			engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 			engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

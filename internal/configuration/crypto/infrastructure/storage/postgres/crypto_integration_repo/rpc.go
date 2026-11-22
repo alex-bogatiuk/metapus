@@ -18,14 +18,14 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	model "metapus/internal/domain/integrations"
-	integrationhttp "metapus/internal/infrastructure/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/providerpolicy"
+	"metapus/pkg/sdk/integrations/transport"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/integration_repo"
+	"metapus/pkg/sdk/tenant"
 )
 
 // LoadRPCNetwork overrides file topology only when the tenant explicitly selects database mode.
@@ -82,9 +82,9 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 			base = safe
 		}
 		var mu sync.Mutex
-		var cached integrationhttp.Binding
+		var cached transport.Binding
 		var checked time.Time
-		load := func(ctx context.Context) (integrationhttp.Binding, error) {
+		load := func(ctx context.Context) (transport.Binding, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			if now().Sub(checked) < 10*time.Second {
@@ -92,8 +92,8 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 			}
 			q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 			var pool *id.ID
-			var provider *model.Provider
-			var b integrationhttp.Binding
+			var provider *integrations.Provider
+			var b transport.Binding
 			err := q.QueryRow(ctx, `SELECT e.url,e.pool_id,p.provider,e.credential_slot,e.min_request_interval_ms FROM sys_crypto_rpc_endpoints e LEFT JOIN cat_integration_pools p ON p.id=e.pool_id WHERE e.id=$1 AND e.is_active AND NOT e.deletion_mark AND e._deleted_at IS NULL`, uid).Scan(&b.URL, &pool, &provider, &b.Slot, &b.MinRequestIntervalMS)
 			if err != nil {
 				return b, fmt.Errorf("RPC endpoint unavailable")
@@ -120,7 +120,7 @@ func rpcTransportAt(uid id.ID, originalURL string, now func() time.Time) func(ht
 		}
 		runtime := integration_repo.NewRuntime(cryptointegrations.Catalog())
 		runtime.Now = now
-		return &integrationhttp.Transport{Base: base, Repository: runtime, Profiles: cryptoprofiles.Registry(), CursorPin: cryptoprofiles.TronGridCursor(), Target: load, OriginalURL: originalURL, Now: now, Operation: RPCOperation}
+		return &transport.Transport{Base: base, Repository: runtime, Profiles: cryptoprofiles.Registry(), CursorPin: cryptoprofiles.TronGridCursor(), Target: load, OriginalURL: originalURL, Now: now, Operation: RPCOperation}
 	}
 }
 
@@ -153,12 +153,12 @@ func (r ConnectionTargets) ConnectionEndpoint(ctx context.Context, poolID id.ID)
 	return &endpoint, nil
 }
 
-func (r ConnectionTargets) ConnectionTarget(ctx context.Context, poolID id.ID) (model.ConnectionTarget, error) {
+func (r ConnectionTargets) ConnectionTarget(ctx context.Context, poolID id.ID) (integrations.ConnectionTarget, error) {
 	pool, err := NewIntegrationPoolRepo().GetByID(ctx, poolID)
 	if err != nil {
-		return model.ConnectionTarget{}, err
+		return integrations.ConnectionTarget{}, err
 	}
-	out := model.ConnectionTarget{PoolID: poolID, Provider: pool.Provider}
+	out := integrations.ConnectionTarget{PoolID: poolID, Provider: pool.Provider}
 	if !cryptointegrations.Catalog().Supports(pool.Provider, cryptointegrations.KindRPC) {
 		return out, nil
 	}

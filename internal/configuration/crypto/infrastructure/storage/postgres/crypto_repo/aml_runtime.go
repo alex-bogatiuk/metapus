@@ -6,12 +6,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/apperror"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 func (r *AMLRepository) LoadAMLRuntimeConfig(ctx context.Context, job aml.Job) (aml.RuntimeConfig, error) {
@@ -43,7 +43,7 @@ func (r *AMLRepository) LoadAMLRuntimeConfig(ctx context.Context, job aml.Job) (
 	if err != nil {
 		return cfg, err
 	}
-	raw, err := corecrypto.Decrypt(encrypted, key)
+	raw, err := encryption.Decrypt(encrypted, key)
 	if err != nil {
 		return cfg, apperror.NewInternal(fmt.Errorf("decrypt AML account credentials"))
 	}

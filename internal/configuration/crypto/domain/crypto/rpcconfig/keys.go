@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
 )
 
 // An RPC endpoint reads one named key from whichever pool account is selected,

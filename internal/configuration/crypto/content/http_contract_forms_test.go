@@ -1,20 +1,19 @@
 package content_test
 
 import (
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"metapus/extensions"
 	"metapus/internal/configuration/crypto/content"
-	"metapus/internal/infrastructure/http/contracts"
-	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/pkg/sdk/contracts"
+	"metapus/pkg/sdk/http/v1"
 )
 
 func TestEveryBuiltInFactoryHasConcreteFormContracts(t *testing.T) {
 	factories := configuration.Compose(content.Crypto(content.Services{}))
 	routes := map[string]contracts.RouteContract{}
-	for _, route := range contracts.Routes(configuration.HTTPContractBundles(content.Crypto(content.Services{}), extensions.Register)...) {
+	for _, route := range contracts.Routes(configuration.HTTPContractBundles(content.Crypto(content.Services{}), configuration.Extensions)...) {
 		routes[route.Scope+" "+route.Method+" "+route.Path] = route
 	}
 	check := func(prefix string, canCreate, canUpdate bool) {

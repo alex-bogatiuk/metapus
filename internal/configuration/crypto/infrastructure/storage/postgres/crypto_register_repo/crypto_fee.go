@@ -10,8 +10,8 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers"
 )
 
 const (
@@ -36,13 +36,13 @@ func cryptoFeeMovementRowMapper(m crypto_fee.CryptoFeeMovement) []any {
 
 // CryptoFeeRepo implements crypto_fee.Repository.
 type CryptoFeeRepo struct {
-	register_repo.BaseAccumulationRepo[crypto_fee.CryptoFeeMovement]
+	registers.BaseAccumulationRepo[crypto_fee.CryptoFeeMovement]
 }
 
 // NewCryptoFeeRepo creates a new crypto fee register repository.
 func NewCryptoFeeRepo() *CryptoFeeRepo {
 	return &CryptoFeeRepo{
-		BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo[crypto_fee.CryptoFeeMovement](
+		BaseAccumulationRepo: registers.NewBaseAccumulationRepo[crypto_fee.CryptoFeeMovement](
 			_cryptoFeeMovementsTable,
 			_cryptoFeeMovementColumns,
 			cryptoFeeMovementRowMapper,

@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 func TestProcessorLoadsAllTokenContractsAndRefreshesNewWallets(t *testing.T) {

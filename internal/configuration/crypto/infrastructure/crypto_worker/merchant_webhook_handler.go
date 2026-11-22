@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/workerjob"
 )
 
 // MerchantWebhookHandler delivers durable lifecycle events emitted by the
@@ -141,14 +141,14 @@ func (h *MerchantWebhookHandler) DeliverJob(ctx context.Context, job crypto.Webh
 			previousSecret, secretErr = h.secrets.Get(workCtx, job.PreviousSecretRef)
 		}
 		if secretErr == nil {
-			business := platformtelemetry.BusinessIDs(workCtx, event.ID)
+			business := telemetry.BusinessIDs(workCtx, event.ID)
 			delivery, dispatchErr = h.dispatcher.Dispatch(workCtx, h.deliveryRepo, crypto.WebhookDispatchRequest{
 				InvoiceID: event.InvoiceID, MerchantID: event.MerchantID,
 				WebhookURL: job.SnapshotURL, ActiveSecret: activeSecret,
 				PreviousSecret: previousSecret, EventID: event.ID,
 				APIVersion: event.APIVersion, Event: event.Event, OccurredAt: event.OccurredAt,
 				Data: event.Data, RawBody: event.DeliveryPayload, Attempt: attempt,
-				Traceparent: platformtelemetry.Traceparent(workCtx), CorrelationID: business.CorrelationID,
+				Traceparent: telemetry.Traceparent(workCtx), CorrelationID: business.CorrelationID,
 				CausationID: business.CausationID,
 			})
 		} else {

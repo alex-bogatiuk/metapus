@@ -8,11 +8,11 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 )
 
 func validCustodyAdjustment() *CryptoCustodyAdjustment {
@@ -107,7 +107,7 @@ func TestCryptoCustodyAdjustmentPostingStateIsImmutable(t *testing.T) {
 		t.Fatal("posted custody adjustment was accepted for reposting")
 	}
 
-	err := posting.NewEngine(nil).Unpost(context.Background(), adjustment, func(context.Context) error {
+	err := posting.NewEngine().Unpost(context.Background(), adjustment, func(context.Context) error {
 		t.Fatal("unpost callback must not execute")
 		return nil
 	})

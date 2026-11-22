@@ -9,7 +9,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 )
 
 func (d *Driver) EmptyCheckpoint(ctx context.Context, asset crypto.AssetRef, address string) (crypto.EmptyCheckpoint, error) {

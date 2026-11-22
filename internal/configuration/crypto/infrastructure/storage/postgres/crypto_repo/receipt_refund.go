@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // ReceiptRefundRepo moves a receipt refund between receipt suspense and refund

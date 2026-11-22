@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/core/apperror"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/document_repo"
 )
 
 type CryptoNetworkOperationRepo struct {

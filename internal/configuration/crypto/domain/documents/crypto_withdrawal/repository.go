@@ -3,8 +3,8 @@ package crypto_withdrawal
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
 )
 
 // Repository defines operations for crypto withdrawal documents (header-only, no lines).

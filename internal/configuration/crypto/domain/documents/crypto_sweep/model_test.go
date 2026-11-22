@@ -6,9 +6,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )

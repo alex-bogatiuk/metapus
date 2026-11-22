@@ -13,9 +13,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 func TestPortalMerchantSettingsPatch(t *testing.T) {

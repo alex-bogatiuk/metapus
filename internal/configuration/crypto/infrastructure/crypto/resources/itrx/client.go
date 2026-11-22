@@ -16,7 +16,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 const defaultBaseURL = "https://itrx.io"

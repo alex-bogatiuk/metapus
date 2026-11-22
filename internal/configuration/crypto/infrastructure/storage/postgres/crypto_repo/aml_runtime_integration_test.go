@@ -15,9 +15,9 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	amlruntime "metapus/internal/configuration/crypto/infrastructure/aml/runtime"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func TestAMLRuntimePinsOldMappingAndPollsWithoutNewBudget(t *testing.T) {
 	ctx, pool := amlTestDatabase(t)
 	input, jobID := seedAMLJob(t, ctx, pool, 1)
 	credentials := []byte(`{"keys":[{"name":"default","value":"synthetic-aml-token"}]}`)
-	cipher, err := corecrypto.Encrypt(credentials, []byte("0123456789abcdef0123456789abcdef"))
+	cipher, err := encryption.Encrypt(credentials, []byte("0123456789abcdef0123456789abcdef"))
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `UPDATE cat_integration_accounts SET credentials_enc=$2,credentials_version=1 WHERE id=$1`, input.ProviderAccountID, cipher)
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestAMLRuntimeLostSubmitACKNeverRepeatsPaidHTTP(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	ctx, pool := amlTestDatabase(t)
 	input, jobID := seedAMLJob(t, ctx, pool, 1)
-	cipher, err := corecrypto.Encrypt([]byte(`{"keys":[{"name":"default","value":"synthetic-token"}]}`), []byte("0123456789abcdef0123456789abcdef"))
+	cipher, err := encryption.Encrypt([]byte(`{"keys":[{"name":"default","value":"synthetic-token"}]}`), []byte("0123456789abcdef0123456789abcdef"))
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `UPDATE cat_integration_accounts SET credentials_enc=$2 WHERE id=$1`, input.ProviderAccountID, cipher)
 	require.NoError(t, err)

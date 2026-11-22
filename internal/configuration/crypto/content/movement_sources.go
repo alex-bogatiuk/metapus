@@ -12,7 +12,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
 	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/internal/platform"
+	"metapus/pkg/sdk/registry"
 )
 
 // movementSources maps each posting document to the source fields behind its
@@ -69,17 +69,17 @@ var movementSources = map[string]map[string][]string{
 }
 
 var (
-	_ platform.MovementSourceProvider = (*CryptoPaymentRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoWithdrawalRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoSweepRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoProviderBalanceOperationRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoResourceRentalRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoNetworkOperationRegistration)(nil)
-	_ platform.MovementSourceProvider = (*TreasuryWithdrawalRegistration)(nil)
-	_ platform.MovementSourceProvider = (*WithdrawalRequestRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoCustodyReceiptRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoMerchantCreditRegistration)(nil)
-	_ platform.MovementSourceProvider = (*CryptoPlatformFundingRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoPaymentRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoWithdrawalRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoSweepRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoProviderBalanceOperationRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoResourceRentalRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoNetworkOperationRegistration)(nil)
+	_ registry.MovementSourceProvider = (*TreasuryWithdrawalRegistration)(nil)
+	_ registry.MovementSourceProvider = (*WithdrawalRequestRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoCustodyReceiptRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoMerchantCreditRegistration)(nil)
+	_ registry.MovementSourceProvider = (*CryptoPlatformFundingRegistration)(nil)
 )
 
 func (*CryptoPaymentRegistration) MovementSources() map[string][]string {

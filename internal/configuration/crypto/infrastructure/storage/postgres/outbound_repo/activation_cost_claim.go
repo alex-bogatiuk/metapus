@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // The shared workflow/operation -> policy -> scopes/wallets -> task prefix

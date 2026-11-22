@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 )
 
 // RequestAMLRescreen is an explicit control-plane command, never an automatic

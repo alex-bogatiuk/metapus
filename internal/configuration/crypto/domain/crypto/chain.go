@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 // ChainFamily selects a chain implementation. It is deliberately broader than

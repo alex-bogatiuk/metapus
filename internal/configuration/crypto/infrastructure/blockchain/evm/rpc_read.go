@@ -14,8 +14,8 @@ import (
 
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 type rpcOperation string

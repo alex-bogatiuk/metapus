@@ -4,8 +4,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 // RPCTopology is the serializable configuration contract, independent of SQL,

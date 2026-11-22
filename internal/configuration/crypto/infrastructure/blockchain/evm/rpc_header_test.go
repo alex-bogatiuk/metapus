@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 func headerServer(t *testing.T, header *types.Header, change func(map[string]json.RawMessage), historicalDelay time.Duration) *httptest.Server {

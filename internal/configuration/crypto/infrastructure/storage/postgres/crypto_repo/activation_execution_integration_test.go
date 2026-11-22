@@ -19,11 +19,11 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -142,7 +142,7 @@ func TestActivationExecutionLateSignedAndBroadcastRecoveryKeepNewLease(t *testin
 		}
 		return r.MarkSigningAuthorizationBroadcast(ctx, f.auth.AuthorizationID, f.signed.TxHash)
 	}))
-	engine := posting.NewEngine(postgres.NewDocLocker())
+	engine := posting.NewLockingEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

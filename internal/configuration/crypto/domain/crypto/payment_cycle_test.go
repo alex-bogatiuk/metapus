@@ -11,12 +11,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/domain"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 // ── In-memory mocks ─────────────────────────────────────────────────────
@@ -407,7 +407,7 @@ func setupTestFixture(t *testing.T, sweepThreshold int64) *testFixture {
 		Numerator:        seriesNumbers(),
 		SweepResolver:    sweepResolver,
 		TokenResolver:    mockTokenRepo,
-		PostingEngine:    posting.NewEngine(nil), // provide dummy engine
+		PostingEngine:    posting.NewEngine(), // provide dummy engine
 		Receipts:         &memPaymentReceipts{},
 		WebhookPublisher: webhooks,
 	})

@@ -6,7 +6,7 @@ import (
 	"context"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 	"net/url"
 	"os"
 	"testing"
@@ -16,10 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/migration"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 // fixtureDB creates an isolated, migrated tenant database for one test.

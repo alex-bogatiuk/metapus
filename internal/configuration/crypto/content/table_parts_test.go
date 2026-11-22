@@ -1,10 +1,10 @@
 package content
 
 import (
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 	"testing"
 
-	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/pkg/sdk/http/v1"
 )
 
 // Building the read registry binds every inspected collection to a declared

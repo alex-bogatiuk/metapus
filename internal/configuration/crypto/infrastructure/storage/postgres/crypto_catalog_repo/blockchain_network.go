@@ -10,9 +10,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // BlockchainNetworkRepo implements blockchain_network.Repository.

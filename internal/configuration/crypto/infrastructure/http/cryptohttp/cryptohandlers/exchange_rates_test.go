@@ -10,27 +10,27 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	er "metapus/internal/domain/registers/exchange_rate"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/registers/exchange_rate"
+	"metapus/pkg/sdk/types"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
 
 type valuationFixture struct {
-	cfg       er.Configuration
-	candidate er.Candidate
+	cfg       exchange_rate.Configuration
+	candidate exchange_rate.Candidate
 	failure   error
 }
 
-func (f *valuationFixture) LoadConfiguration(context.Context) (er.Configuration, error) {
+func (f *valuationFixture) LoadConfiguration(context.Context) (exchange_rate.Configuration, error) {
 	return f.cfg, nil
 }
-func (f *valuationFixture) Candidates(context.Context, er.Configuration, []id.ID, time.Time) ([]er.Candidate, error) {
-	return []er.Candidate{f.candidate}, nil
+func (f *valuationFixture) Candidates(context.Context, exchange_rate.Configuration, []id.ID, time.Time) ([]exchange_rate.Candidate, error) {
+	return []exchange_rate.Candidate{f.candidate}, nil
 }
 func (f *valuationFixture) GetMerchantBalances(_ context.Context, merchants []id.ID) ([]crypto.BalanceRow, error) {
 	if f.failure != nil {
@@ -42,13 +42,13 @@ func (f *valuationFixture) GetPendingAmounts(context.Context, []id.ID) (map[stri
 	return nil, nil
 }
 func TestPortalValuationContractScopeAndDatabaseErrors(t *testing.T) {
-	currency := er.CurrencyRef{ID: id.New(), Code: "USDT"}
-	usd := er.CurrencyRef{ID: id.New(), Code: "USD", DecimalPlaces: 2}
-	source := er.SourceRef{ID: id.New(), Name: "CoinGecko", SourceType: "coingecko"}
-	quote := &er.Quote{ID: id.New(), Currency: currency, BaseCurrency: usd, Source: source, Rate: decimal.RequireFromString("0.9997"), Multiplier: 1, MappingVersion: 1, FeedAttemptID: id.New(), Version: 1, ProviderUpdatedAt: time.Now().Add(-time.Minute)}
-	f := &valuationFixture{cfg: er.Configuration{BaseCurrency: usd, Source: &source, SourceActive: true}, candidate: er.Candidate{Currency: currency, Mapping: &er.Mapping{IsActive: true, Version: 1}, Quote: quote}}
+	currency := exchange_rate.CurrencyRef{ID: id.New(), Code: "USDT"}
+	usd := exchange_rate.CurrencyRef{ID: id.New(), Code: "USD", DecimalPlaces: 2}
+	source := exchange_rate.SourceRef{ID: id.New(), Name: "CoinGecko", SourceType: "coingecko"}
+	quote := &exchange_rate.Quote{ID: id.New(), Currency: currency, BaseCurrency: usd, Source: source, Rate: decimal.RequireFromString("0.9997"), Multiplier: 1, MappingVersion: 1, FeedAttemptID: id.New(), Version: 1, ProviderUpdatedAt: time.Now().Add(-time.Minute)}
+	f := &valuationFixture{cfg: exchange_rate.Configuration{BaseCurrency: usd, Source: &source, SourceActive: true}, candidate: exchange_rate.Candidate{Currency: currency, Mapping: &exchange_rate.Mapping{IsActive: true, Version: 1}, Quote: quote}}
 	snapshot := func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
-	h := &PortalHandler{repo: portal_repo.NewDashboardRepo(), balanceCalc: cryptoapp.NewValuationService(f, er.NewService(f), snapshot)}
+	h := &PortalHandler{repo: portal_repo.NewDashboardRepo(), balanceCalc: cryptoapp.NewValuationService(f, exchange_rate.NewService(f), snapshot)}
 	merchantID := id.New()
 	ctx := merchant.WithPortalScope(context.Background(), merchant.PortalScope{MerchantIDs: []id.ID{merchantID}, Roles: map[id.ID]merchant.PortalRole{merchantID: merchant.PortalRoleOwner}})
 	router := gin.New()

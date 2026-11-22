@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 type ProviderOpeningAuthorityRepo struct{}

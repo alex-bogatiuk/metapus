@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 func fixture() (aml.Job, aml.RuntimeConfig) {

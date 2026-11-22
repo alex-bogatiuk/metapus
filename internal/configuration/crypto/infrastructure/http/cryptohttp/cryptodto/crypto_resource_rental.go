@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_resource_rental"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/http/dto"
+	"metapus/pkg/sdk/postgres"
 )
 
 // CryptoResourceRentalResponse is a TRON resource rental the rental workflow

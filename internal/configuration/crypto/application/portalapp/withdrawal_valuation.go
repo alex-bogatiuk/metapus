@@ -3,8 +3,8 @@ package portalapp
 import (
 	"context"
 	"github.com/shopspring/decimal"
-	"metapus/internal/core/id"
-	er "metapus/internal/domain/registers/exchange_rate"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers/exchange_rate"
 	"strings"
 	"time"
 )
@@ -14,11 +14,11 @@ type WithdrawalTokenCurrencyReader interface {
 }
 type WithdrawalValuationService struct {
 	repo  WithdrawalTokenCurrencyReader
-	rates *er.Service
+	rates *exchange_rate.Service
 	now   func() time.Time
 }
 
-func NewWithdrawalValuationService(repo WithdrawalTokenCurrencyReader, rates *er.Service) *WithdrawalValuationService {
+func NewWithdrawalValuationService(repo WithdrawalTokenCurrencyReader, rates *exchange_rate.Service) *WithdrawalValuationService {
 	return &WithdrawalValuationService{repo: repo, rates: rates, now: time.Now}
 }
 func (h *WithdrawalValuationService) Evaluate(ctx context.Context, item AdminWithdrawalRequestDetail) *WithdrawalRequestUSDValuation {
@@ -54,16 +54,16 @@ func (h *WithdrawalValuationService) Evaluate(ctx context.Context, item AdminWit
 		return result
 	}
 	human := raw.Shift(-int32(item.DecimalPlaces))
-	if resolution.Status == er.StatusIdentity {
+	if resolution.Status == exchange_rate.StatusIdentity {
 		amount := human.StringFixed(int32(cfg.BaseCurrency.DecimalPlaces))
 		result.Amount = &amount
 		return result
 	}
-	if resolution.Status != er.StatusFresh || resolution.SelectedQuote == nil {
+	if resolution.Status != exchange_rate.StatusFresh || resolution.SelectedQuote == nil {
 		return result
 	}
 	quote := resolution.SelectedQuote
-	amount := er.RoundAmount(er.ConvertExact(human, quote.Rate, quote.Multiplier), cfg.BaseCurrency.DecimalPlaces)
+	amount := exchange_rate.RoundAmount(exchange_rate.ConvertExact(human, quote.Rate, quote.Multiplier), cfg.BaseCurrency.DecimalPlaces)
 	rate := quote.Rate.String()
 	source := quote.Source.Name
 	rateAsOf := quote.ProviderUpdatedAt.Format(time.RFC3339)

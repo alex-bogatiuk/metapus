@@ -2,7 +2,7 @@ package rpcconfig
 
 import (
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 	"testing"
 	"time"
 

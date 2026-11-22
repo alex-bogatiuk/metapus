@@ -4,8 +4,8 @@ package crypto_repo
 
 import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 	"sync"
 	"testing"
 

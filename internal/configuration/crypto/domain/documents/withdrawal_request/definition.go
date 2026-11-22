@@ -1,6 +1,6 @@
 package withdrawal_request
 
-import "metapus/internal/core/entity"
+import "metapus/pkg/sdk/entity"
 
 var Definition = entity.Definition{
 	Key:    "withdrawal_request",

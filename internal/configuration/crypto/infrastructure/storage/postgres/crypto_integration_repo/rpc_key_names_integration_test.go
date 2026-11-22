@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
 )
 
 func requireKeyError(t *testing.T, err error, reason string) {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
 )
 
 const cryptoReceiptSuspenseKey = "crypto_receipt_suspense"

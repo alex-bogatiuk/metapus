@@ -11,9 +11,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 func (r *OutboundRepo) ClaimApprovedTreasuryWithdrawals(ctx context.Context, limit int) ([]TreasuryTask, error) {

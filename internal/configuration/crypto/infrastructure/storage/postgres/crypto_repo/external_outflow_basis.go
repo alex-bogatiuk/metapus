@@ -8,9 +8,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func lockExternalOutflowIdentity(ctx context.Context, network id.ID, hash string, wallet *id.ID) error {

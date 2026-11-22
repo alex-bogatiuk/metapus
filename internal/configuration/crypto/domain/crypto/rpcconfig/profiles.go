@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/integrations"
 )
 
 // rpcProfiles lists the networks, roles and secret-free bases each RPC

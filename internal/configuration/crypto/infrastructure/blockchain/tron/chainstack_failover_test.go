@@ -18,28 +18,28 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	model "metapus/internal/domain/integrations"
-	integrationhttp "metapus/internal/infrastructure/integrations"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/transport"
+	"metapus/pkg/sdk/json"
 )
 
 type chainstackTestAccounts struct {
 	mu       sync.Mutex
-	accounts []model.Selection
+	accounts []integrations.Selection
 	current  int
 	reports  int
 }
 
-func (r *chainstackTestAccounts) Select(context.Context, id.ID, string, model.Provider) (model.Selection, error) {
+func (r *chainstackTestAccounts) Select(context.Context, id.ID, string, integrations.Provider) (integrations.Selection, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.current == len(r.accounts) {
-		return model.Selection{}, &model.PoolUnavailableError{Reason: model.Exhausted, RetryAt: time.Now().Add(time.Hour)}
+		return integrations.Selection{}, &integrations.PoolUnavailableError{Reason: integrations.Exhausted, RetryAt: time.Now().Add(time.Hour)}
 	}
 	return r.accounts[r.current], nil
 }
-func (r *chainstackTestAccounts) Report(_ context.Context, s model.Selection, f model.Failure, _ time.Time) error {
+func (r *chainstackTestAccounts) Report(_ context.Context, s integrations.Selection, f integrations.Failure, _ time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if f != "" && r.current < len(r.accounts) && r.accounts[r.current].AccountID == s.AccountID {
@@ -73,10 +73,10 @@ func TestChainstackAccountRotationThenWholeBlockProviderFailover(t *testing.T) {
 	reserve := rpcBlockServer(t, block, receipts, "", &receiptCalls)
 	defer reserve.Close()
 	pid := id.New()
-	repo := &chainstackTestAccounts{accounts: []model.Selection{{PoolID: pid, AccountID: id.New(), Slot: "nile", Key: "key-a"}, {PoolID: pid, AccountID: id.New(), Slot: "nile", Key: "key-b"}}}
+	repo := &chainstackTestAccounts{accounts: []integrations.Selection{{PoolID: pid, AccountID: id.New(), Slot: "nile", Key: "key-a"}, {PoolID: pid, AccountID: id.New(), Slot: "nile", Key: "key-b"}}}
 	var exhaustB atomic.Bool
 	wrap := func(http.RoundTripper) http.RoundTripper {
-		return &integrationhttp.Transport{Profiles: cryptoprofiles.Registry(), Provider: cryptointegrations.Chainstack, PoolID: pid, Slot: "nile", Repository: repo, Base: chainstackTestRoundTrip(func(req *http.Request) (*http.Response, error) {
+		return &transport.Transport{Profiles: cryptoprofiles.Registry(), Provider: cryptointegrations.Chainstack, PoolID: pid, Slot: "nile", Repository: repo, Base: chainstackTestRoundTrip(func(req *http.Request) (*http.Response, error) {
 			if strings.HasPrefix(req.URL.Path, "/key-a/") || exhaustB.Load() && strings.HasSuffix(req.URL.Path, "gettransactioninfobyblocknum") {
 				return &http.Response{StatusCode: 429, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":"monthly quota exhausted"}`))}, nil
 			}

@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 type WorkerReconciliationWalletBalance struct {

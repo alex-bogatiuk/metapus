@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
 )
 
 // CryptoPlatformCostMovementSource is implemented by documents that generate

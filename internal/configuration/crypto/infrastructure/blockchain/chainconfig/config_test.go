@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 
 	"github.com/stretchr/testify/require"
 )

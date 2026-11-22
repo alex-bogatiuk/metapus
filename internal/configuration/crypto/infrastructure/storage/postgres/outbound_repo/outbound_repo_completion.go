@@ -7,9 +7,9 @@ import (
 
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func (r *OutboundRepo) LockWithdrawalCompletion(ctx context.Context, task WithdrawalTask) (outboundapp.WithdrawalCompletionState, error) {

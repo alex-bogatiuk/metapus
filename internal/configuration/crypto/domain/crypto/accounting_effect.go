@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 // AccountingEffectSchemaV1 is independent of frozen transfer/signing schemas.

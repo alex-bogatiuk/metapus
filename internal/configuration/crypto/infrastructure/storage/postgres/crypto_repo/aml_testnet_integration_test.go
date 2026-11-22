@@ -14,7 +14,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
 	amlruntime "metapus/internal/configuration/crypto/infrastructure/aml/runtime"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 
 	"github.com/stretchr/testify/require"
 )

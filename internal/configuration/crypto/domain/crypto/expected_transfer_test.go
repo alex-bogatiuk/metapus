@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"metapus/internal/core/apperror"
+	"metapus/pkg/sdk/apperror"
 
 	"github.com/stretchr/testify/require"
 )

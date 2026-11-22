@@ -7,9 +7,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 )
 
 func (r *BlockIngestionRepo) AuthorizeCustodyEffect(

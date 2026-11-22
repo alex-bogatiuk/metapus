@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 )
 
 func TestProviderPurposesAndCreation(t *testing.T) {

@@ -13,11 +13,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
 )
 
 type MerchantWebhookHandler struct {
@@ -166,12 +166,12 @@ func (h *MerchantWebhookHandler) TestEndpoint(c *gin.Context) {
 		}
 	}
 	eventID := "evt_" + id.Compact(id.New())
-	business := platformtelemetry.BusinessIDs(c.Request.Context(), eventID)
+	business := telemetry.BusinessIDs(c.Request.Context(), eventID)
 	delivery, dispatchErr := h.dispatcher.Dispatch(c.Request.Context(), h.deliveryRepo, crypto.WebhookDispatchRequest{
 		MerchantID: endpoint.MerchantID, WebhookURL: endpoint.URL, ActiveSecret: secret,
 		PreviousSecret: previous, EventID: eventID, APIVersion: crypto.MerchantWebhookAPIVersion,
 		Event: "endpoint.test", OccurredAt: time.Now().UTC(), Data: map[string]any{"test": true}, Attempt: 1,
-		Traceparent:   platformtelemetry.Traceparent(c.Request.Context()),
+		Traceparent:   telemetry.Traceparent(c.Request.Context()),
 		CorrelationID: business.CorrelationID, CausationID: business.CausationID,
 	})
 	response := cryptodto.WebhookTestResponse{EventID: eventID, Success: dispatchErr == nil}

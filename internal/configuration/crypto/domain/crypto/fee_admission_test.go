@@ -1,7 +1,7 @@
 package crypto
 
 import (
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 	"testing"
 
 	"github.com/stretchr/testify/require"

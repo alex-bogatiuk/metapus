@@ -1,9 +1,9 @@
 package content
 
 import (
-	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/pkg/sdk/http/v1"
 
-	"metapus/internal/domain/reports/schema"
+	"metapus/pkg/sdk/reports/schema"
 )
 
 // register adds the crypto configuration's entities and reports: its

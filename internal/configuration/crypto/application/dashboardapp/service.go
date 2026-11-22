@@ -6,19 +6,19 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/dashboard"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	er "metapus/internal/domain/registers/exchange_rate"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers/exchange_rate"
+	"metapus/pkg/sdk/types"
 )
 
 type Service struct {
 	repo     dashboard.Repository
-	rates    *er.Service
-	snapshot er.Snapshot
+	rates    *exchange_rate.Service
+	snapshot exchange_rate.Snapshot
 }
 
-func NewService(repo dashboard.Repository, rates *er.Service, snapshot er.Snapshot) *Service {
+func NewService(repo dashboard.Repository, rates *exchange_rate.Service, snapshot exchange_rate.Snapshot) *Service {
 	return &Service{repo: repo, rates: rates, snapshot: snapshot}
 }
 

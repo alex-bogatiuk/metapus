@@ -15,10 +15,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -62,7 +62,7 @@ func newCustodyLossFixture(t *testing.T, proofMode string) custodyLossFixture {
 		require.NoError(t, err)
 	}
 	tm := postgres.MustGetTxManager(ctx)
-	engine := posting.NewEngine(postgres.NewDocLocker())
+	engine := posting.NewLockingEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

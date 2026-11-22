@@ -5,7 +5,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/numerator"
+	"metapus/pkg/sdk/numerator"
 )
 
 // NewInvoiceWalletLease wires the invoice wallet-lease step to the Postgres

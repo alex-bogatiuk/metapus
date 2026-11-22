@@ -22,11 +22,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 )
 
 type withdrawalRecoveryFixture struct {
@@ -84,7 +84,7 @@ func seedWithdrawalRecovery(t *testing.T, ctx context.Context, txm *postgres.TxM
 func recoveryExecutor(wr withdrawalRecoveryFixture, f sweepCoordinationFixture, receipt crypto.ChainReceipt) *WithdrawalExecutor {
 	registry := crypto.NewChainDriverRegistry()
 	_ = registry.Register(fundingReceiptDriver{network: crypto.NetworkRef{ID: f.network, Code: "TEST", Family: crypto.ChainFamilyTRON, NetworkIdentifier: "nile", NativeTokenID: f.native, NativeDecimals: 6, RequiredConfirmations: 12, FinalityMode: crypto.FinalityByConfirmations}, receipt: receipt})
-	engine := posting.NewEngine(postgres.NewDocLocker(), cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
+	engine := posting.NewLockingEngine(postgres.NewDocLocker(), cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	return &WithdrawalExecutor{outboundRepo: NewOutboundRepo(), tenantID: wr.auth.TenantID, drivers: registry,
 		withdrawalRepo: crypto_document_repo.NewCryptoWithdrawalRepo(), postingEngine: engine, feeBudget: NewFeeBudgetManager(),

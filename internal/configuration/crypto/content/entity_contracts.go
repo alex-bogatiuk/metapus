@@ -2,16 +2,16 @@ package content
 
 import (
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/contracts"
+	"metapus/pkg/sdk/metadata"
 )
 
-func (r *CryptoNetworkOperationRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoNetworkOperationResponse, cryptodto.CryptoNetworkOperationResponse](r.EntityDefinition(), r.DocumentCapabilities())
+func (r *CryptoNetworkOperationRegistration) HTTPContracts() contracts.Bundle {
+	return contracts.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoNetworkOperationResponse, cryptodto.CryptoNetworkOperationResponse](r.EntityDefinition(), r.DocumentCapabilities())
 }
 
-func (r *CryptoProviderBalanceOperationRegistration) HTTPContracts() spec.Bundle {
-	b := spec.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoProviderBalanceOperationResponse, cryptodto.CryptoProviderBalanceOperationDetail](r.EntityDefinition(), r.DocumentCapabilities())
+func (r *CryptoProviderBalanceOperationRegistration) HTTPContracts() contracts.Bundle {
+	b := contracts.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoProviderBalanceOperationResponse, cryptodto.CryptoProviderBalanceOperationDetail](r.EntityDefinition(), r.DocumentCapabilities())
 	b.AddRoute(r.EntityDefinition(), "POST", "/provider-balance-incidents/:incidentId/prepare-opening", "PrepareProviderOpeningRequest", "ProviderBalanceDecisionResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/approve", "ProviderBalanceDecisionRequest", "ProviderBalanceDecisionResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/reject", "ProviderBalanceDecisionRequest", "ProviderBalanceDecisionResponse")
@@ -19,10 +19,10 @@ func (r *CryptoProviderBalanceOperationRegistration) HTTPContracts() spec.Bundle
 	return b
 }
 
-func (r *CryptoResourceRentalRegistration) HTTPContracts() spec.Bundle {
-	b := spec.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoResourceRentalResponse, cryptodto.CryptoResourceRentalResponse](r.EntityDefinition(), r.DocumentCapabilities())
+func (r *CryptoResourceRentalRegistration) HTTPContracts() contracts.Bundle {
+	b := contracts.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoResourceRentalResponse, cryptodto.CryptoResourceRentalResponse](r.EntityDefinition(), r.DocumentCapabilities())
 
-	b.Contracts = append(b.Contracts, spec.Response[cryptodto.ResourceRentalMetricsResponse]("ResourceRentalMetricsResponse"), spec.Response[cryptodto.ProviderBalanceIncidentsResponse]("ProviderBalanceIncidentsResponse"), spec.Response[cryptodto.ResourceRentalAllocationsResponse]("ResourceRentalAllocationsResponse"))
+	b.Contracts = append(b.Contracts, contracts.Response[cryptodto.ResourceRentalMetricsResponse]("ResourceRentalMetricsResponse"), contracts.Response[cryptodto.ProviderBalanceIncidentsResponse]("ProviderBalanceIncidentsResponse"), contracts.Response[cryptodto.ResourceRentalAllocationsResponse]("ResourceRentalAllocationsResponse"))
 	b.AddRoute(r.EntityDefinition(), "GET", "/metrics", "", "ResourceRentalMetricsResponse")
 	b.AddRoute(r.EntityDefinition(), "GET", "/provider-balance-incidents", "", "ProviderBalanceIncidentsResponse")
 	b.AddRoute(r.EntityDefinition(), "GET", "/:id/allocations", "", "ResourceRentalAllocationsResponse")
@@ -33,37 +33,37 @@ func (r *CryptoResourceRentalRegistration) HTTPContracts() spec.Bundle {
 	return b
 }
 
-func (r *CryptoInvoiceRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[cryptodto.CreateCryptoInvoiceRequest, cryptodto.UpdateCryptoInvoiceRequest, cryptodto.CryptoInvoiceResponse, cryptodto.CryptoInvoiceResponse](r.EntityDefinition(), r.DocumentCapabilities())
+func (r *CryptoInvoiceRegistration) HTTPContracts() contracts.Bundle {
+	return contracts.EntityWithDetail[cryptodto.CreateCryptoInvoiceRequest, cryptodto.UpdateCryptoInvoiceRequest, cryptodto.CryptoInvoiceResponse, cryptodto.CryptoInvoiceResponse](r.EntityDefinition(), r.DocumentCapabilities())
 }
 
-func (r *CryptoPaymentRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[cryptodto.CreateCryptoPaymentRequest, cryptodto.UpdateCryptoPaymentRequest, cryptodto.CryptoPaymentResponse, cryptodto.CryptoPaymentResponse](r.EntityDefinition(), r.DocumentCapabilities())
+func (r *CryptoPaymentRegistration) HTTPContracts() contracts.Bundle {
+	return contracts.EntityWithDetail[cryptodto.CreateCryptoPaymentRequest, cryptodto.UpdateCryptoPaymentRequest, cryptodto.CryptoPaymentResponse, cryptodto.CryptoPaymentResponse](r.EntityDefinition(), r.DocumentCapabilities())
 }
 
-func (r *CryptoWithdrawalRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[cryptodto.CreateCryptoWithdrawalRequest, cryptodto.UpdateCryptoWithdrawalRequest, cryptodto.CryptoWithdrawalResponse, cryptodto.CryptoWithdrawalResponse](r.EntityDefinition(), r.DocumentCapabilities())
+func (r *CryptoWithdrawalRegistration) HTTPContracts() contracts.Bundle {
+	return contracts.EntityWithDetail[cryptodto.CreateCryptoWithdrawalRequest, cryptodto.UpdateCryptoWithdrawalRequest, cryptodto.CryptoWithdrawalResponse, cryptodto.CryptoWithdrawalResponse](r.EntityDefinition(), r.DocumentCapabilities())
 }
 
-func (r *CryptoSweepRegistration) HTTPContracts() spec.Bundle {
-	b := spec.EntityWithDetail[cryptodto.CreateCryptoSweepRequest, cryptodto.UpdateCryptoSweepRequest, cryptodto.CryptoSweepResponse, cryptodto.CryptoSweepDetailResponse](r.EntityDefinition(), r.DocumentCapabilities())
-	b.Contracts = append(b.Contracts, spec.Response[cryptodto.CryptoSweepTokenDisplay]("CryptoSweepTokenDisplay"))
-	b.Contracts = append(b.Contracts, spec.Response[cryptodto.CryptoSweepWalletDisplay]("CryptoSweepWalletDisplay"))
-	b.Contracts = append(b.Contracts, spec.Response[cryptodto.CryptoSweepLineResponse]("CryptoSweepLineResponse"))
-	b.Contracts = append(b.Contracts, spec.Response[cryptodto.CryptoSweepNetworkFeeResponse]("CryptoSweepNetworkFeeResponse"))
-	b.Contracts = append(b.Contracts, spec.Response[cryptodto.CryptoSweepResourceCostResponse]("CryptoSweepResourceCostResponse"))
+func (r *CryptoSweepRegistration) HTTPContracts() contracts.Bundle {
+	b := contracts.EntityWithDetail[cryptodto.CreateCryptoSweepRequest, cryptodto.UpdateCryptoSweepRequest, cryptodto.CryptoSweepResponse, cryptodto.CryptoSweepDetailResponse](r.EntityDefinition(), r.DocumentCapabilities())
+	b.Contracts = append(b.Contracts, contracts.Response[cryptodto.CryptoSweepTokenDisplay]("CryptoSweepTokenDisplay"))
+	b.Contracts = append(b.Contracts, contracts.Response[cryptodto.CryptoSweepWalletDisplay]("CryptoSweepWalletDisplay"))
+	b.Contracts = append(b.Contracts, contracts.Response[cryptodto.CryptoSweepLineResponse]("CryptoSweepLineResponse"))
+	b.Contracts = append(b.Contracts, contracts.Response[cryptodto.CryptoSweepNetworkFeeResponse]("CryptoSweepNetworkFeeResponse"))
+	b.Contracts = append(b.Contracts, contracts.Response[cryptodto.CryptoSweepResourceCostResponse]("CryptoSweepResourceCostResponse"))
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/retry", "", "SuccessResponse")
 
 	return b
 }
 
-func (r *TreasuryWithdrawalRegistration) HTTPContracts() spec.Bundle {
-	b := spec.EntityWithDetail[cryptodto.CreateTreasuryWithdrawalRequest, cryptodto.UpdateTreasuryWithdrawalRequest, cryptodto.TreasuryWithdrawalResponse, cryptodto.TreasuryWithdrawalResponse](r.EntityDefinition(), r.DocumentCapabilities())
+func (r *TreasuryWithdrawalRegistration) HTTPContracts() contracts.Bundle {
+	b := contracts.EntityWithDetail[cryptodto.CreateTreasuryWithdrawalRequest, cryptodto.UpdateTreasuryWithdrawalRequest, cryptodto.TreasuryWithdrawalResponse, cryptodto.TreasuryWithdrawalResponse](r.EntityDefinition(), r.DocumentCapabilities())
 	b.AddRoute(r.EntityDefinition(), "GET", "/addresses", "", "TreasuryAddressListResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/addresses", "CreateTreasuryAddressRequest", "IDResponse")
 	b.AddRoute(r.EntityDefinition(), "GET", "/availability", "", "TreasuryAvailabilityResponse")
 	b.AddRoute(r.EntityDefinition(), "GET", "/source-wallets", "", "TreasurySourceWalletListResponse")
-	b.Contracts = append(b.Contracts, spec.Request[cryptodto.CreateReceiptRefundRequest]("CreateReceiptRefundRequest"))
+	b.Contracts = append(b.Contracts, contracts.Request[cryptodto.CreateReceiptRefundRequest]("CreateReceiptRefundRequest"))
 	b.AddRoute(r.EntityDefinition(), "POST", "/receipt-refunds", "CreateReceiptRefundRequest", "TreasuryWithdrawalResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/approve", "ApproveRejectRequest", "SuccessResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/:id/reject", "ApproveRejectRequest", "SuccessResponse")
@@ -85,8 +85,8 @@ func (r *TreasuryWithdrawalRegistration) HTTPContracts() spec.Bundle {
 	return b
 }
 
-func (r *WithdrawalRequestRegistration) HTTPContracts() spec.Bundle {
-	b := spec.Bundle{Contracts: []spec.Contract{spec.Response[cryptodto.AdminWithdrawalRequestDetail]("AdminWithdrawalRequestDetail"), spec.Response[cryptodto.AdminWithdrawalRequestListResponse]("AdminWithdrawalRequestListResponse")}}
+func (r *WithdrawalRequestRegistration) HTTPContracts() contracts.Bundle {
+	b := contracts.Bundle{Contracts: []contracts.Contract{contracts.Response[cryptodto.AdminWithdrawalRequestDetail]("AdminWithdrawalRequestDetail"), contracts.Response[cryptodto.AdminWithdrawalRequestListResponse]("AdminWithdrawalRequestListResponse")}}
 	b.AddRoute(r.EntityDefinition(), "GET", "", "", "AdminWithdrawalRequestListResponse")
 	b.AddRoute(r.EntityDefinition(), "POST", "/export-list", "ExportListRequest", "")
 	b.AddRoute(r.EntityDefinition(), "GET", "/:id", "", "AdminWithdrawalRequestDetail")

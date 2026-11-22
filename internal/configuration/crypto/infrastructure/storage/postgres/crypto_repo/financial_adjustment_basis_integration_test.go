@@ -11,10 +11,10 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 
 	"github.com/stretchr/testify/require"
 )

@@ -8,11 +8,11 @@ import (
 	"metapus/internal/configuration/crypto/application/checkout"
 	"metapus/internal/configuration/crypto/domain/crypto/publicref"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 // InvoiceCheckoutAggregateType separates new worker invoice registrations from

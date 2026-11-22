@@ -3,14 +3,14 @@ package content
 import (
 	"io/fs"
 
-	"metapus/internal/configuration"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/contracts"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/integrations"
 )
 
 // CryptoName is the crypto-processing configuration's name.
@@ -25,13 +25,13 @@ type cryptoConfiguration struct{ services Services }
 
 func (cryptoConfiguration) Name() string { return CryptoName }
 
-// APIVersion: the crypto configuration is built for the platform API 3.0.
-func (cryptoConfiguration) APIVersion() string { return "3.0.0" }
+// APIVersion: the crypto configuration is built for the platform API 3.1.
+func (cryptoConfiguration) APIVersion() string { return "3.1.0" }
 
 func (c cryptoConfiguration) Register(reg *v1.FactoryRegistry) { register(reg, c.services) }
 
-func (cryptoConfiguration) RouteContracts() []spec.Bundle {
-	return []spec.Bundle{cryptohttp.HTTPContracts()}
+func (cryptoConfiguration) RouteContracts() []contracts.Bundle {
+	return []contracts.Bundle{cryptohttp.HTTPContracts()}
 }
 
 func (cryptoConfiguration) Migrations() fs.FS {

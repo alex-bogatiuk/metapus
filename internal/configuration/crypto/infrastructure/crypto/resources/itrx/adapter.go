@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 )
 
 // Adapter maps the iTRX energy API onto crypto.ExternalResourceProvider.

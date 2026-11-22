@@ -3,8 +3,8 @@ package crypto_worker
 import (
 	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 const _outboundBatchLimit = outbound_repo.DefaultBatchLimit

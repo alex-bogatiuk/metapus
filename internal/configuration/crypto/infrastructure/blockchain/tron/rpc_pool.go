@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations/providerpolicy"
 	"net"
 	"sort"
 	"strings"
@@ -14,9 +14,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 var ErrAllRPCProvidersUnavailable = errors.New("all RPC providers are unavailable")

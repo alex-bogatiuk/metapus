@@ -6,11 +6,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/contracts"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/metadata"
 )
 
 // Receipts and their manual attributions are created and decided only by the
@@ -38,8 +38,8 @@ func (r *CryptoCustodyReceiptRegistration) RLSDimensions() map[string]string {
 func (r *CryptoCustodyReceiptRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return readOnlyCryptoDocument
 }
-func (r *CryptoCustodyReceiptRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoCustodyReceiptResponse, cryptodto.CryptoCustodyReceiptResponse](
+func (r *CryptoCustodyReceiptRegistration) HTTPContracts() contracts.Bundle {
+	return contracts.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoCustodyReceiptResponse, cryptodto.CryptoCustodyReceiptResponse](
 		r.EntityDefinition(), r.DocumentCapabilities())
 }
 func (r *CryptoCustodyReceiptRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
@@ -74,8 +74,8 @@ func (r *CryptoMerchantCreditRegistration) RLSDimensions() map[string]string {
 func (r *CryptoMerchantCreditRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return readOnlyCryptoDocument
 }
-func (r *CryptoMerchantCreditRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoMerchantCreditResponse, cryptodto.CryptoMerchantCreditResponse](
+func (r *CryptoMerchantCreditRegistration) HTTPContracts() contracts.Bundle {
+	return contracts.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoMerchantCreditResponse, cryptodto.CryptoMerchantCreditResponse](
 		r.EntityDefinition(), r.DocumentCapabilities())
 }
 func (r *CryptoMerchantCreditRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {
@@ -110,8 +110,8 @@ func (r *CryptoPlatformFundingRegistration) RLSDimensions() map[string]string {
 func (r *CryptoPlatformFundingRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return readOnlyCryptoDocument
 }
-func (r *CryptoPlatformFundingRegistration) HTTPContracts() spec.Bundle {
-	return spec.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoPlatformFundingResponse, cryptodto.CryptoPlatformFundingResponse](
+func (r *CryptoPlatformFundingRegistration) HTTPContracts() contracts.Bundle {
+	return contracts.EntityWithDetail[struct{}, struct{}, cryptodto.CryptoPlatformFundingResponse, cryptodto.CryptoPlatformFundingResponse](
 		r.EntityDefinition(), r.DocumentCapabilities())
 }
 func (r *CryptoPlatformFundingRegistration) Build(deps v1.DocumentDeps) v1.DocumentRouteHandler {

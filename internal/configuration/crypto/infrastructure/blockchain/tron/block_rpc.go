@@ -8,7 +8,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 func (p *rpcGeneration) independentPairExcept(role chainconfig.Role, excluded map[string]bool) ([]*rpcEndpoint, error) {

@@ -10,16 +10,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/readaccess"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/printing"
-	printadapter "metapus/internal/infrastructure/printing"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/printing"
+	"metapus/pkg/sdk/printing/render"
+	"metapus/pkg/sdk/readaccess"
+	"metapus/pkg/sdk/security"
+	"metapus/pkg/sdk/types"
 )
 
 type printRefRegistry struct{}
@@ -205,7 +205,7 @@ func TestCryptoInvoicePrintFormEscapesReferenceValues(t *testing.T) {
 	f := newPrintFixture()
 	data, err := buildCryptoInvoicePrintData(printContext(t, f.repo, _allPrintRefs, nil), f.doc, nil)
 	require.NoError(t, err)
-	renderer, err := printadapter.NewRenderer()
+	renderer, err := render.NewRenderer()
 	require.NoError(t, err)
 	form := CryptoInvoicePrintForms()[0]
 
@@ -218,6 +218,6 @@ func TestCryptoInvoicePrintFormEscapesReferenceValues(t *testing.T) {
 	require.False(t, strings.Contains(html.String(), "onclick"), "print forms carry no active content")
 
 	var docx bytes.Buffer
-	require.NoError(t, printadapter.RenderDOCX(&docx, data))
+	require.NoError(t, render.RenderDOCX(&docx, data))
 	require.Equal(t, "PK", docx.String()[:2])
 }

@@ -8,8 +8,8 @@ import (
 
 	"metapus/internal/configuration/crypto/application/portalapp"
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 // ── Conversion Funnel ──────────────────────────────────────────────────────

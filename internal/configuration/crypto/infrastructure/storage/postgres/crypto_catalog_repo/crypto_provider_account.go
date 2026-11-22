@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
-	"metapus/internal/core/apperror"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/platform/secretfile"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
+	"metapus/pkg/sdk/secretfile"
 )
 
 type CryptoProviderAccountRepo struct {
@@ -52,7 +52,7 @@ func (r *CryptoProviderAccountRepo) SetCredentials(ctx context.Context, accountI
 		return apperror.NewInternal(fmt.Errorf("marshal credentials: %w", err))
 	}
 
-	enc, err := corecrypto.Encrypt(payload, key)
+	enc, err := encryption.Encrypt(payload, key)
 	if err != nil {
 		return apperror.NewInternal(fmt.Errorf("encrypt credentials: %w", err))
 	}
@@ -95,7 +95,7 @@ func (r *CryptoProviderAccountRepo) GetCredentials(ctx context.Context, accountI
 		return nil, apperror.NewInternal(err)
 	}
 
-	dec, err := corecrypto.Decrypt(enc, key)
+	dec, err := encryption.Decrypt(enc, key)
 	if err != nil {
 		return nil, apperror.NewInternal(fmt.Errorf("decrypt credentials: %w", err))
 	}

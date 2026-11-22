@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"io/fs"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/version"
-	"metapus/internal/infrastructure/storage/postgres/migration"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/migration"
 )
 
 // Name is the crypto-processing configuration's name.
@@ -18,7 +17,7 @@ const Name = "crypto"
 // Migrations returns the crypto configuration's tenant migrations
 // (db/configuration/crypto).
 func Migrations() fs.FS {
-	migrations, err := dbassets.ConfigurationMigrations(Name)
+	migrations, err := configuration.EmbeddedMigrations(Name)
 	if err != nil || migrations == nil {
 		panic(fmt.Sprintf("crypto migrations: %v", err)) // embedded at build time
 	}
@@ -28,7 +27,7 @@ func Migrations() fs.FS {
 // ExpectedVersion is the highest version of the crypto migrations: the crypto
 // schema version this binary expects every tenant database to be at.
 var ExpectedVersion = func() int {
-	v, err := dbassets.HighestVersion(Migrations())
+	v, err := migration.HighestVersion(Migrations())
 	if err != nil {
 		panic(fmt.Sprintf("crypto schema version: %v", err))
 	}
@@ -44,13 +43,13 @@ var VersionQuery = `SELECT
 // Compatible reports whether a tenant database at the platform and crypto
 // schema versions is at the versions this binary expects.
 func Compatible(platform, crypto int) bool {
-	return version.CompatibleSchema(platform) && crypto == ExpectedVersion
+	return migration.CompatiblePlatformSchema(platform) && crypto == ExpectedVersion
 }
 
 // Mismatch describes a tenant database at other versions than expected.
 func Mismatch(platform, crypto int) error {
 	return fmt.Errorf("tenant database schema is platform %d, crypto %d; expected platform %d, crypto %d",
-		platform, crypto, version.ExpectedSchemaVersion, ExpectedVersion)
+		platform, crypto, migration.PlatformSchemaVersion, ExpectedVersion)
 }
 
 // Migration makes migration.Run apply the crypto migrations after the

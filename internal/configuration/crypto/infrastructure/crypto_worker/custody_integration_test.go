@@ -19,11 +19,11 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/migration"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 func custodyTestDatabase(t *testing.T) (context.Context, *pgxpool.Pool) {

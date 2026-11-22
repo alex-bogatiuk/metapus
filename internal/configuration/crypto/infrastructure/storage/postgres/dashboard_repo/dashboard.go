@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/dashboard"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/postgres"
 )
 
 type Repository struct{}

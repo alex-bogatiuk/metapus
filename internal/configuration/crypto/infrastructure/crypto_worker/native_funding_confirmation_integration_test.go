@@ -16,9 +16,9 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 )
 
 func seedNativeFundingConfirmation(t *testing.T, ctx context.Context, txm *postgres.TxManager, f sweepCoordinationFixture, round ...int) (id.ID, id.ID, crypto.ChainReceipt) {

@@ -2,7 +2,7 @@ package portalapp
 
 import (
 	"github.com/shopspring/decimal"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 )
 
 // ReceiptChangePercent compares two periods of the same asset. Callers must not

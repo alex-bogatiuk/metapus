@@ -5,7 +5,7 @@ package content
 import (
 	"context"
 	"errors"
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 	"os"
 	"testing"
 
@@ -14,12 +14,12 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 // TestDeclaredTablePartsMatchSchema is the schema gate for physical table

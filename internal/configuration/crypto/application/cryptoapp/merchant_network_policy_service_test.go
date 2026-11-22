@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 type networkPolicyTxManager struct{}

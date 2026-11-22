@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 )
 
 // Kinds of integration the crypto configuration adds to the platform's.

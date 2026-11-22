@@ -6,19 +6,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/application/readaccess"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/readaccess"
+	"metapus/pkg/sdk/settings"
+	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoSweepHandler handles HTTP requests for CryptoSweep documents.

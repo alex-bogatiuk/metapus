@@ -11,14 +11,14 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tx"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tx"
+	"metapus/pkg/sdk/types"
 )
 
 // The threshold is denominated in microtokens (10^-6 token), independent of

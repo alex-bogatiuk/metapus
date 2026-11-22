@@ -2,6 +2,16 @@
 
 Каждое изменение `pkg/sdk` записывается здесь вместе с новой `sdk.APIVersion` ([правила](README.md#версионирование)).
 
+## 3.1.0 — 2026-11-22
+
+Расширенный слой: всё, что использует крипто-конфигурация, которая теперь, как и «Автозапчасти», импортирует из платформы только `pkg/sdk`. Только добавления, поэтому конфигурации для 3.0.0 совместимы.
+
+- Новые пакеты: `appctx`, `tenant`, `tx`, `tenantdb`, `json`, `logger`, `encryption`, `numerator`, `workerjob`, `security`, `security_profile`, `readaccess`, `readpolicy`, `domain`, `audit`, `cursor`, `filter`, `eventlog`, `notifications`, `settings`, `command`, `registers/exchange_rate`, `reports/{schema,contract,compiler}`, `printing`, `printing/render`, `integrations/{transport,profiles,providerpolicy,integrationapp}`, `urlsafe`, `http/{v1,handlers,middleware,dto,httpvalue,jsoncodec}`, `postgres`, `postgres/{catalog_repo,document_repo,integration_repo,filter,keyset,numerator}`, `migration`, `metadata`, `telemetry`, `envconfig`, `secretfile`.
+- Дополнены `id`, `types` (`RawAmount` и конструкторы), `apperror`, `entity`, `integrations` (аккаунты, пулы, провайдеры, учётные данные), `contracts` (`Request`, `Response`, `RouteContract`, `Routes`, `Registry`), `registers` (`ExchangeRateRepo`), `configuration` (`Compose`, `HTTPArtifacts`, `HTTPContractBundles`, `Permissions`, `Extensions`).
+- `posting`: `DocumentLocker`, `NewLockingEngine` — движок с блокировкой документов; `NewEngine()` по-прежнему без неё.
+- `migration`: `PlatformSchemaVersion`, `CompatiblePlatformSchema`, `HighestVersion` — версии схемы для проверки тенантов конфигурацией.
+- `sdktest`: `NewTenantWithMigrations`, `Tenant.Context`, `NewExchangeRateDatabase`.
+
 ## 3.0.0 — 2026-11-22
 
 Первая версия фасада. Прежние `pkg/extension.ExtensionAPIVersion` и `internal/platform.ExtensionAPIVersion` (2.0.0) содержали только номер и нигде не проверялись; они удалены.

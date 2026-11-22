@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/postgres"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"

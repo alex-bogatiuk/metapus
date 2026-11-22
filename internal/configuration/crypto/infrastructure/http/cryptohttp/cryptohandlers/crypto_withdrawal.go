@@ -8,12 +8,12 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/settings"
+	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoWithdrawalHandler handles HTTP requests for CryptoWithdrawal documents.

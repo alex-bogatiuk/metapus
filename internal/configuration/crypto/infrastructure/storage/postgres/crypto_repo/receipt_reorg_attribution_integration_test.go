@@ -15,10 +15,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
 	"metapus/internal/configuration/crypto/domain/tariff"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/types"
 )
 
 // reorgPayment compensates the posted payment the way the event processor does

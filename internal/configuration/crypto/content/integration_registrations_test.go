@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/metadata"
 )
 
 // Composing the application lists its catalog's providers, the crypto ones

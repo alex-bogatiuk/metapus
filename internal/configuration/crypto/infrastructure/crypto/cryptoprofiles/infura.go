@@ -2,18 +2,18 @@ package cryptoprofiles
 
 import (
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations/profiles"
 	"net/http"
 	"time"
 
-	model "metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 )
 
 func infura() profiles.Profile {
-	return profiles.Profile{Provider: cryptointegrations.Infura, Authorize: pathSuffix(cryptointegrations.Infura, model.CredentialHex32),
-		Classify: func(status int, body []byte) model.Failure {
+	return profiles.Profile{Provider: cryptointegrations.Infura, Authorize: pathSuffix(cryptointegrations.Infura, integrations.CredentialHex32),
+		Classify: func(status int, body []byte) integrations.Failure {
 			if status == http.StatusPaymentRequired {
-				return model.Throttled
+				return integrations.Throttled
 			}
 			return classify(status, body)
 		},

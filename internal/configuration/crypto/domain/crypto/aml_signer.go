@@ -3,7 +3,7 @@ package crypto
 import (
 	"context"
 
-	"metapus/internal/core/apperror"
+	"metapus/pkg/sdk/apperror"
 )
 
 // AMLSigningSchemaV1 includes acceptance-bound intent V2, exact source-line

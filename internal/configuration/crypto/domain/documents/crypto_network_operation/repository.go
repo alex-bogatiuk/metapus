@@ -3,8 +3,8 @@ package crypto_network_operation
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
 )
 
 type Repository interface {

@@ -14,11 +14,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	infraNumerator "metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )
@@ -74,12 +74,12 @@ func receiptIntakeForTest(t *testing.T, f sweepCoordinationFixture) (*receiptInt
 			receipt: crypto.ChainReceipt{ObservedAt: time.Now().UTC()}},
 		calls: &calls,
 	}))
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
 	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())))
-	return newReceiptIntake(engine, infraNumerator.New()), registry, &calls
+	return newReceiptIntake(engine, numerator.New()), registry, &calls
 }
 
 func TestReceiptIntakeAccountsFinalUnmatchedTransferOnce(t *testing.T) {

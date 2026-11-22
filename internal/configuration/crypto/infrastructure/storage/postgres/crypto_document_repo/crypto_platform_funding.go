@@ -2,8 +2,8 @@ package crypto_document_repo
 
 import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/document_repo"
 )
 
 type CryptoPlatformFundingRepo struct {

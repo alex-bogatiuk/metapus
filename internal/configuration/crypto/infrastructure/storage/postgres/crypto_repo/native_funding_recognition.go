@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func (NativeFundingSettlementRepo) PrepareNativeFundingPrincipal(ctx context.Context, funding crypto.NativeFunding, receipt crypto.ChainReceipt) error {

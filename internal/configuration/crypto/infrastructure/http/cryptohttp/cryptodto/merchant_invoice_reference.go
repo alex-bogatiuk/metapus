@@ -1,6 +1,6 @@
 package cryptodto
 
-import "metapus/internal/infrastructure/http/httpvalue"
+import "metapus/pkg/sdk/http/httpvalue"
 
 type BindMerchantInvoiceReferenceRequest struct {
 	OrderID    httpvalue.BusinessReference `json:"orderId,omitzero"`

@@ -3,7 +3,7 @@ package aml
 import (
 	"time"
 
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // AssessmentDisplay describes evidence for an operator; it is not a permit.

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 func TestPortalCommandScopeSelectsMerchantInScope(t *testing.T) {

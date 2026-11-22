@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations/providerpolicy"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 const transferTopic = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"

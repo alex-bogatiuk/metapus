@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto/publicref"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tenant"
 )
 
 var ErrReferenceCollision = errors.New("checkout public reference collision")

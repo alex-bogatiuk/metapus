@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/numerator"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/numerator"
 )
 
 // Repository defines storage operations for BlockchainNetwork.

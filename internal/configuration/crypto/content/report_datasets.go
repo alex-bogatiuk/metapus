@@ -2,13 +2,13 @@ package content
 
 import (
 	"context"
-	"metapus/internal/infrastructure/readpolicy"
+	"metapus/pkg/sdk/readpolicy"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/schema"
+	"metapus/pkg/sdk/reports/contract"
+	"metapus/pkg/sdk/reports/schema"
 )
 
 // ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ var DocumentJournalDataset = schema.Dataset{
 		{Name: "date", Access: journalAccess("date"), Label: "Дата", Kind: schema.FieldDimension, Type: schema.TypeDate, Sortable: true},
 		{Name: "posted", Access: journalAccess("posted"), Label: "Проведён", Kind: schema.FieldAttribute, Type: schema.TypeBoolean, Sortable: true},
 		{Name: "counterparty_name", Access: journalMerchantAccess(), Label: "Мерчант", Kind: schema.FieldAttribute, Type: schema.TypeString, Sortable: true},
-		{Name: "total_amount", Access: journalAmountAccess(), Label: "Сумма", Kind: schema.FieldMeasure, Type: schema.TypeMoney, Agg: schema.AggSum, Sortable: true, Money: &reportcontract.MoneySources{AmountType: reportcontract.AmountTypeRaw, CurrencyID: "currency_id", CurrencyCode: "currency", DecimalPlaces: "currency_decimal_places"}},
+		{Name: "total_amount", Access: journalAmountAccess(), Label: "Сумма", Kind: schema.FieldMeasure, Type: schema.TypeMoney, Agg: schema.AggSum, Sortable: true, Money: &contract.MoneySources{AmountType: contract.AmountTypeRaw, CurrencyID: "currency_id", CurrencyCode: "currency", DecimalPlaces: "currency_decimal_places"}},
 		{Name: "currency_id", Access: journalRefAccess("token_id", "token", "id"), Label: "ID токена", Kind: schema.FieldDimension, Type: schema.TypeString, Hidden: true},
 		{Name: "currency_decimal_places", Access: journalRefAccess("token_id", "token", "decimal_places"), Label: "Точность токена", Kind: schema.FieldDimension, Type: schema.TypeInteger, Hidden: true},
 		{Name: "currency", Access: journalRefAccess("token_id", "token", "symbol"), Label: "Токен", Kind: schema.FieldAttribute, Type: schema.TypeString},

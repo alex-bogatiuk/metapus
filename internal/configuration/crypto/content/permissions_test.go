@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 )
 
 // TestAssembledPermissionsFitTheTableAndCoverEveryEntity checks the list the

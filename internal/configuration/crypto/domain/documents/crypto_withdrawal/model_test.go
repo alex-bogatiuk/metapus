@@ -2,8 +2,8 @@ package crypto_withdrawal
 
 import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 	"testing"
 
 	"github.com/stretchr/testify/require"

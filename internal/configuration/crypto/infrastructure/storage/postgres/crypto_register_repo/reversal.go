@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers"
 )
 
 // appendReversalsByRecorder appends linked opposite movements for the five
 // crypto financial ledgers, which are append-only and never delete facts. The table and dimension identifiers are static package data,
 // never request input. The ledger-reversal partial unique index makes retries safe.
 func appendReversalsByRecorder[T any](
-	ctx context.Context, r *register_repo.BaseAccumulationRepo[T], recorderID id.ID, beforeVersion int, dimensions []string,
+	ctx context.Context, r *registers.BaseAccumulationRepo[T], recorderID id.ID, beforeVersion int, dimensions []string,
 ) error {
 	if beforeVersion <= 0 {
 		return fmt.Errorf("positive reversal version is required")

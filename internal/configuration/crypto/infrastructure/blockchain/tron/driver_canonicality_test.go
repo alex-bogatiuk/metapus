@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 func canonicalServer(t *testing.T, height int64, hash string) *httptest.Server {

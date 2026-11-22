@@ -15,13 +15,13 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/security"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
+	"metapus/pkg/sdk/security"
+	"metapus/pkg/sdk/tenant"
 )
 
 func rpcManagementFixture(t *testing.T) (context.Context, *pgxpool.Pool, id.ID, []*rpcconfig.RPCEndpoint) {

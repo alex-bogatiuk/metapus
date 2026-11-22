@@ -15,9 +15,8 @@ import (
 
 // sdkConfigurations are the configurations built on the public platform API
 // (metapus/pkg/sdk) alone, as a configuration in its own repository has to
-// be: their code and tests import no other platform package. The crypto
-// configuration predates the API and still uses the platform's internals.
-var sdkConfigurations = []string{"autoparts"}
+// be: their code and tests import no other platform package.
+var sdkConfigurations = []string{"autoparts", "crypto"}
 
 func TestSDKConfigurationsUseOnlyThePublicAPI(t *testing.T) {
 	t.Parallel()

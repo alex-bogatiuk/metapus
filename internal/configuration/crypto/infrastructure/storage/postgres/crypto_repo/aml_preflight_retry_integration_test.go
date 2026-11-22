@@ -3,7 +3,7 @@
 package crypto_repo
 
 import (
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 	"testing"
 
 	"github.com/stretchr/testify/require"

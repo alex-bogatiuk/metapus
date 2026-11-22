@@ -6,8 +6,8 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // A table name is selected only from known business document types.

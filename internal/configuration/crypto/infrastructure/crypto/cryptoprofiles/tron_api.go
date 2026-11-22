@@ -3,7 +3,7 @@ package cryptoprofiles
 import (
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations/profiles"
 )
 
 func tronAPI() profiles.Profile {

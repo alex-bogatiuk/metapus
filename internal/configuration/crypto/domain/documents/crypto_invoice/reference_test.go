@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/apperror"
+	"metapus/pkg/sdk/apperror"
 )
 
 func TestOrderReferenceValidationPreservesUnicodeAndCase(t *testing.T) {

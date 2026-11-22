@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/Masterminds/squirrel"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/infrastructure/readpolicy"
+	"metapus/pkg/sdk/readpolicy"
 	"testing"
 )
 

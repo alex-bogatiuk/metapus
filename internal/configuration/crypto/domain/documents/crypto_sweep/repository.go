@@ -3,8 +3,8 @@ package crypto_sweep
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
 )
 
 // Repository defines operations for crypto sweep documents.

@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/types"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"

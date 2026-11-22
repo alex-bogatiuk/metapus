@@ -15,9 +15,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
 	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 type fakeSharedResourceStore struct {
@@ -457,7 +457,7 @@ func TestResolveProviderForAccountReplacesRotatedAdapter(t *testing.T) {
 	key := []byte("12345678901234567890123456789012")
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", string(key))
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY_FILE", "")
-	enc, err := corecrypto.Encrypt([]byte(`{"apiKey":"first"}`), key)
+	enc, err := encryption.Encrypt([]byte(`{"apiKey":"first"}`), key)
 	require.NoError(t, err)
 	account := &providerAccountRecord{ID: id.New(), NetworkID: id.New(), Provider: crypto.ResourceProviderITRX,
 		CredentialsEnc: enc, CredentialsVersion: 1}
@@ -474,7 +474,7 @@ func TestResolveProviderForAccountReplacesRotatedAdapter(t *testing.T) {
 	require.Equal(t, 1, builds)
 
 	account.CredentialsVersion = 2
-	account.CredentialsEnc, err = corecrypto.Encrypt([]byte(`{"apiKey":"second"}`), key)
+	account.CredentialsEnc, err = encryption.Encrypt([]byte(`{"apiKey":"second"}`), key)
 	require.NoError(t, err)
 	_, err = preparer.resolveProviderForAccount(context.Background(), account)
 	require.NoError(t, err)

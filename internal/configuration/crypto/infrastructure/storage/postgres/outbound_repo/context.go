@@ -1,7 +1,7 @@
 package outbound_repo
 
 import (
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/tenant"
 )
 
 type contextTxManager = tenant.ContextTxManager

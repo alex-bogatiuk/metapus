@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_merchant_balance"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers"
+	"metapus/pkg/sdk/types"
 )
 
 const (
@@ -37,13 +37,13 @@ func cryptoMerchantBalanceMovementRowMapper(m crypto_merchant_balance.CryptoMerc
 
 // CryptoMerchantBalanceRepo implements crypto_merchant_balance.Repository.
 type CryptoMerchantBalanceRepo struct {
-	register_repo.BaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement]
+	registers.BaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement]
 }
 
 // NewCryptoMerchantBalanceRepo creates a new crypto merchant balance register repository.
 func NewCryptoMerchantBalanceRepo() *CryptoMerchantBalanceRepo {
 	return &CryptoMerchantBalanceRepo{
-		BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement](
+		BaseAccumulationRepo: registers.NewBaseAccumulationRepo[crypto_merchant_balance.CryptoMerchantBalanceMovement](
 			_cryptoMerchantBalanceMovementsTable,
 			_cryptoMerchantBalanceMovementColumns,
 			cryptoMerchantBalanceMovementRowMapper,

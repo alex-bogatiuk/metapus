@@ -6,7 +6,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/tenant"
+	"metapus/pkg/sdk/tenant"
 )
 
 type DepositAddressRotationService struct {

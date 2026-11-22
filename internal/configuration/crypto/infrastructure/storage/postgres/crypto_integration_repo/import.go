@@ -16,13 +16,13 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/apperror"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/encryption"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // ImportBinding contains no secrets. Endpoint keys are NETWORK/role/providerId;
@@ -47,7 +47,7 @@ type importedEndpoint struct {
 	poolCode string
 }
 type importedAccount struct {
-	provider model.Provider
+	provider integrations.Provider
 	binding  ImportBinding
 	keys     map[string]string
 }
@@ -60,9 +60,9 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
 	accounts := map[string]*importedAccount{}
 	poolMembers := map[string][]string{}
-	poolProvider := map[string]model.Provider{}
+	poolProvider := map[string]integrations.Provider{}
 	// profileSlot is the key name fixed by the provider profile, if any.
-	add := func(target string, provider model.Provider, secret, profileSlot string) (string, string, error) {
+	add := func(target string, provider integrations.Provider, secret, profileSlot string) (string, string, error) {
 		b, ok := bindings[target]
 		if !ok || strings.TrimSpace(b.ExternalAccountRef) == "" || strings.TrimSpace(b.PoolCode) == "" {
 			return "", "", fmt.Errorf("explicit external account and pool mapping required for %s", target)
@@ -97,7 +97,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 			return "", "", fmt.Errorf("conflicting keys for account %s slot %s", b.Name, b.Slot)
 		}
 		definition, _ := cryptointegrations.Catalog().Definition(a.provider)
-		if definition.QuotaPolicy == model.QuotaManual {
+		if definition.QuotaPolicy == integrations.QuotaManual {
 			if b.CredentialsExpiresAt == nil || a.binding.CredentialsExpiresAt == nil || !b.CredentialsExpiresAt.Equal(*a.binding.CredentialsExpiresAt) {
 				return "", "", fmt.Errorf("explicit consistent credential expiry required for manual account %s", b.Name)
 			}
@@ -192,7 +192,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		return report, err
 	}
 	for i := range sources {
-		sources[i].poolCode, _, err = add("rateSource:"+sources[i].code, model.CoinGeckoDemo, sources[i].key, "")
+		sources[i].poolCode, _, err = add("rateSource:"+sources[i].code, integrations.CoinGeckoDemo, sources[i].key, "")
 		if err != nil {
 			return report, err
 		}
@@ -214,18 +214,18 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 			a = nil
 		}
 		if a == nil {
-			a = model.NewAccount(code, item.binding.Name)
+			a = integrations.NewAccount(code, item.binding.Name)
 			a.Provider = item.provider
 			a.CredentialsExpiresAt = item.binding.CredentialsExpiresAt
 			a.ExternalAccountRef = item.binding.ExternalAccountRef
-			credentials := &model.Credentials{Keys: []model.NamedKey{}}
+			credentials := &integrations.Credentials{Keys: []integrations.NamedKey{}}
 			slots := make([]string, 0, len(item.keys))
 			for slot := range item.keys {
 				slots = append(slots, slot)
 			}
 			sort.Strings(slots)
 			for _, slot := range slots {
-				credentials.Keys = append(credentials.Keys, model.NamedKey{Name: slot, Value: item.keys[slot]})
+				credentials.Keys = append(credentials.Keys, integrations.NamedKey{Name: slot, Value: item.keys[slot]})
 			}
 			a.PendingCredentials = credentials
 			if err = a.Validate(ctx); err != nil {
@@ -256,11 +256,11 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		if err != nil {
 			return report, err
 		}
-		raw, err := corecrypto.Decrypt(a.CredentialsEnc, key)
+		raw, err := encryption.Decrypt(a.CredentialsEnc, key)
 		if err != nil {
 			return report, fmt.Errorf("existing account credentials unreadable")
 		}
-		var stored model.Credentials
+		var stored integrations.Credentials
 		if json.Unmarshal(raw, &stored) != nil {
 			return report, fmt.Errorf("existing account credentials invalid")
 		}
@@ -284,7 +284,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 			return report, err
 		}
 		if p == nil {
-			p = model.NewPool(code, code)
+			p = integrations.NewPool(code, code)
 			p.Provider = poolProvider[code]
 			for _, a := range poolMembers[code] {
 				p.AccountIDs = append(p.AccountIDs, accountIDs[a])

@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
 )
 
 const maxConfigBytes = 4 << 20

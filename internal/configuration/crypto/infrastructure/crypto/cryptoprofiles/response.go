@@ -3,9 +3,9 @@ package cryptoprofiles
 import (
 	"net/http"
 
-	"metapus/internal/core/json"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/profiles"
+	"metapus/pkg/sdk/json"
 )
 
 type rpcErrorCode struct {
@@ -32,7 +32,7 @@ func readRPCError[T any](body []byte) T {
 
 // classify is the default classification plus TRON's HTTP API error
 // envelope, {"Error": ...}, which blockchain operators return for TRON calls.
-func classify(status int, body []byte) model.Failure {
+func classify(status int, body []byte) integrations.Failure {
 	return profiles.ClassifyResponse(status, body, hasTRONError(body))
 }
 
@@ -45,7 +45,7 @@ func hasTRONError(body []byte) bool {
 
 // Only an HTTP gateway failure can change the account state. In particular, a
 // contract revert can contain arbitrary text that resembles a quota error.
-func gatewayHTTPFailure(status int, body []byte) model.Failure {
+func gatewayHTTPFailure(status int, body []byte) integrations.Failure {
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusPaymentRequired, http.StatusTooManyRequests:
 		return profiles.Classify(status, body)

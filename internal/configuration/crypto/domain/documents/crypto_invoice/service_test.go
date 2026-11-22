@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/types"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/types"
 )
 
 type creationTxMarker struct{}

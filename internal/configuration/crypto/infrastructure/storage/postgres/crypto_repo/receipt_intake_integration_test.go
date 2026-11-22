@@ -17,12 +17,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -58,7 +58,7 @@ func newReceiptIntakeFixture(t *testing.T, publisher domain.OutboxPublisher) rec
 	basis := crypto.AccountingTransferBasis{NetworkID: event.NetworkID, WalletID: walletID, TokenID: tokenID,
 		TxHash: event.TxHash, EventKind: event.EventKind, EventIndex: event.EventIndex, FromAddress: event.FromAddress,
 		Amount: event.Amount, BlockNumber: event.BlockNumber, BlockHash: event.BlockHash, RequiredConfs: 19, VerificationID: &proofID}
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
@@ -154,7 +154,7 @@ func TestCustodyReceiptDeferredConstraintsRejectPartialCommit(t *testing.T) {
 			case "missing_audit":
 				repo = missingReceiptAudit{f.repo}
 			case "missing_suspense":
-				engine = posting.NewEngine(nil)
+				engine = posting.NewEngine()
 				engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 				engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 				engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

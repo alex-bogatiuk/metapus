@@ -3,17 +3,17 @@ package cryptoprofiles
 import (
 	"errors"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations/profiles"
 	"net/http"
 	"net/url"
 	"strings"
 
-	model "metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 )
 
 func alchemy() profiles.Profile {
 	return profiles.Profile{Provider: cryptointegrations.Alchemy, Authorize: chainPathKey(cryptointegrations.Alchemy, ""),
-		Classify: func(status int, body []byte) model.Failure {
+		Classify: func(status int, body []byte) integrations.Failure {
 			if alchemyNetworkDisabled(status, body) {
 				return ""
 			}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func TestParseMerchantInvoiceListFilter(t *testing.T) {

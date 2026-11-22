@@ -11,8 +11,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/watcherlease"
-	"metapus/internal/core/id"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
 )
 
 const latestWindow = int64(128)

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 func TestInvoiceReferenceRequestMetadataPresenceAndStrictShape(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 func TestNewCryptoPayment(t *testing.T) {

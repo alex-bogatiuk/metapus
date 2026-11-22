@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/types"
 )
 
 const ExplorerTxHashPlaceholder = "{txHash}"

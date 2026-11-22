@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 func TestUpdateWalletPoolPolicyRequestMapsNestedActivation(t *testing.T) {

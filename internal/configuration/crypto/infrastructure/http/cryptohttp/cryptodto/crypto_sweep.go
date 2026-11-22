@@ -6,9 +6,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/security"
 )
 
 // CryptoSweep is system-only — no Create/Update DTOs needed.

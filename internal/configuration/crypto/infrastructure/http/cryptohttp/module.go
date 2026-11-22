@@ -16,9 +16,9 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/domain"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/http/v1"
 )
 
 // Config holds the crypto configuration's HTTP dependencies.

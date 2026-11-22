@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func TestExpectedTransferLocatorRequiresUniqueEconomics(t *testing.T) {

@@ -19,9 +19,9 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/crypto/approval_signer"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/tenant"
 )
 
 const _approvalSigningPoll = 3 * time.Second
@@ -61,8 +61,8 @@ func (p *CryptoProcessor) processApprovalSigningJobs(ctx context.Context) error 
 }
 
 func (p *CryptoProcessor) processClaimedApprovalSigningJob(ctx context.Context, job money_movement_repo.SigningJob) error {
-	jobCtx := platformtelemetry.ContinueTrace(ctx, job.Traceparent)
-	jobCtx = platformtelemetry.WithBusinessContext(jobCtx, job.CorrelationID, job.CausationID)
+	jobCtx := telemetry.ContinueTrace(ctx, job.Traceparent)
+	jobCtx = telemetry.WithBusinessContext(jobCtx, job.CorrelationID, job.CausationID)
 	jobCtx, span := otel.Tracer("metapus/crypto/approval-signing").Start(jobCtx,
 		"approval.signing_job", oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
 		oteltrace.WithAttributes(

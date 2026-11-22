@@ -11,10 +11,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/posting"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tenant"
 )
 
 const _sweepExecPeriod = 1 * time.Minute

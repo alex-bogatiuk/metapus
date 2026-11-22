@@ -7,9 +7,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
 	"metapus/internal/configuration/crypto/domain/tariff"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 // The receipt journal is the read side of unidentified custody receipts and

@@ -17,9 +17,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"metapus/internal/configuration/crypto/domain/catalogs/token"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/types"
 )
 
 // Only the Ethereum execution/blob receipt profile is admitted. Unknown fee

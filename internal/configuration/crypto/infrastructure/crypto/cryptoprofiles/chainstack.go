@@ -3,13 +3,13 @@ package cryptoprofiles
 import (
 	"math/rand/v2"
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations/profiles"
 	"net/http"
 	"strings"
 	"time"
 
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 type chainstackRetryHint struct {
@@ -20,9 +20,9 @@ type chainstackRetryHint struct {
 
 func chainstack() profiles.Profile {
 	return profiles.Profile{Provider: cryptointegrations.Chainstack, Authorize: pathPrefix(cryptointegrations.Chainstack),
-		Classify: func(status int, body []byte) model.Failure {
+		Classify: func(status int, body []byte) integrations.Failure {
 			failure := classify(status, body)
-			if status == http.StatusForbidden && failure == model.Unauthorized {
+			if status == http.StatusForbidden && failure == integrations.Unauthorized {
 				return ""
 			}
 			return failure

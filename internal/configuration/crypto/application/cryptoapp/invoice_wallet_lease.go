@@ -9,7 +9,7 @@ import (
 	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 // InvoiceTokenReader resolves the token an invoice is denominated in.

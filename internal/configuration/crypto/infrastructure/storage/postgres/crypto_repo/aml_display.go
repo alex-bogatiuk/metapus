@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // ReadWalletRiskDisplays is a bounded batch read for already-authorized wallet

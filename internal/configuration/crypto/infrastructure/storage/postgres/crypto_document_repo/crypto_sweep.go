@@ -8,9 +8,9 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/document_repo"
 )
 
 var _cryptoSweepLinesTable = crypto_sweep.Definition.MustPartTable(crypto_sweep.LinesPart)

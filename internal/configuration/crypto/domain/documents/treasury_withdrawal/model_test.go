@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 
 	"github.com/stretchr/testify/require"
 )

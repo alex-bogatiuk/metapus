@@ -8,9 +8,9 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	er "metapus/internal/domain/registers/exchange_rate"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers/exchange_rate"
+	"metapus/pkg/sdk/types"
 )
 
 type BalanceRow struct {
@@ -31,19 +31,19 @@ type BalanceQueryRepo interface {
 
 // QuoteDetails intentionally omits ingestion and mapping configuration from Portal.
 type QuoteDetails struct {
-	ID                id.ID           `json:"id"`
-	Currency          er.CurrencyRef  `json:"currency"`
-	BaseCurrency      er.CurrencyRef  `json:"baseCurrency"`
-	Source            er.SourceRef    `json:"source"`
-	Rate              decimal.Decimal `json:"rate"`
-	Multiplier        int             `json:"multiplier"`
-	Version           int             `json:"version"`
-	ProviderUpdatedAt time.Time       `json:"providerUpdatedAt"`
-	ReceivedAt        time.Time       `json:"receivedAt"`
-	RecordedAt        time.Time       `json:"recordedAt"`
+	ID                id.ID                     `json:"id"`
+	Currency          exchange_rate.CurrencyRef `json:"currency"`
+	BaseCurrency      exchange_rate.CurrencyRef `json:"baseCurrency"`
+	Source            exchange_rate.SourceRef   `json:"source"`
+	Rate              decimal.Decimal           `json:"rate"`
+	Multiplier        int                       `json:"multiplier"`
+	Version           int                       `json:"version"`
+	ProviderUpdatedAt time.Time                 `json:"providerUpdatedAt"`
+	ReceivedAt        time.Time                 `json:"receivedAt"`
+	RecordedAt        time.Time                 `json:"recordedAt"`
 }
 
-func quoteDetails(q *er.Quote) *QuoteDetails {
+func quoteDetails(q *exchange_rate.Quote) *QuoteDetails {
 	if q == nil {
 		return nil
 	}
@@ -51,14 +51,14 @@ func quoteDetails(q *er.Quote) *QuoteDetails {
 }
 
 type TokenValuation struct {
-	Status         er.Status     `json:"status"`
-	Reason         string        `json:"reason"`
-	SelectedQuote  *QuoteDetails `json:"selectedQuote"`
-	LastKnownQuote *QuoteDetails `json:"lastKnownQuote"`
-	FreshUntil     *time.Time    `json:"freshUntil"`
-	Total          *string       `json:"total"`
-	Pending        *string       `json:"pending"`
-	Available      *string       `json:"available"`
+	Status         exchange_rate.Status `json:"status"`
+	Reason         string               `json:"reason"`
+	SelectedQuote  *QuoteDetails        `json:"selectedQuote"`
+	LastKnownQuote *QuoteDetails        `json:"lastKnownQuote"`
+	FreshUntil     *time.Time           `json:"freshUntil"`
+	Total          *string              `json:"total"`
+	Pending        *string              `json:"pending"`
+	Available      *string              `json:"available"`
 }
 type TokenBalance struct {
 	TokenID        id.ID           `json:"tokenId"`
@@ -86,12 +86,12 @@ type BalanceValuation struct {
 	Available ValuationBucket `json:"available"`
 }
 type MerchantBalance struct {
-	BaseCurrency er.CurrencyRef   `json:"baseCurrency"`
-	Source       *er.SourceRef    `json:"source"`
-	EvaluatedAt  time.Time        `json:"evaluatedAt"`
-	FreshUntil   *time.Time       `json:"freshUntil"`
-	Valuation    BalanceValuation `json:"valuation"`
-	ByToken      []TokenBalance   `json:"byToken"`
+	BaseCurrency exchange_rate.CurrencyRef `json:"baseCurrency"`
+	Source       *exchange_rate.SourceRef  `json:"source"`
+	EvaluatedAt  time.Time                 `json:"evaluatedAt"`
+	FreshUntil   *time.Time                `json:"freshUntil"`
+	Valuation    BalanceValuation          `json:"valuation"`
+	ByToken      []TokenBalance            `json:"byToken"`
 }
 type bucketAccumulator struct {
 	sum     *big.Rat
@@ -100,18 +100,18 @@ type bucketAccumulator struct {
 }
 
 func newBucket() *bucketAccumulator { return &bucketAccumulator{sum: new(big.Rat)} }
-func (b *bucketAccumulator) add(amount decimal.Decimal, res er.Resolution, places int) *string {
+func (b *bucketAccumulator) add(amount decimal.Decimal, res exchange_rate.Resolution, places int) *string {
 	if amount.IsZero() {
 		zero := decimal.Zero.StringFixed(int32(places))
 		return &zero
 	}
 	var exact *big.Rat
 	switch res.Status {
-	case er.StatusIdentity:
+	case exchange_rate.StatusIdentity:
 		exact = amount.Rat()
-	case er.StatusFresh:
+	case exchange_rate.StatusFresh:
 		if res.SelectedQuote != nil {
-			exact = er.ConvertExact(amount, res.SelectedQuote.Rate, res.SelectedQuote.Multiplier)
+			exact = exchange_rate.ConvertExact(amount, res.SelectedQuote.Rate, res.SelectedQuote.Multiplier)
 		}
 	}
 	if exact == nil {
@@ -120,7 +120,7 @@ func (b *bucketAccumulator) add(amount decimal.Decimal, res er.Resolution, place
 	}
 	b.valued++
 	b.sum.Add(b.sum, exact)
-	s := er.RoundAmount(exact, places)
+	s := exchange_rate.RoundAmount(exact, places)
 	return &s
 }
 func (b *bucketAccumulator) result(places int) ValuationBucket {
@@ -132,13 +132,13 @@ func (b *bucketAccumulator) result(places int) ValuationBucket {
 			return r
 		}
 	}
-	s := er.RoundAmount(b.sum, places)
+	s := exchange_rate.RoundAmount(b.sum, places)
 	r.Amount = &s
 	return r
 }
 
 // CalculateBalance is pure: one immutable set of quantities and resolutions.
-func CalculateBalance(rows []BalanceRow, pending map[string]types.RawAmount, rates map[id.ID]er.Resolution, cfg er.Configuration, at time.Time) MerchantBalance {
+func CalculateBalance(rows []BalanceRow, pending map[string]types.RawAmount, rates map[id.ID]exchange_rate.Resolution, cfg exchange_rate.Configuration, at time.Time) MerchantBalance {
 	result := MerchantBalance{BaseCurrency: cfg.BaseCurrency, Source: cfg.Source, EvaluatedAt: at, ByToken: make([]TokenBalance, 0, len(rows))}
 	// Scope may include multiple merchants; pending totals must be applied once per token.
 	byToken := make(map[id.ID]BalanceRow, len(rows))
@@ -173,7 +173,7 @@ func CalculateBalance(rows []BalanceRow, pending map[string]types.RawAmount, rat
 		if !id.IsNil(row.NetworkID) {
 			tb.NetworkID = row.NetworkID.String()
 		}
-		res := er.Resolution{Status: er.StatusMissing, Reason: "currency_not_linked", BaseCurrency: cfg.BaseCurrency, EvaluatedAt: at}
+		res := exchange_rate.Resolution{Status: exchange_rate.StatusMissing, Reason: "currency_not_linked", BaseCurrency: cfg.BaseCurrency, EvaluatedAt: at}
 		if row.CurrencyID != nil {
 			if selected, ok := rates[*row.CurrencyID]; ok {
 				res = selected
@@ -185,7 +185,7 @@ func CalculateBalance(rows []BalanceRow, pending map[string]types.RawAmount, rat
 		tb.Valuation.Total = totalBucket.add(tb.HumanAmount, res, cfg.BaseCurrency.DecimalPlaces)
 		tb.Valuation.Pending = pendingBucket.add(tb.PendingHuman, res, cfg.BaseCurrency.DecimalPlaces)
 		tb.Valuation.Available = availableBucket.add(tb.AvailableHuman, res, cfg.BaseCurrency.DecimalPlaces)
-		if res.Status == er.StatusFresh && res.FreshUntil != nil && (result.FreshUntil == nil || res.FreshUntil.Before(*result.FreshUntil)) {
+		if res.Status == exchange_rate.StatusFresh && res.FreshUntil != nil && (result.FreshUntil == nil || res.FreshUntil.Before(*result.FreshUntil)) {
 			until := *res.FreshUntil
 			result.FreshUntil = &until
 		}

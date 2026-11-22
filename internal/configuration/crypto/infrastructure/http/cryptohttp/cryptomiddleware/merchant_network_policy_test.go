@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"metapus/pkg/sdk/appctx"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
 )
 
 type merchantNetworkPolicyRepoStub struct {

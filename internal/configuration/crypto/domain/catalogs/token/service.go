@@ -3,10 +3,10 @@ package token
 import (
 	"context"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/numerator"
 )
 
 // Repository defines storage operations for Token.

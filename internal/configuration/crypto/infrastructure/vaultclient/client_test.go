@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

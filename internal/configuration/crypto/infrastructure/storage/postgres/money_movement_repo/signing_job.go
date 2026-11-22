@@ -10,11 +10,11 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
 )
 
 type SigningJob struct {
@@ -99,7 +99,7 @@ func (r *Repo) EnqueueApprovalSigning(ctx context.Context, intent crypto.MoneyMo
 		(basis_type,basis_id,intent_payload,intent_fingerprint,traceparent,correlation_id,causation_id)
 		VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7)
 	`, intent.BasisType, intent.BasisID, string(payload), fingerprint,
-		platformtelemetry.Traceparent(ctx), intent.IntentID, intent.BasisID.String())
+		telemetry.Traceparent(ctx), intent.IntentID, intent.BasisID.String())
 	if err != nil {
 		return fmt.Errorf("enqueue approval signing: %w", err)
 	}

@@ -6,12 +6,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"net/url"
 
-	model "metapus/internal/domain/integrations"
+	"metapus/pkg/sdk/integrations"
 )
 
 // ImportRPC normalizes an imported chains-file endpoint without exposing a secret in the
 // result URL or in an error. Unknown endpoints may only be imported anonymously.
-func ImportRPC(raw, key, role, slot string) (model.Provider, string, string, error) {
+func ImportRPC(raw, key, role, slot string) (integrations.Provider, string, string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", "", "", errors.New("invalid RPC endpoint")

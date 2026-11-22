@@ -21,13 +21,13 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tenant"
+	"metapus/pkg/sdk/types"
 )
 
 type fixedNetworkOperationNumerator struct{}
@@ -96,7 +96,7 @@ func TestIntegrationActivationFinalityPostsDocumentOnce(t *testing.T) {
 				crypto_network_operation.ActivationTaskBasisType, activationID, txHash)
 			require.NoError(t, err)
 
-			engine := posting.NewEngine(nil)
+			engine := posting.NewEngine()
 			engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 			engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 			engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

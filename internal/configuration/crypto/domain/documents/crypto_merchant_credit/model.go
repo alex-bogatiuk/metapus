@@ -12,11 +12,11 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/crypto_merchant_balance"
 	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/configuration/crypto/domain/tariff"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 )
 
 type Status string

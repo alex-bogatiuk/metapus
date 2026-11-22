@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 func TestNetworkFeeProofUsesAgreedTRONReceiptAndOwner(t *testing.T) {

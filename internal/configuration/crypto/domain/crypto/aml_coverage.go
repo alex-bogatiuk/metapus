@@ -1,6 +1,6 @@
 package crypto
 
-import "metapus/internal/core/id"
+import "metapus/pkg/sdk/id"
 
 // CoverageStatus distinguishes absence of a matching effect from absence of
 // proof that the decoder observed every effect in the agreed transaction.

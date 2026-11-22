@@ -3,9 +3,9 @@ package outbound_repo
 import (
 	"context"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 func validateResourceReservationReplay(ctx context.Context, existing *ResourceAllocationRecord, req ResourceRequest, required int64) error {

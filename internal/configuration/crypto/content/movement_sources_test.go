@@ -1,15 +1,15 @@
 package content
 
 import (
-	"metapus/internal/configuration"
+	"metapus/pkg/sdk/configuration"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/metadata"
 )
 
 // Every declared movement source reaches the read registry and names fields

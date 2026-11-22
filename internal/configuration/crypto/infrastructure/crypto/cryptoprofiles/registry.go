@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations/profiles"
 )
 
 // Profiles returns the configuration's provider profiles, paced as their

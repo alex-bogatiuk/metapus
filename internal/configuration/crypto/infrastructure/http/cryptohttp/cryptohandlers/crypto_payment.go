@@ -9,13 +9,13 @@ import (
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/settings"
+	"metapus/pkg/sdk/tenantdb"
 )
 
 // CryptoPaymentHandler handles HTTP requests for CryptoPayment documents.

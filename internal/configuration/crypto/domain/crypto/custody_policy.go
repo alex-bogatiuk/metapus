@@ -1,6 +1,6 @@
 package crypto
 
-import "metapus/internal/core/id"
+import "metapus/pkg/sdk/id"
 
 func SameCustodyOwner(a, b *id.ID) bool {
 	if a == nil || b == nil {

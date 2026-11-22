@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 
 	"github.com/stretchr/testify/require"
 )

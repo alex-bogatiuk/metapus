@@ -9,7 +9,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 const _leaseBlockCheckPeriod = 20 * time.Second

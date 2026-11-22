@@ -30,13 +30,13 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/receipttest"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/eventlog"
-	mw "metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/tenant"
 )
 
 type referenceTopUp struct {
@@ -161,13 +161,13 @@ func TestInvoiceReferenceHTTPReplaySecurityAndReconciliation(t *testing.T) {
 	scopes := []merchant.APIKeyScope{merchant.ScopeInvoiceCreate, merchant.ScopeInvoiceRead}
 	currentMerchant := f.merchantID
 	router := gin.New()
-	router.Use(mw.ErrorHandler(), func(c *gin.Context) {
+	router.Use(middleware.ErrorHandler(), func(c *gin.Context) {
 		ctx := cryptomiddleware.WithMerchant(f.ctx, &cryptomiddleware.MerchantContext{MerchantID: currentMerchant, KeyID: f.keyID, Scopes: scopes})
 		ctx = merchant.WithPortalScope(ctx, merchant.PortalScope{MerchantIDs: []id.ID{currentMerchant}, Roles: map[id.ID]merchant.PortalRole{currentMerchant: merchant.PortalRoleOwner}})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	})
-	router.PATCH("/merchant/v1/invoices/:id/reference", cryptomiddleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), h.AuthorizeInvoiceReference, mw.CommandIdempotency(true), h.BindInvoiceReference)
+	router.PATCH("/merchant/v1/invoices/:id/reference", cryptomiddleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), h.AuthorizeInvoiceReference, middleware.CommandIdempotency(true), h.BindInvoiceReference)
 	router.GET("/merchant/v1/invoices/:id", h.GetInvoice)
 	router.GET("/merchant/v1/invoices", h.ListInvoices)
 	portal := &PortalHandler{repo: portal_repo.NewDashboardRepo()}
@@ -280,7 +280,7 @@ func TestInvoiceReferenceFormulaExportPreservesLiteralReference(t *testing.T) {
 	h := NewMerchantInvoiceHandler(f.docSvc, svc, nil, nil, queries)
 	portal := &PortalHandler{repo: portal_repo.NewDashboardRepo()}
 	router := gin.New()
-	router.Use(mw.ErrorHandler(), func(c *gin.Context) {
+	router.Use(middleware.ErrorHandler(), func(c *gin.Context) {
 		ctx := cryptomiddleware.WithMerchant(f.ctxWithPortal(), &cryptomiddleware.MerchantContext{
 			MerchantID: f.merchantID, KeyID: f.keyID,
 			Scopes: []merchant.APIKeyScope{merchant.ScopeInvoiceCreate, merchant.ScopeInvoiceRead},
@@ -288,7 +288,7 @@ func TestInvoiceReferenceFormulaExportPreservesLiteralReference(t *testing.T) {
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	})
-	router.PATCH("/merchant/v1/invoices/:id/reference", cryptomiddleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), h.AuthorizeInvoiceReference, mw.CommandIdempotency(true), h.BindInvoiceReference)
+	router.PATCH("/merchant/v1/invoices/:id/reference", cryptomiddleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), h.AuthorizeInvoiceReference, middleware.CommandIdempotency(true), h.BindInvoiceReference)
 	router.GET("/merchant/v1/invoices/:id", h.GetInvoice)
 	router.GET("/portal/v1/invoices/export", portal.ExportInvoicesCSV)
 	request := func(method, path, body string) *httptest.ResponseRecorder {
@@ -341,13 +341,13 @@ func TestInvoiceReferenceExternalOnlyHTTPAndSystemClassification(t *testing.T) {
 	svc := f.service(t, postgres.NewEventLogRepo())
 	h := NewMerchantInvoiceHandler(f.docSvc, svc, nil, nil, cryptoapp.NewMerchantCryptoQueryService(crypto_repo.NewMerchantCryptoQueryRepo()))
 	router := gin.New()
-	router.Use(mw.ErrorHandler(), func(c *gin.Context) {
+	router.Use(middleware.ErrorHandler(), func(c *gin.Context) {
 		c.Request = c.Request.WithContext(cryptomiddleware.WithMerchant(f.ctx, &cryptomiddleware.MerchantContext{
 			MerchantID: f.merchantID, KeyID: f.keyID, Scopes: []merchant.APIKeyScope{merchant.ScopeInvoiceCreate},
 		}))
 		c.Next()
 	})
-	router.PATCH("/merchant/v1/invoices/:id/reference", cryptomiddleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), h.AuthorizeInvoiceReference, mw.CommandIdempotency(true), h.BindInvoiceReference)
+	router.PATCH("/merchant/v1/invoices/:id/reference", cryptomiddleware.RequireMerchantScope(merchant.ScopeInvoiceCreate), h.AuthorizeInvoiceReference, middleware.CommandIdempotency(true), h.BindInvoiceReference)
 	request := func(key, body string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPatch, "/merchant/v1/invoices/"+p.invoiceID.String()+"/reference", strings.NewReader(body))

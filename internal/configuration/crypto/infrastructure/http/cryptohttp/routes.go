@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/application/command"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/application/dashboardapp"
 	"metapus/internal/configuration/crypto/application/portalapp"
@@ -26,15 +25,16 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/dashboard_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/posting"
-	"metapus/internal/domain/registers/exchange_rate"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/pkg/sdk/command"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/middleware"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/registers"
+	"metapus/pkg/sdk/registers/exchange_rate"
+	"metapus/pkg/sdk/tenant"
 )
 
 func (m *Module) registerWalletPoolRoutes(rg *gin.RouterGroup, cfg v1.RouterConfig) {
@@ -56,7 +56,7 @@ func (m *Module) registerWalletPoolRoutes(rg *gin.RouterGroup, cfg v1.RouterConf
 // receipts. Merchant credits move only suspense, merchant balance and fee, so
 // their posting engine carries just those three registers.
 func (m *Module) registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg v1.RouterConfig) {
-	engine := posting.NewEngine(postgres.NewDocLocker())
+	engine := posting.NewLockingEngine(postgres.NewDocLocker())
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoFeeVisitor{})
@@ -77,7 +77,7 @@ func (m *Module) registerUnidentifiedReceiptRoutes(rg *gin.RouterGroup, cfg v1.R
 
 func (m *Module) registerCryptoNetworkRoutes(rg *gin.RouterGroup, cfg v1.RouterConfig) {
 	cryptohandlers.NewCryptoRPCConfigurationHandler(cryptoapp.NewRPCConfigurationService(crypto_integration_repo.NewRPCConfigurationRepo(os.Getenv("APP_ENV"), cfg.PolicyEngine), tenant.ContextTxManager{}, cfg.EventLogRepo)).RegisterRoutes(rg, middleware.SensitiveActionGuard(cfg.MFARepo, "system.integrations.write", cfg.EventLogRepo))
-	dashboardSvc := dashboardapp.NewService(dashboard_repo.New(), exchange_rate.NewService(register_repo.NewExchangeRateRepo()), register_repo.RateSnapshot)
+	dashboardSvc := dashboardapp.NewService(dashboard_repo.New(), exchange_rate.NewService(registers.NewExchangeRateRepo()), registers.RateSnapshot)
 	cryptohandlers.NewAdminDashboardHandler(dashboardSvc).RegisterRoutes(rg)
 	repo := crypto_repo.NewNetworkPolicyRepo()
 	svc := crypto.NewNetworkPolicyAdminService(repo, m.cfg.ChainCapabilities, cfg.EventLogRepo)
@@ -257,15 +257,15 @@ func (m *Module) registerMerchantPublicRoutes(router *gin.Engine, cfg v1.RouterC
 	// Security chain: TenantDB → Auth → MerchantPortal
 	if m.cfg.PortalDashboardRepo != nil {
 		// Build BalanceCalculator for fiat valuation of crypto balances.
-		exRateRepo := register_repo.NewExchangeRateRepo()
+		exRateRepo := registers.NewExchangeRateRepo()
 		exRateSvc := exchange_rate.NewService(exRateRepo)
-		balanceCalc := cryptoapp.NewValuationService(m.cfg.PortalDashboardRepo, exRateSvc, register_repo.RateSnapshot)
+		balanceCalc := cryptoapp.NewValuationService(m.cfg.PortalDashboardRepo, exRateSvc, registers.RateSnapshot)
 
 		// Posting engine for debit-first withdrawal requests.
 		// Only needs CryptoMerchantBalance visitor+recorder (balance check + movement recording).
 		portalDocLocker := postgres.NewDocLocker()
 		portalMerchantSvc := crypto_merchant_balance.NewService(crypto_register_repo.NewCryptoMerchantBalanceRepo())
-		portalPostingEngine := posting.NewEngine(portalDocLocker)
+		portalPostingEngine := posting.NewLockingEngine(portalDocLocker)
 		portalPostingEngine.AddVisitor(&cryptoposting.CryptoMerchantBalanceVisitor{})
 		portalPostingEngine.AddRecorder(cryptoposting.NewCryptoMerchantBalanceRecorder(portalMerchantSvc))
 

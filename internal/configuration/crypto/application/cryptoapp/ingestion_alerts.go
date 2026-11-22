@@ -7,7 +7,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 type IngestionAlertState struct {

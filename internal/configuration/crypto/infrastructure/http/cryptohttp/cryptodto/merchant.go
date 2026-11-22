@@ -2,8 +2,8 @@ package cryptodto
 
 import (
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/core/entity"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/dto"
 )
 
 // --- Request DTOs ---

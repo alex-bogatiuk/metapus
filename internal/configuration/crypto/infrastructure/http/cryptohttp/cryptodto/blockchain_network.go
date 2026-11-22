@@ -3,9 +3,9 @@ package cryptodto
 import (
 	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/dto"
+	"metapus/pkg/sdk/types"
 )
 
 // --- Request DTOs ---

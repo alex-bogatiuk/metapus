@@ -2,8 +2,8 @@ package portalapp
 
 import (
 	"context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tx"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tx"
 )
 
 type SettingsRepository interface {

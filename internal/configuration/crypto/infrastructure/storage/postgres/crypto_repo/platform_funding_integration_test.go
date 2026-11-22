@@ -11,12 +11,12 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/posting"
 
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ type platformFundingFixture struct {
 func newPlatformFundingFixture(t *testing.T, custodyOwner bool) platformFundingFixture {
 	t.Helper()
 	f := newMerchantCreditFixture(t, custodyOwner)
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoReceiptSuspenseRecorder(crypto_receipt_suspense.NewService(crypto_register_repo.NewCryptoReceiptSuspenseRepo())))
 	fundings := cryptoapp.NewPlatformFundingService(postgres.MustGetTxManager(f.ctx), NewPlatformFundingRepo(),

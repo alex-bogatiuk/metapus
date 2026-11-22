@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tx"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/tx"
 )
 
 type PlatformFundingRepository interface {

@@ -4,10 +4,10 @@ import (
 	"net/http"
 
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/profiles"
+	"metapus/pkg/sdk/integrations/providerpolicy"
+	"metapus/pkg/sdk/json"
 )
 
 func zan() profiles.Profile {

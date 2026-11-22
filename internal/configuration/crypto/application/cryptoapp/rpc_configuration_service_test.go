@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/eventlog"
+	"metapus/pkg/sdk/eventlog"
+	"metapus/pkg/sdk/id"
 )
 
 type configurationStore struct {

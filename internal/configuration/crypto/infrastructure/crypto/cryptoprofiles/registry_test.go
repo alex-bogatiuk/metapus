@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/profiles"
 )
 
 func TestEveryRPCProviderHasAnHTTPProfile(t *testing.T) {

@@ -16,10 +16,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	infraNumerator "metapus/internal/infrastructure/numerator"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/types"
 )
 
 // The acceptance scenarios of the receipt accounting drive the fully wired
@@ -279,11 +279,11 @@ func TestAcceptanceA33CrashBetweenProofAndPosting(t *testing.T) {
 
 	// The broken worker has no suspense recorder: its posting fails inside the
 	// receipt transaction after the custody lines were written.
-	engine := posting.NewEngine(nil)
+	engine := posting.NewEngine()
 	engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 	engine.AddVisitor(&cryptoposting.CryptoReceiptSuspenseVisitor{})
 	engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))
-	broken := newReceiptIntake(engine, infraNumerator.New())
+	broken := newReceiptIntake(engine, numerator.New())
 	recorded, err := broken.poll(f.ctx, f.processor.drivers)
 	require.NoError(t, err)
 	require.Zero(t, recorded)

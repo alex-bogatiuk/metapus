@@ -8,8 +8,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	amlruntime "metapus/internal/configuration/crypto/infrastructure/aml/runtime"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
 )
 
 // Jobs are opt-in through accepted mappings, explicit account enablement and

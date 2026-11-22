@@ -13,8 +13,8 @@ import (
 	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
 
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +34,7 @@ func TestActivationCostRepairFencingPreservesFinancialOwner(t *testing.T) {
 			require.NoError(t, err)
 			_, err = q.Exec(f.ctx, `INSERT INTO reg_crypto_account_activations(id,wallet_id,network_id,status) VALUES($1,$2,$3,'signing')`, f.reservation.BasisID, target, f.reservation.NetworkID)
 			require.NoError(t, err)
-			engine := posting.NewEngine(nil)
+			engine := posting.NewEngine()
 			engine.AddVisitor(&cryptoposting.CryptoBalanceVisitor{})
 			engine.AddVisitor(&cryptoposting.CryptoPlatformCostVisitor{})
 			engine.AddRecorder(cryptoposting.NewCryptoBalanceRecorder(crypto_balance.NewService(crypto_register_repo.NewCryptoBalanceRepo())))

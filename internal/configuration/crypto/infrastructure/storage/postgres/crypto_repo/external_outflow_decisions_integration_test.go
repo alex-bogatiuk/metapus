@@ -8,9 +8,9 @@ import (
 
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/posting"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 
 func decisionService111(ctx context.Context) *cryptoapp.ExternalOutflowService {
 	tm := postgres.MustGetTxManager(ctx)
-	return cryptoapp.NewExternalOutflowService(tm, NewExternalOutflowWorkflowRepo(), cryptoapp.NewOperationalHoldService(tm, NewOperationalHoldRepo()), posting.NewEngine(postgres.NewDocLocker()))
+	return cryptoapp.NewExternalOutflowService(tm, NewExternalOutflowWorkflowRepo(), cryptoapp.NewOperationalHoldService(tm, NewOperationalHoldRepo()), posting.NewLockingEngine(postgres.NewDocLocker()))
 }
 
 func decisionSnapshot111(t *testing.T, ctx context.Context, pool *pgxpool.Pool, outflow id.ID) string {

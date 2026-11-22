@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/application/integrationapp"
-	"metapus/internal/configuration"
 	"metapus/internal/configuration/crypto/application/checkout"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
@@ -27,14 +25,16 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/json"
-	corenumerator "metapus/internal/core/numerator"
-	"metapus/internal/domain/posting"
-	v1 "metapus/internal/infrastructure/http/v1"
-	integrationhttp "metapus/internal/infrastructure/integrations"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
-	"metapus/internal/platform/envconfig"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/envconfig"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/integrations/integrationapp"
+	"metapus/pkg/sdk/integrations/transport"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/postgres/integration_repo"
+	"metapus/pkg/sdk/posting"
 )
 
 // serverSettings are the crypto configuration's API server settings.
@@ -210,7 +210,7 @@ func (c cryptoConfiguration) Server(ctx context.Context, env configuration.Serve
 		Register:       func(reg *v1.FactoryRegistry) { register(reg, services) },
 		AccessScopes:   merchant.NewPortalAccessScopes(merchantUserRepo),
 		PostingModules: []posting.Module{cryptoregisters.New()},
-		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), integrationhttp.ConnectionProber{
+		IntegrationConnectionTests: integrationapp.NewConnectionTestService(crypto_integration_repo.NewConnectionTargets(), transport.ConnectionProber{
 			Accounts: integration_repo.NewRuntime(catalog), Profiles: cryptoprofiles.Registry(),
 			EndpointProbe: crypto_integration_repo.RPCProbe, EndpointTransport: crypto_integration_repo.RPCTransport,
 		}),
@@ -236,7 +236,7 @@ func (c cryptoConfiguration) Server(ctx context.Context, env configuration.Serve
 // invoice.created lifecycle webhook in the creation transaction.
 func newMerchantInvoiceService(
 	repo crypto_invoice.Repository,
-	num corenumerator.Generator,
+	num numerator.Generator,
 	lifecycle *crypto_repo.LifecycleWebhookOutbox,
 ) *crypto_invoice.Service {
 	svc := crypto_invoice.NewService(

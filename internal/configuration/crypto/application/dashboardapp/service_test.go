@@ -5,8 +5,8 @@ import (
 	"errors"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/dashboard"
-	"metapus/internal/core/id"
-	er "metapus/internal/domain/registers/exchange_rate"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers/exchange_rate"
 	"testing"
 	"time"
 )
@@ -32,10 +32,10 @@ func (r *fakeRepo) Analytics(context.Context, string) (dashboard.Analytics, erro
 
 type fakeRates struct{}
 
-func (fakeRates) LoadConfiguration(context.Context) (er.Configuration, error) {
-	return er.Configuration{BaseCurrency: er.CurrencyRef{ID: id.New(), Code: "USD", DecimalPlaces: 2}}, nil
+func (fakeRates) LoadConfiguration(context.Context) (exchange_rate.Configuration, error) {
+	return exchange_rate.Configuration{BaseCurrency: exchange_rate.CurrencyRef{ID: id.New(), Code: "USD", DecimalPlaces: 2}}, nil
 }
-func (fakeRates) Candidates(context.Context, er.Configuration, []id.ID, time.Time) ([]er.Candidate, error) {
+func (fakeRates) Candidates(context.Context, exchange_rate.Configuration, []id.ID, time.Time) ([]exchange_rate.Candidate, error) {
 	return nil, nil
 }
 func TestInvalidFiltersNeverReachRepository(t *testing.T) {
@@ -58,7 +58,7 @@ func TestFinanceKeepsExactNativeBalancesWhenQuotesAreMissing(t *testing.T) {
 	token, network := id.New(), id.New()
 	repo := &fakeRepo{assets: []dashboard.Asset{{TokenID: token.String(), NetworkID: network.String(), Symbol: "TKN", DecimalPlaces: 18, MerchantMinor: "900719925474099312345678901", PayoutPendingMinor: "99", ObligationMinor: "900719925474099312345679000", WalletMinor: "1000000000000000001"}}}
 	snapshots := 0
-	svc := NewService(repo, er.NewService(fakeRates{}), func(ctx context.Context, fn func(context.Context) error) error { snapshots++; return fn(ctx) })
+	svc := NewService(repo, exchange_rate.NewService(fakeRates{}), func(ctx context.Context, fn func(context.Context) error) error { snapshots++; return fn(ctx) })
 	finance, err := svc.Finance(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 1, snapshots)

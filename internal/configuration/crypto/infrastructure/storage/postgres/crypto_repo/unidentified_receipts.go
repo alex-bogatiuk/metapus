@@ -6,10 +6,10 @@ import (
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 )
 
 type UnidentifiedReceiptRepo struct{}

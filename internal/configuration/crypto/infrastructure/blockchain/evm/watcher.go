@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations/providerpolicy"
 	"sort"
 	"strings"
 	"sync"
@@ -20,9 +20,9 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"metapus/internal/configuration/crypto/infrastructure/blockchain/watcherlease"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/types"
 )
 
 var ErrDeepReorg = errors.New("EVM reorg crossed the configured lookback or finalized boundary")

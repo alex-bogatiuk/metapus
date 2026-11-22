@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 	"strings"
 	"time"
 )

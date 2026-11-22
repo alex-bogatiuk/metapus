@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/profiles"
+	"metapus/pkg/sdk/json"
 )
 
 // Connection target attributes of an RPC endpoint, read by RPCProbe.
@@ -27,7 +27,7 @@ func RPCTargetAttributes(family, network, role string) map[string]string {
 
 // RPCProbe builds the connection check of an RPC endpoint. Probe semantics follow the chain protocol and configured network, independent
 // of the service hosting the endpoint.
-func RPCProbe(target model.ConnectionTarget) (profiles.Probe, error) {
+func RPCProbe(target integrations.ConnectionTarget) (profiles.Probe, error) {
 	probe := profiles.Probe{Method: http.MethodPost, URL: target.URL}
 	if !cryptointegrations.Catalog().Supports(target.Provider, cryptointegrations.KindRPC) {
 		return probe, apperror.NewValidation("Проверка этого типа выполняется его подсистемой")

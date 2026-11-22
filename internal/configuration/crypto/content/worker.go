@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/configuration"
 	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	chainbootstrap "metapus/internal/configuration/crypto/infrastructure/blockchain/bootstrap"
@@ -20,11 +19,12 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/crypto_worker"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/platform/envconfig"
-	"metapus/internal/platform/secretfile"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/envconfig"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/secretfile"
 )
 
 // resourceSettings tune TRON resource rental for every tenant's crypto

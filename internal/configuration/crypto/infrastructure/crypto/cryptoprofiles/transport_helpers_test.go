@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"metapus/internal/core/id"
-	model "metapus/internal/domain/integrations"
-	integrationhttp "metapus/internal/infrastructure/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/profiles"
+	"metapus/pkg/sdk/integrations/transport"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -21,22 +21,22 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 type memoryAccounts struct {
 	mu         sync.Mutex
 	current    int
-	selections []model.Selection
-	reports    []model.Failure
+	selections []integrations.Selection
+	reports    []integrations.Failure
 	calls      int
 }
 
-func (r *memoryAccounts) Select(_ context.Context, _ id.ID, _ string, _ model.Provider) (model.Selection, error) {
+func (r *memoryAccounts) Select(_ context.Context, _ id.ID, _ string, _ integrations.Provider) (integrations.Selection, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++
 	if r.current >= len(r.selections) {
-		return model.Selection{}, integrationhttp.ErrUnavailable
+		return integrations.Selection{}, transport.ErrUnavailable
 	}
 	return r.selections[r.current], nil
 }
 
-func (r *memoryAccounts) Report(_ context.Context, _ model.Selection, f model.Failure, _ time.Time) error {
+func (r *memoryAccounts) Report(_ context.Context, _ integrations.Selection, f integrations.Failure, _ time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.reports = append(r.reports, f)
@@ -52,11 +52,11 @@ func response(r *http.Request, status int, body string) *http.Response {
 
 func fixture() *memoryAccounts {
 	pid := id.New()
-	return &memoryAccounts{selections: []model.Selection{{PoolID: pid, AccountID: id.New(), CredentialsVersion: 1, Slot: "default", Key: "key-a"}, {PoolID: pid, AccountID: id.New(), CredentialsVersion: 1, Slot: "default", Key: "key-b"}}}
+	return &memoryAccounts{selections: []integrations.Selection{{PoolID: pid, AccountID: id.New(), CredentialsVersion: 1, Slot: "default", Key: "key-a"}, {PoolID: pid, AccountID: id.New(), CredentialsVersion: 1, Slot: "default", Key: "key-b"}}}
 }
 
 // classifyFor and retryHintFor ask the application registry, as the transport does.
-func classifyFor(provider model.Provider, status int, body []byte) model.Failure {
+func classifyFor(provider integrations.Provider, status int, body []byte) integrations.Failure {
 	profile, ok := Registry().Lookup(provider)
 	if !ok {
 		return ""
@@ -64,7 +64,7 @@ func classifyFor(provider model.Provider, status int, body []byte) model.Failure
 	return profile.Failure(status, body)
 }
 
-func retryHintFor(provider model.Provider, header string, body []byte, now time.Time) time.Time {
+func retryHintFor(provider integrations.Provider, header string, body []byte, now time.Time) time.Time {
 	profile, _ := Registry().Lookup(provider)
 	headers := make(http.Header)
 	headers.Set("Retry-After", header)
@@ -73,7 +73,7 @@ func retryHintFor(provider model.Provider, header string, body []byte, now time.
 
 // fixtureProbe stands in for the endpoint probe: it posts to the binding URL,
 // or to a TRON role path, and accepts any 200 body.
-func fixtureProbe(target model.ConnectionTarget) (profiles.Probe, error) {
+func fixtureProbe(target integrations.ConnectionTarget) (profiles.Probe, error) {
 	probe := profiles.Probe{Method: http.MethodPost, URL: target.URL, Body: `{}`, Valid: func([]byte) bool { return true }}
 	switch target.Attributes["role"] {
 	case "fullnode":

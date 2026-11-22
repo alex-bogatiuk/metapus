@@ -4,10 +4,10 @@ import (
 	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/metadata"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/http/v1"
+	"metapus/pkg/sdk/metadata"
 )
 
 type CryptoRPCEndpointRegistration struct {

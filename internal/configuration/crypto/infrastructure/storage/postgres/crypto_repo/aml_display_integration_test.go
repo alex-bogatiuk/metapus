@@ -4,7 +4,7 @@ package crypto_repo
 
 import (
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 	"testing"
 	"time"
 

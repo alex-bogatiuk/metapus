@@ -3,8 +3,8 @@ package crypto_resource_rental
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
 )
 
 type Repository interface {

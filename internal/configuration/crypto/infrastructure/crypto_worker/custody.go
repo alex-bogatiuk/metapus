@@ -6,7 +6,7 @@ import (
 	"metapus/internal/configuration/crypto/application/outboundapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 var ErrMerchantCustody = outbound_repo.ErrMerchantCustody

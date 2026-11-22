@@ -3,7 +3,7 @@ package cryptoapp
 import (
 	"context"
 
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 type NormalizedChainAddress struct {

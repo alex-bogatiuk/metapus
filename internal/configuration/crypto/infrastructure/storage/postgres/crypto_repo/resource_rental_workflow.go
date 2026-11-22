@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 type ResourceRentalWorkflowRepo struct{}

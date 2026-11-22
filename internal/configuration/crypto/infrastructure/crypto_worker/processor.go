@@ -38,16 +38,16 @@ import (
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tx"
-	"metapus/internal/core/types"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain"
-	"metapus/internal/domain/posting"
-	infraNumerator "metapus/internal/infrastructure/numerator"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/logger"
+	"metapus/pkg/sdk/numerator"
+	"metapus/pkg/sdk/postgres"
+	infraNumerator "metapus/pkg/sdk/postgres/numerator"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/tx"
+	"metapus/pkg/sdk/types"
+	"metapus/pkg/sdk/workerjob"
 )
 
 const (
@@ -179,7 +179,7 @@ func NewCryptoProcessor(cfg CryptoProcessorConfig, log *logger.Logger) *CryptoPr
 
 	// Build posting engine (for auto-posting confirmed payments)
 	// DocLocker is not needed for worker-driven posting — we control the flow.
-	postingEngine := posting.NewEngine(nil) // nil locker: worker doesn't use optimistic lock
+	postingEngine := posting.NewEngine() // nil locker: worker doesn't use optimistic lock
 
 	// Register crypto visitors + recorders so payments/withdrawals write to registers.
 	cryptoRegisters := cryptoregisters.New()

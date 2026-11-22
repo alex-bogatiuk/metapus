@@ -3,7 +3,7 @@ package blockchain_network
 import (
 	"net/http"
 
-	"metapus/internal/core/apperror"
+	"metapus/pkg/sdk/apperror"
 )
 
 // CodeNetworkUnavailable is part of the public merchant API.

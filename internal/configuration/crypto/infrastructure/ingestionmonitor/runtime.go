@@ -11,8 +11,8 @@ import (
 	"metapus/internal/configuration/crypto/application/cryptoapp"
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/internal/configuration/crypto/infrastructure/crypto_worker"
-	"metapus/internal/core/json"
-	"metapus/pkg/logger"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/logger"
 )
 
 type Observer interface {

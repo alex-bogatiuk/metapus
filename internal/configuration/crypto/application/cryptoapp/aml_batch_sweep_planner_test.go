@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/stretchr/testify/require"
 	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 	"testing"
 )
 

@@ -7,10 +7,10 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
 	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/handlers"
+	"metapus/pkg/sdk/domain"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/http/handlers"
+	"metapus/pkg/sdk/settings"
 )
 
 // CryptoNetworkOperationHandler serves network operations read-only: list,

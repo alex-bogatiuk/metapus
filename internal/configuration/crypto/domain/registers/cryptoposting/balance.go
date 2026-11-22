@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"metapus/internal/configuration/crypto/domain/registers/crypto_balance"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
 )
 
 // ---------------------------------------------------------------------------

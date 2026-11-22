@@ -5,7 +5,7 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/types"
 )
 
 // ─────────────────────────────────────────────────────────────────

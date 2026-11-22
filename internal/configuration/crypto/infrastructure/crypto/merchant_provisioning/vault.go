@@ -11,7 +11,7 @@ import (
 	evm "metapus/internal/configuration/crypto/infrastructure/crypto/evm_vault_signer"
 	tron "metapus/internal/configuration/crypto/infrastructure/crypto/vault_signer"
 	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/id"
 )
 
 type Vault struct {

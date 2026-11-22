@@ -2,23 +2,23 @@ package cryptoprofiles
 
 import (
 	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"metapus/pkg/sdk/integrations/profiles"
 	"net/http"
 	"strings"
 	"time"
 
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 func drpc() profiles.Profile {
-	return profiles.Profile{Provider: cryptointegrations.DRPC, Authorize: pathSuffix(cryptointegrations.DRPC, model.CredentialURLSafe),
-		Classify: func(status int, body []byte) model.Failure {
+	return profiles.Profile{Provider: cryptointegrations.DRPC, Authorize: pathSuffix(cryptointegrations.DRPC, integrations.CredentialURLSafe),
+		Classify: func(status int, body []byte) integrations.Failure {
 			if status == http.StatusUnauthorized {
-				return model.Unauthorized
+				return integrations.Unauthorized
 			}
 			if status == http.StatusTooManyRequests {
-				return model.Throttled
+				return integrations.Throttled
 			}
 			if status != http.StatusForbidden && status != http.StatusOK {
 				return ""
@@ -27,11 +27,11 @@ func drpc() profiles.Profile {
 			// An unknown 403 must not invalidate an otherwise usable account.
 			switch readRPCError[rpcErrorDetails](body).Code {
 			case 10, 52, 53:
-				return model.Exhausted
+				return integrations.Exhausted
 			case 4, 9, 32:
-				return model.Unauthorized
+				return integrations.Unauthorized
 			case 24, 31:
-				return model.Throttled
+				return integrations.Throttled
 			}
 			return ""
 		},

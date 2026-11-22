@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"metapus/internal/core/json"
+	"metapus/pkg/sdk/json"
 )
 
 // Check the wire hash as well as the decoded header. Otherwise a future fork

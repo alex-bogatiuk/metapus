@@ -16,11 +16,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
+	"metapus/pkg/sdk/telemetry"
+	"metapus/pkg/sdk/tenant"
 )
 
 func TestLifecycleWebhookOutboxDedupRepeatTransitionAndRollback(t *testing.T) {
@@ -39,7 +39,7 @@ func TestLifecycleWebhookOutboxDedupRepeatTransitionAndRollback(t *testing.T) {
 	ctx = trace.ContextWithSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID: traceID, SpanID: spanID, TraceFlags: trace.FlagsSampled,
 	}))
-	ctx = platformtelemetry.WithBusinessContext(ctx, "request-123", "payment-456")
+	ctx = telemetry.WithBusinessContext(ctx, "request-123", "payment-456")
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)

@@ -32,6 +32,10 @@ func TestInternalLayerDependenciesPointInward(t *testing.T) {
 		{directory: "configuration/autoparts/domain", forbidden: []string{"metapus/internal/application/", "metapus/internal/infrastructure/", "metapus/internal/configuration/autoparts/application/", "metapus/internal/configuration/autoparts/infrastructure/"}},
 	}
 
+	// A configuration reaches the platform through pkg/sdk: importing a
+	// facade package imports what it fronts.
+	fronts := sdkFronts(t, filepath.Dir(internalRoot))
+
 	for _, rule := range rules {
 		t.Run(rule.directory, func(t *testing.T) {
 			err := filepath.WalkDir(filepath.Join(internalRoot, rule.directory), func(path string, entry fs.DirEntry, walkErr error) error {
@@ -50,9 +54,16 @@ func TestInternalLayerDependenciesPointInward(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					for _, prefix := range rule.forbidden {
-						if strings.HasPrefix(pathValue, prefix) {
-							t.Errorf("%s imports outward layer %s", path, pathValue)
+					for _, reached := range append([]string{pathValue}, fronts[pathValue]...) {
+						for _, prefix := range rule.forbidden {
+							if !strings.HasPrefix(reached, prefix) {
+								continue
+							}
+							if reached == pathValue {
+								t.Errorf("%s imports outward layer %s", path, pathValue)
+							} else {
+								t.Errorf("%s imports outward layer %s through %s", path, reached, pathValue)
+							}
 						}
 					}
 				}
@@ -63,6 +74,59 @@ func TestInternalLayerDependenciesPointInward(t *testing.T) {
 	}
 }
 
+// sdkFronts maps each pkg/sdk package to the platform packages it fronts:
+// the internal packages it imports, directly or through other facade
+// packages.
+func sdkFronts(t *testing.T, repoRoot string) map[string][]string {
+	t.Helper()
+	direct := map[string][]string{}
+	err := filepath.WalkDir(filepath.Join(repoRoot, "pkg", "sdk"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return walkErr
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(repoRoot, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		key := "metapus/" + filepath.ToSlash(rel)
+		for _, imported := range file.Imports {
+			value, err := strconv.Unquote(imported.Path.Value)
+			if err != nil {
+				return err
+			}
+			if strings.HasPrefix(value, "metapus/") {
+				direct[key] = append(direct[key], value)
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	fronts := map[string][]string{}
+	for pkg := range direct {
+		seen := map[string]bool{}
+		var visit func(string)
+		visit = func(current string) {
+			for _, dep := range direct[current] {
+				if seen[dep] {
+					continue
+				}
+				seen[dep] = true
+				if _, facade := direct[dep]; facade {
+					visit(dep)
+				} else {
+					fronts[pkg] = append(fronts[pkg], dep)
+				}
+			}
+		}
+		visit(pkg)
+	}
+	return fronts
+}
+
 // Shared contracts must not smuggle framework dependencies into inner packages.
 // Inspect the complete local import closure, not just the first import edge.
 func TestInnerPackagesDoNotTransitivelyDependOnAdapters(t *testing.T) {
@@ -70,6 +134,11 @@ func TestInnerPackagesDoNotTransitivelyDependOnAdapters(t *testing.T) {
 	require.True(t, ok)
 	root := filepath.Dir(filepath.Dir(file))
 	graph := map[string][]string{}
+	// The graph covers pkg/sdk too: a configuration reaches the platform's
+	// packages through its facade.
+	for start, deps := range sdkFronts(t, filepath.Dir(root)) {
+		graph[start] = deps
+	}
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr

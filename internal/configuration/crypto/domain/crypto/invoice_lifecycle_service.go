@@ -8,9 +8,9 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
 	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tx"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/tx"
+	"metapus/pkg/sdk/types"
 )
 
 var ErrInvoiceNotCancellable = errors.New("invoice is not cancellable")
