@@ -184,10 +184,29 @@ func TestConfigurationsDoNotHoldTheEncryptionKey(t *testing.T) {
 // the configuration's CHECKs) and tests still seed them.
 func TestConfigurationsDoNotQueryIntegrationTables(t *testing.T) {
 	t.Parallel()
+	requireConfigurationsDoNotName(t, `(?:cat|sys)_integration_[a-z_]+`,
+		"read integration accounts and pools through pkg/sdk/postgres/catalog_repo")
+}
+
+// TestConfigurationSeedsUseThePlatformDemoSeed keeps the demo data a
+// configuration's seed builds on in the platform: currencies, their rate
+// mappings and automation (with the bot's secrets and the credential key)
+// are written by pkg/sdk/demoseed.
+func TestConfigurationSeedsUseThePlatformDemoSeed(t *testing.T) {
+	t.Parallel()
+	requireConfigurationsDoNotName(t, `sys_automation_[a-z_]+|reg_rate_source_mappings`,
+		"seed currencies, rate mappings and notifications through pkg/sdk/demoseed")
+}
+
+// requireConfigurationsDoNotName fails for every string literal in the
+// production code of an SDK configuration that names a table the platform's
+// migrations create and the pattern matches.
+func requireConfigurationsDoNotName(t *testing.T, tablePattern, hint string) {
+	t.Helper()
 	repoRoot := repositoryRoot(t)
 	migrations, err := filepath.Glob(filepath.Join(repoRoot, "db", "migrations", "*.sql"))
 	require.NoError(t, err)
-	created := regexp.MustCompile(`CREATE TABLE ((?:cat|sys)_integration_[a-z_]+)`)
+	created := regexp.MustCompile(`CREATE TABLE (` + tablePattern + `)\b`)
 	var tables []string
 	for _, path := range migrations {
 		raw, err := os.ReadFile(path)
@@ -196,7 +215,7 @@ func TestConfigurationsDoNotQueryIntegrationTables(t *testing.T) {
 			tables = append(tables, match[1])
 		}
 	}
-	require.NotEmpty(t, tables, "platform migrations create no integration tables")
+	require.NotEmpty(t, tables, "platform migrations create no table matching %s", tablePattern)
 	named := regexp.MustCompile(`\b(` + strings.Join(tables, "|") + `)\b`)
 	for _, name := range sdkConfigurations {
 		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
@@ -211,8 +230,7 @@ func TestConfigurationsDoNotQueryIntegrationTables(t *testing.T) {
 				literal, ok := node.(*ast.BasicLit)
 				if ok && literal.Kind == token.STRING && named.MatchString(literal.Value) {
 					rel, _ := filepath.Rel(repoRoot, path)
-					t.Errorf("%s names platform table %s; read integration accounts and pools through pkg/sdk/postgres/catalog_repo",
-						filepath.ToSlash(rel), named.FindString(literal.Value))
+					t.Errorf("%s names platform table %s; %s", filepath.ToSlash(rel), named.FindString(literal.Value), hint)
 				}
 				return true
 			})

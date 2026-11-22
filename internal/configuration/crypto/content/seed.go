@@ -4,16 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/jackc/pgx/v5"
 
 	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/demoseed"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/logger"
 	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/secretbox"
-	"metapus/pkg/sdk/secretfile"
 )
 
 // Seed adds the crypto demo data after the platform's: crypto currencies and
@@ -56,19 +54,10 @@ func seedCryptoCurrencies(ctx context.Context, env configuration.SeedEnv) map[st
 	usdID, hasUSD := currencyIDs["USD"]
 	coinGeckoID, hasCoinGecko := env.RateSources["coingecko"]
 	for _, c := range currencies {
-		currID := id.New()
-		tag, err := pool.Exec(ctx, `
-			INSERT INTO cat_currencies (
-				id, code, name, iso_code, symbol,
-				decimal_places, minor_multiplier, is_base,
-				version, deletion_mark, attributes
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, 1, false, '{}')
-			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-		`, currID, c.isoCode, c.name, c.isoCode, c.symbol, c.decimalPlaces, c.minorMultiplier)
-		if err == nil && tag.RowsAffected() == 0 {
-			err = pool.QueryRow(ctx, `SELECT id FROM cat_currencies WHERE code = $1 AND deletion_mark = FALSE`, c.isoCode).Scan(&currID)
-		}
+		currID, err := demoseed.EnsureCurrency(ctx, pool, demoseed.Currency{
+			ISOCode: c.isoCode, Name: c.name, Symbol: c.symbol,
+			DecimalPlaces: c.decimalPlaces, MinorMultiplier: c.minorMultiplier,
+		})
 		if err != nil {
 			log.Warnw("failed to seed currency", "name", c.name, "error", err)
 			continue
@@ -77,11 +66,9 @@ func seedCryptoCurrencies(ctx context.Context, env configuration.SeedEnv) map[st
 		if c.coinGeckoID == "" || !hasUSD || !hasCoinGecko {
 			continue
 		}
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO reg_rate_source_mappings (currency_id, base_currency_id, rate_source_id, external_id, is_active)
-			VALUES ($1, $2, $3, $4, TRUE)
-			ON CONFLICT (currency_id, base_currency_id, rate_source_id) DO UPDATE SET external_id = EXCLUDED.external_id
-		`, currID, usdID, coinGeckoID, c.coinGeckoID); err != nil {
+		if err := demoseed.MapRate(ctx, pool, demoseed.RateMapping{
+			CurrencyID: currID, BaseCurrencyID: usdID, RateSourceID: coinGeckoID, ExternalID: c.coinGeckoID,
+		}); err != nil {
 			log.Warnw("failed to seed rate source mapping", "currency", c.isoCode, "error", err)
 		}
 	}
@@ -369,150 +356,17 @@ func seedCryptoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger
 	return nil
 }
 
-// seedAutomationData creates the automation reference data:
-// 1 Telegram Account → 1 Channel → 1 Rule (overpayment notification) → 1 Subscriber.
+// seedAutomationData asks the platform to send overpaid invoices to the demo
+// Telegram chat. The platform holds the bot's secrets and the credential key
+// and seeds nothing without them.
 func seedAutomationData(ctx context.Context, pool *postgres.Pool, log *logger.Logger) error {
-	log.Info("seeding automation data...")
-
-	if err := secretbox.Ready(); errors.Is(err, secretbox.ErrNotConfigured) {
-		log.Warn("platform encryption key not configured; skipping automation seed")
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("check the encryption key: %w", err)
-	}
-
-	botToken, err := secretfile.Get("AUTOMATION_TG_BOT_TOKEN", "")
-	if err != nil {
-		return fmt.Errorf("load AUTOMATION_TG_BOT_TOKEN: %w", err)
-	}
-	if botToken == "" {
-		log.Warn("AUTOMATION_TG_BOT_TOKEN not set; skipping automation seed")
-		return nil
-	}
-
-	chatID := os.Getenv("AUTOMATION_TG_CHAT_ID")
-	if chatID == "" {
-		log.Warn("AUTOMATION_TG_CHAT_ID not set; skipping automation seed")
-		return nil
-	}
-
-	// ── Account: Telegram Bot ────────────────────────────────────────────
-	accountID := id.New()
-	accountName := "Metapus TG Bot"
-
-	// Encrypt bot token
-	credEnc, err := secretbox.Seal([]byte(botToken))
-	if err != nil {
-		return fmt.Errorf("encrypt bot token: %w", err)
-	}
-
-	commandTag, err := pool.Exec(ctx, `
-		INSERT INTO sys_automation_accounts (
-			id, name, account_type, config, credentials_enc,
-			is_active, status, version, deletion_mark
-		) VALUES ($1, $2, 'telegram', '{}', $3, true, 'active', 1, false)
-		ON CONFLICT DO NOTHING
-	`, accountID, accountName, credEnc)
-	if err != nil {
-		return fmt.Errorf("seed automation account: %w", err)
-	}
-	if commandTag.RowsAffected() == 0 {
-		// Account already exists — fetch by name+type for idempotency
-		err = pool.QueryRow(ctx, `
-			SELECT id FROM sys_automation_accounts
-			WHERE name = $1 AND account_type = 'telegram' AND deletion_mark = FALSE
-			LIMIT 1
-		`, accountName).Scan(&accountID)
-		if err != nil {
-			log.Warnw("automation account exists but could not fetch ID", "error", err)
-			return nil
-		}
-	}
-
-	// ── Channel: Telegram Chat ──────────────────────────────────────────
-	channelID := id.New()
-	channelName := "Metapus TG Chat"
-	destination := fmt.Sprintf(`{"chat_id": "%s"}`, chatID)
-
-	commandTag, err = pool.Exec(ctx, `
-		INSERT INTO sys_automation_channels (
-			id, name, account_id, destination,
-			is_active, version, deletion_mark
-		) VALUES ($1, $2, $3, $4::jsonb, true, 1, false)
-		ON CONFLICT DO NOTHING
-	`, channelID, channelName, accountID, destination)
-	if err != nil {
-		return fmt.Errorf("seed automation channel: %w", err)
-	}
-	if commandTag.RowsAffected() == 0 {
-		err = pool.QueryRow(ctx, `
-			SELECT id FROM sys_automation_channels
-			WHERE name = $1 AND account_id = $2 AND deletion_mark = FALSE
-			LIMIT 1
-		`, channelName, accountID).Scan(&channelID)
-		if err != nil {
-			log.Warnw("automation channel exists but could not fetch ID", "error", err)
-			return nil
-		}
-	}
-
-	// ── Rule: Overpayment Notification ──────────────────────────────────
-	ruleID := id.New()
-	ruleName := "Уведомление о переплате"
-
-	commandTag, err = pool.Exec(ctx, `
-		INSERT INTO sys_automation_rules (
-			id, name, description,
-			trigger_type, event_type, target_entities,
-			condition_cel,
-			reaction_type, notif_severity, message_format, action_template,
-			priority, max_retries, cooldown_seconds,
-			is_active, version, deletion_mark
-		) VALUES (
-			$1, $2, $3,
-			'entity_event', 'updated', ARRAY['crypto_invoice'],
-			$4,
-			'notify', 'warning', 'text', $5,
-			50, 3, 0,
-			true, 1, false
-		)
-		ON CONFLICT DO NOTHING
-	`, ruleID,
-		ruleName,
-		"Автоматическое уведомление при переплате по крипто-инвойсу",
-		`doc.overpaidAmount != "0"`,
-		"⚠️ Переплата по инвойсу {{.doc.number}}!\nПолучено: {{.doc.receivedAmount}}, Ожидалось: {{.doc.expectedAmount}}.\nПереплата: {{.doc.overpaidAmount}}",
-	)
-	if err != nil {
-		return fmt.Errorf("seed automation rule: %w", err)
-	}
-	if commandTag.RowsAffected() == 0 {
-		err = pool.QueryRow(ctx, `
-			SELECT id FROM sys_automation_rules
-			WHERE name = $1 AND deletion_mark = FALSE
-			LIMIT 1
-		`, ruleName).Scan(&ruleID)
-		if err != nil {
-			log.Warnw("automation rule exists but could not fetch ID", "error", err)
-			return nil
-		}
-	}
-
-	// ── Subscriber: Channel → Rule ──────────────────────────────────────
-	_, err = pool.Exec(ctx, `
-		INSERT INTO sys_automation_subscribers (
-			id, rule_id, subscriber_type, channel_id, delivery_method, idx
-		) VALUES ($1, $2, 'channel', $3, 'push', 1)
-		ON CONFLICT DO NOTHING
-	`, id.New(), ruleID, channelID)
-	if err != nil {
-		return fmt.Errorf("seed automation subscriber: %w", err)
-	}
-
-	log.Infow("automation data seeded",
-		"account", accountName,
-		"channel", channelName,
-		"rule", ruleName,
-	)
-	return nil
+	return demoseed.TelegramNotification(ctx, pool, log, demoseed.Notification{
+		Name:           "Уведомление о переплате",
+		Description:    "Автоматическое уведомление при переплате по крипто-инвойсу",
+		EventType:      "updated",
+		TargetEntities: []string{"crypto_invoice"},
+		Condition:      `doc.overpaidAmount != "0"`,
+		Severity:       "warning",
+		Message:        "⚠️ Переплата по инвойсу {{.doc.number}}!\nПолучено: {{.doc.receivedAmount}}, Ожидалось: {{.doc.expectedAmount}}.\nПереплата: {{.doc.overpaidAmount}}",
+	})
 }

@@ -18,6 +18,7 @@ import (
 	"metapus/internal/configuration"
 	"metapus/internal/core/id"
 	"metapus/internal/core/tenant"
+	"metapus/internal/infrastructure/demoseed"
 	"metapus/internal/infrastructure/storage/postgres"
 	"metapus/internal/infrastructure/tenantdb"
 	"metapus/internal/platform/secretfile"
@@ -211,31 +212,14 @@ func seedDemoData(ctx context.Context, pool *postgres.Pool, log *logger.Logger, 
 	currencyIDs := make(map[string]id.ID)
 
 	for _, c := range currencies {
-		currID := id.New()
-		commandTag, err := pool.Exec(ctx, `
-			INSERT INTO cat_currencies (
-				id, code, name, iso_code, symbol,
-				decimal_places, minor_multiplier, is_base,
-				version, deletion_mark, attributes
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, false, '{}')
-			ON CONFLICT (code) WHERE deletion_mark = FALSE DO NOTHING
-		`, currID, c.isoCode, c.name, c.isoCode, c.symbol, c.decimalPlaces, c.minorMultiplier, c.isBase)
+		currID, err := demoseed.EnsureCurrency(ctx, pool, demoseed.Currency{
+			ISOCode: c.isoCode, Name: c.name, Symbol: c.symbol,
+			DecimalPlaces: c.decimalPlaces, MinorMultiplier: c.minorMultiplier, IsBase: c.isBase,
+		})
 		if err != nil {
 			log.Warnw("failed to seed currency", "name", c.name, "error", err)
 			continue
 		}
-
-		if commandTag.RowsAffected() == 0 {
-			err = pool.QueryRow(ctx, `
-				SELECT id FROM cat_currencies WHERE code = $1 AND deletion_mark = FALSE
-			`, c.isoCode).Scan(&currID)
-			if err != nil {
-				log.Warnw("failed to fetch existing currency id", "iso", c.isoCode, "error", err)
-				continue
-			}
-		}
-
 		currencyIDs[c.isoCode] = currID
 	}
 
