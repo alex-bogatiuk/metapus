@@ -6,7 +6,7 @@ package warehouse
 import (
 	"context"
 
-	"metapus/internal/core/entity"
+	"metapus/pkg/sdk/entity"
 )
 
 // Definition is shared by persistence, service, registration and wire contracts.

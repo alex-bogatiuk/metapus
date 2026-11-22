@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/registers"
 )
 
 const (
@@ -36,12 +36,12 @@ func movementRow(m warehouse_stock.Movement) []any {
 
 // Repo implements warehouse_stock.Repository.
 type Repo struct {
-	register_repo.BaseAccumulationRepo[warehouse_stock.Movement]
+	registers.BaseAccumulationRepo[warehouse_stock.Movement]
 }
 
 // New creates the register repository.
 func New() *Repo {
-	return &Repo{BaseAccumulationRepo: register_repo.NewBaseAccumulationRepo(movementsTable, movementColumns, movementRow)}
+	return &Repo{BaseAccumulationRepo: registers.NewBaseAccumulationRepo(movementsTable, movementColumns, movementRow)}
 }
 
 // GetMovementsByRecorder returns a document's movements.

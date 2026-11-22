@@ -9,21 +9,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration"
 	"metapus/internal/configuration/autoparts/content"
 	"metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
 	"metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/storage/postgres/testsupport"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/sdktest"
+	"metapus/pkg/sdk/types"
 )
 
 type stockFixture struct {
 	ctx                  context.Context
-	db                   *testsupport.SecurityTenant
+	db                   *sdktest.Tenant
 	engine               *posting.Engine
 	registers            *content.Registers
 	supplier, currency   id.ID
@@ -34,11 +32,10 @@ type stockFixture struct {
 // configuration, migrated as the tenant command migrates it.
 func newStockFixture(t *testing.T) *stockFixture {
 	t.Helper()
-	cfg := content.Autoparts()
-	db := testsupport.NewSecurityTenants(t, configuration.MigrationOptions(cfg)...)[0]
+	db := sdktest.NewTenant(t, content.Autoparts())
 	f := &stockFixture{
-		ctx: db.Context(appctx.UserContext{UserID: id.New().String(), IsAdmin: true}), db: db,
-		engine: posting.NewEngine(nil), registers: content.NewRegisters(),
+		ctx: db.AdminContext(), db: db,
+		engine: posting.NewEngine(), registers: content.NewRegisters(),
 		supplier: id.New(), currency: id.New(), warehouse: id.New(), oil: id.New(), pads: id.New(),
 	}
 	f.registers.InstallPosting(f.engine)
@@ -87,7 +84,7 @@ func TestGoodsReceiptMovesWarehouseStock(t *testing.T) {
 		goods_receipt.GoodsLine{ItemID: f.pads, Quantity: pieces(2), Price: 350000, Amount: 700000},
 		goods_receipt.GoodsLine{ItemID: f.oil, Quantity: pieces(5), Price: 90000, Amount: 450000},
 	)
-	require.NoError(t, f.db.Tx.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, doc, noUpdate) }))
+	require.NoError(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, doc, noUpdate) }))
 	require.True(t, doc.IsPosted())
 	require.Equal(t, pieces(15), f.stock(t, f.oil))
 	require.Equal(t, pieces(2), f.stock(t, f.pads))
@@ -105,11 +102,11 @@ func TestGoodsReceiptMovesWarehouseStock(t *testing.T) {
 	// the movements instead of adding to them.
 	doc.Goods = doc.Goods[:2]
 	doc.Goods[0].Quantity = pieces(8)
-	require.NoError(t, f.db.Tx.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, doc, noUpdate) }))
+	require.NoError(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, doc, noUpdate) }))
 	require.Equal(t, pieces(8), f.stock(t, f.oil))
 	require.Equal(t, pieces(2), f.stock(t, f.pads))
 
-	require.NoError(t, f.db.Tx.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Unpost(ctx, doc, noUpdate) }))
+	require.NoError(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Unpost(ctx, doc, noUpdate) }))
 	require.False(t, doc.IsPosted())
 	require.Zero(t, f.stock(t, f.oil))
 	require.Zero(t, f.stock(t, f.pads))
@@ -122,9 +119,9 @@ func TestGoodsReceiptMovesWarehouseStock(t *testing.T) {
 func TestGoodsReceiptWithoutLinesIsNotPosted(t *testing.T) {
 	f := newStockFixture(t)
 	empty := f.receipt()
-	require.Error(t, f.db.Tx.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, empty, noUpdate) }))
+	require.Error(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, empty, noUpdate) }))
 	negative := f.receipt(goods_receipt.GoodsLine{ItemID: f.oil, Quantity: pieces(-1)})
-	require.Error(t, f.db.Tx.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, negative, noUpdate) }))
+	require.Error(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, negative, noUpdate) }))
 	require.Zero(t, f.stock(t, f.oil))
 }
 

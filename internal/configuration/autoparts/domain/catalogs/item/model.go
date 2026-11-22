@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	"metapus/internal/core/entity"
+	"metapus/pkg/sdk/entity"
 )
 
 // Definition is shared by persistence, service, registration and wire contracts.

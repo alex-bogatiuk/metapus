@@ -25,6 +25,9 @@ type cryptoConfiguration struct{ services Services }
 
 func (cryptoConfiguration) Name() string { return CryptoName }
 
+// APIVersion: the crypto configuration is built for the platform API 3.0.
+func (cryptoConfiguration) APIVersion() string { return "3.0.0" }
+
 func (c cryptoConfiguration) Register(reg *v1.FactoryRegistry) { register(reg, c.services) }
 
 func (cryptoConfiguration) RouteContracts() []spec.Bundle {

@@ -83,7 +83,8 @@ check-configurations:
 
 check-all: check check-extensions check-configurations
 
-# Show breaking changes in extension API
+# Show changes of the public platform API (pkg/sdk) since the last commit;
+# record them in docs/sdk/CHANGELOG.md and bump sdk.APIVersion
 changelog:
-	@echo "=== Breaking changes in Extension API ==="
-	@git diff HEAD~1 -- internal/platform/ internal/infrastructure/http/v1/catalog_factory.go internal/infrastructure/http/v1/document_factory.go internal/infrastructure/http/v1/factory_registry.go | grep "^[+-].*interface\|^[+-].*func\|^[+-].*type" || echo "No breaking changes detected"
+	@echo "=== Changes in the platform API (pkg/sdk) ==="
+	@git diff HEAD~1 -- pkg/sdk/ | grep "^[+-].*interface\|^[+-].*func\|^[+-].*type\|^[+-].*= " || echo "No API changes detected"

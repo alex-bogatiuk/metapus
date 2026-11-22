@@ -147,6 +147,7 @@ myExtension.Register(factoryReg)
 
 Конфигурация в целом передаётся платформе значением `configuration.Configuration` (`internal/configuration`):
 
+- `APIVersion()` — версия публичного API (`pkg/sdk`), для которой собрана конфигурация; несовместимую платформа не запустит (`configuration.CheckAPIVersion`);
 - `Name()` — имя каталога конфигурации: `db/configuration/<имя>/` и `frontend/configuration/<имя>/`, а также таблицы её истории миграций `goose_db_version_<имя>`. Имя — строчный идентификатор до 40 символов, кроме `platform` и `extensions` (`configuration.ValidName`);
 - `Register(reg)` — справочники, документы, регистры, наборы отчётов и их исполнители;
 - `RouteContracts()` — HTTP-контракты маршрутов её route modules; контракты сущностей выводятся из реестра;
@@ -232,7 +233,7 @@ go run cmd/scaffold/main.go --name waybill --type document
 
 Общее `entity.Definition` связывает identity, таблицу, маршрут и hierarchy. `contracts/spec.Entity` выводит стандартные HTTP-контракты из Definition и конкретных DTO, `spec.EntityOf` — из типов, построенных во время выполнения (декларативная регистрация). После добавления модуля в `extensions/register.go` выполните `go run ./cmd/http-contracts`; отдельные правки registry/routes для расширения не нужны. Права других ролей, бизнес-поля, локализация, движения и новый worker workflow требуют явной настройки.
 
-Модули `extensions/` компилируются внутри Metapus. Публичный внешний SDK в `pkg/extension` пока ограничен версией API; не используйте его как готовый фасад регистрации.
+Модули `extensions/` компилируются внутри Metapus. Публичный API платформы — `pkg/sdk` ([описание и правила версий](../sdk/README.md)): на нём целиком построена конфигурация «Автозапчасти», а метод `Configuration.APIVersion` проверяется при старте каждой платформенной команды.
 
 ## 6. Единый контракт встроенных сущностей и расширений
 

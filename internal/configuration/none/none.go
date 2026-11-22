@@ -12,6 +12,7 @@ import (
 	"metapus/internal/domain/integrations"
 	"metapus/internal/infrastructure/http/contracts/spec"
 	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/pkg/sdk"
 )
 
 // Name is the empty configuration's name.
@@ -23,6 +24,7 @@ type empty struct{}
 func New() configuration.Configuration { return empty{} }
 
 func (empty) Name() string                               { return Name }
+func (empty) APIVersion() string                         { return sdk.APIVersion }
 func (empty) Register(*v1.FactoryRegistry)               {}
 func (empty) RouteContracts() []spec.Bundle              { return nil }
 func (empty) Migrations() fs.FS                          { return nil }

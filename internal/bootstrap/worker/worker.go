@@ -56,6 +56,10 @@ type Build struct {
 // Main runs the worker for app and the client extensions until
 // SIGINT/SIGTERM, and exits the process on a configuration or startup error.
 func Main(build Build, app configuration.Configuration, extensions ...func(*v1.FactoryRegistry)) {
+	if err := configuration.CheckAPIVersion(app); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if err := validateProductionEnvironment(os.Getenv); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

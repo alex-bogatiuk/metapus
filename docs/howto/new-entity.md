@@ -17,7 +17,7 @@
 | Регистрация | `counterpartyRegistration()` в `internal/platformcontent/catalogs.go`: `v1.Catalog` на собственном сервисе, DTO и контракты выводятся из модели |
 | Таблица | `db/migrations/00003_catalogs.sql` |
 
-Domain-модель находится в `internal/domain/catalogs/<name>/`, регистрации — в `internal/configuration/crypto/content/`. Клиентское расширение размещается в `extensions/<name>/` внутри Go-модуля Metapus. Доступны базовые типы `internal/core/entity` и совместимые aliases в `internal/platform`; `pkg/extension` пока содержит только версию API.
+Domain-модель находится в `internal/domain/catalogs/<name>/`, регистрации — в `internal/configuration/crypto/content/`. Клиентское расширение размещается в `extensions/<name>/` внутри Go-модуля Metapus. Конфигурация или расширение строится на публичном API `pkg/sdk` ([описание](../sdk/README.md)): модель в `pkg/sdk/entity`, объявление сущностей в `pkg/sdk/registry`.
 
 Для расширения можно сгенерировать стартовые файлы из корня проекта:
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration"
-	"metapus/internal/core/id"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/id"
 )
 
 // Seed adds the demo warehouses and a few parts with env.Demo; without it

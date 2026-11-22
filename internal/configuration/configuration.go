@@ -7,6 +7,7 @@ package configuration
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"regexp"
 
@@ -16,6 +17,7 @@ import (
 	"metapus/internal/infrastructure/http/contracts/spec"
 	v1 "metapus/internal/infrastructure/http/v1"
 	"metapus/internal/platformcontent"
+	"metapus/pkg/sdk"
 )
 
 // Configuration is an industry configuration built on the platform.
@@ -29,6 +31,10 @@ type Configuration interface {
 	// (see ValidName): db/configuration/<name>/ holds its migrations and
 	// frontend/configuration/<name>/ its user interface.
 	Name() string
+	// APIVersion is the version of the platform API (metapus/pkg/sdk) the
+	// configuration is built for, sdk.APIVersion at its build. The platform
+	// refuses to run a configuration it cannot serve (CheckAPIVersion).
+	APIVersion() string
 	// Register adds the configuration's catalogs, documents, registers,
 	// report datasets and dataset executors to reg. The platform's shared
 	// entities (platformcontent) are already registered.
@@ -59,6 +65,16 @@ type Configuration interface {
 	// database after the platform's (the seed command): with env.Demo, its
 	// demo data. It must be safe to run again.
 	Seed(ctx context.Context, env SeedEnv) error
+}
+
+// CheckAPIVersion fails when the platform's API (sdk.APIVersion) cannot
+// serve cfg: another major version, or an older minor one. Every platform
+// command checks it before it starts.
+func CheckAPIVersion(cfg Configuration) error {
+	if err := sdk.Compatible(cfg.APIVersion()); err != nil {
+		return fmt.Errorf("configuration %s: %w", cfg.Name(), err)
+	}
+	return nil
 }
 
 var validName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)

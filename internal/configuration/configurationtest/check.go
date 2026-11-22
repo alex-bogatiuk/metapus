@@ -31,6 +31,10 @@ func Check(t *testing.T, cfg configuration.Configuration) {
 	t.Helper()
 	require.Truef(t, configuration.ValidName(cfg.Name()), "configuration name %q must be a lowercase directory name", cfg.Name())
 
+	t.Run("api version", func(t *testing.T) {
+		require.NoError(t, configuration.CheckAPIVersion(cfg))
+	})
+
 	t.Run("registration", func(t *testing.T) {
 		first := permissionCodes(cfg)
 		require.Equal(t, first, permissionCodes(cfg), "Register must add the same entities to every registry")
@@ -87,7 +91,12 @@ func checkMigrations(t *testing.T, cfg configuration.Configuration) {
 		return
 	}
 	own := sqlFiles(t, migrations, ".")
-	require.Equalf(t, shipped, own, "the configuration's migrations must be db/configuration/%s", cfg.Name())
+	// A configuration in the platform's repository ships its migrations in
+	// db/configuration/<name>/; one in its own repository embeds its own.
+	if len(shipped) > 0 {
+		require.Equalf(t, shipped, own, "the configuration's migrations must be db/configuration/%s", cfg.Name())
+	}
+	require.NotEmptyf(t, own, "the configuration returns migrations without a NNNNN_name.sql file")
 
 	// The configuration's migrations have a goose history of their own; the
 	// versions from dbassets.FirstExtensionMigration are the extension

@@ -3,8 +3,8 @@ package content
 import (
 	"metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"metapus/internal/configuration/autoparts/infrastructure/storage/postgres/stock_repo"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/posting"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/posting"
 )
 
 // Registers are the configuration's accumulation registers over PostgreSQL.

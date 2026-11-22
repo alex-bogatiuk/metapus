@@ -39,6 +39,10 @@ type application struct {
 
 // Main runs the tenant CLI for cfg composed with the client extensions.
 func Main(cfg configuration.Configuration, extensions ...func(*v1.FactoryRegistry)) {
+	if err := configuration.CheckAPIVersion(cfg); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)

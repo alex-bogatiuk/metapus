@@ -10,12 +10,11 @@ import (
 	"fmt"
 	"io/fs"
 
-	dbassets "metapus/db"
-	"metapus/internal/configuration"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/domain/posting"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
+	"metapus/pkg/sdk/configuration"
+	"metapus/pkg/sdk/contracts"
+	"metapus/pkg/sdk/integrations"
+	"metapus/pkg/sdk/posting"
+	"metapus/pkg/sdk/registry"
 )
 
 // Name is the auto parts configuration's name.
@@ -28,12 +27,15 @@ type autoparts struct{}
 
 func (autoparts) Name() string { return Name }
 
-func (autoparts) Register(reg *v1.FactoryRegistry) { register(reg) }
+// APIVersion: the configuration is built for the platform API 3.0.
+func (autoparts) APIVersion() string { return "3.0.0" }
 
-func (autoparts) RouteContracts() []spec.Bundle { return nil }
+func (autoparts) Register(reg *registry.Registry) { register(reg) }
+
+func (autoparts) RouteContracts() []contracts.Bundle { return nil }
 
 func (autoparts) Migrations() fs.FS {
-	migrations, err := dbassets.ConfigurationMigrations(Name)
+	migrations, err := configuration.EmbeddedMigrations(Name)
 	if err != nil || migrations == nil {
 		panic(fmt.Sprintf("autoparts migrations: %v", err)) // embedded at build time
 	}

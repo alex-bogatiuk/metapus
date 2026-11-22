@@ -16,7 +16,7 @@
 | `configs/` | Каталог зарезервирован; конфигурация читается из ENV. Локальные файлы создают `scripts/dev/`, шаблоны Compose находятся в `single-tenant-deployment/`. |
 | `db/` | SQL-миграции базы данных и seed-данные. |
 | `internal/` | Основной код приложения. Ограничен для внешнего импорта. |
-| `pkg/` | `pkg/logger` и публичный фасад `pkg/extension`. Нумератор: контракты в `internal/core/numerator`, реализация в `internal/infrastructure/numerator`. |
+| `pkg/` | `pkg/logger` и публичный API платформы `pkg/sdk` ([описание](../sdk/README.md)). Нумератор: контракты в `internal/core/numerator`, реализация в `internal/infrastructure/numerator`. |
 | `frontend/` | Next.js приложение. |
 
 ## 2. Разбор `cmd/`

@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"metapus/internal/configuration/autoparts/content"
-	"metapus/internal/configuration/configurationtest"
+	"metapus/pkg/sdk/sdktest"
 )
 
 func TestAutopartsKeepsTheConfigurationContract(t *testing.T) {
 	t.Parallel()
-	configurationtest.Check(t, content.Autoparts())
+	sdktest.Check(t, content.Autoparts())
 }

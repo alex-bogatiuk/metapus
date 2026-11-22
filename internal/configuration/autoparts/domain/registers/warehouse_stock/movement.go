@@ -5,9 +5,9 @@ package warehouse_stock
 import (
 	"time"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"metapus/pkg/sdk/entity"
+	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/types"
 )
 
 // Movement is one movement of the register: a receipt adds the quantity to

@@ -45,6 +45,10 @@ type Build struct {
 // Main runs the API server for cfg and the client extensions until
 // SIGINT/SIGTERM, and exits the process on a configuration or startup error.
 func Main(build Build, cfg configuration.Configuration, extensions ...func(*v1.FactoryRegistry)) {
+	if err := configuration.CheckAPIVersion(cfg); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	settings, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid configuration:\n%v\n", err)

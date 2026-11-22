@@ -30,6 +30,10 @@ const (
 
 // Main seeds the tenant database at DATABASE_URL for cfg.
 func Main(cfg configuration.Configuration) {
+	if err := configuration.CheckAPIVersion(cfg); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	log, err := logger.New(logger.Config{
 		Level:       "info",
 		Development: true,
