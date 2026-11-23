@@ -18,6 +18,7 @@
 - `postgres`: `OutboxRecord`, `EnqueueOutbox`, `PendingOutboxPayloadValues` — запись в outbox и проверка ожидающих сообщений без SQL по `sys_outbox`; `OutboxStatusPending` не вынесен.
 - `eventlog`: `CategorySystem`; `notifications`: `SeverityWarning`; `NotificationRepo.UsersNotifiedWith` — получатели события по атрибуту уведомления. `NotificationRepo.CreateBatch` больше не теряет ошибку закрытия пакета, а пустой пакет ничего не отправляет.
 - `postgres`: `UserCard`, `UserCards`, `ActiveAdminIDs` — email и отображаемое имя пользователей и активные администраторы без SQL по `auth_users`.
+- `postgres`: `CurrencyCodes` — ISO-коды валют по ID без SQL по `cat_currencies`.
 - `sdktest` (только для тестов): `Migrate`, `OpenPool`, `NewTxManager`, `TxManager`, `TxOptions`, `WithPool`, а с тегом `integration` — `NewTenantWithMigrations`, `Tenant.Context`, `NewExchangeRateDatabase`. Менеджер транзакций над сырым пулом, `ManagedPool` и `RunAll` в рабочие пакеты не вынесены.
 
 ## 3.0.0 — 2026-11-22

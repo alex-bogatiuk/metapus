@@ -124,6 +124,9 @@ func TestOverviewReceiptsAndPendingUseCanonicalPayments(t *testing.T) {
 			require.NotEmpty(t, balance.Network)
 			require.False(t, id.IsNil(balance.NetworkID))
 			require.Equal(t, "0", balance.RawAmount.String())
+			var code string
+			require.NoError(t, q.QueryRow(txCtx, `SELECT COALESCE(c.iso_code,'') FROM cat_tokens t LEFT JOIN cat_currencies c ON c.id=t.currency_id WHERE t.id=$1`, balance.TokenID).Scan(&code))
+			require.Equal(t, code, balance.CurrencyCode)
 		}
 		return rollback
 	})

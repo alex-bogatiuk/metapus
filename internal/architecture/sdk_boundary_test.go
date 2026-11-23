@@ -220,6 +220,12 @@ func TestConfigurationsReadPlatformUsersThroughThePlatform(t *testing.T) {
 		"read platform users through pkg/sdk/postgres (UserCards, ActiveAdminIDs) and join them by ID in Go")
 }
 
+func TestConfigurationsReadCurrenciesThroughThePlatform(t *testing.T) {
+	t.Parallel()
+	requireConfigurationsDoNotName(t, `cat_currencies`,
+		"read currency codes through pkg/sdk/postgres (CurrencyCodes) and fill them in Go")
+}
+
 // requireConfigurationsDoNotName fails for every string literal in the
 // production code of an SDK configuration that names a table the platform's
 // migrations create and the pattern matches.

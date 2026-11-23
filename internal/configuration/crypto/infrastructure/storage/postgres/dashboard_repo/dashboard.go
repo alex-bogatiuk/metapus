@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"metapus/internal/configuration/crypto/domain/dashboard"
+	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 )
 
@@ -102,10 +103,10 @@ func (r *Repository) Assets(ctx context.Context) ([]dashboard.Asset, error) {
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.ledger_amount::text END,
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.chain_amount::text END,
  CASE WHEN c.wallets=c.checked AND c.checked>0 THEN c.delta_amount::text END,
- COALESCE(c.wallets,0),COALESCE(c.checked,0),COALESCE(c.mismatched,0),c.observed_at,t.currency_id,COALESCE(curr.iso_code,'')
+ COALESCE(c.wallets,0),COALESCE(c.checked,0),COALESCE(c.mismatched,0),c.observed_at,t.currency_id
  FROM cat_tokens t JOIN cat_blockchain_networks n ON n.id=t.network_id
  LEFT JOIN merchant_balances m ON m.token_id=t.id LEFT JOIN payouts p ON p.token_id=t.id LEFT JOIN wallet_balances b ON b.token_id=t.id
- LEFT JOIN checks c ON c.token_id=t.id LEFT JOIN cat_currencies curr ON curr.id=t.currency_id
+ LEFT JOIN checks c ON c.token_id=t.id
  WHERE (t._deleted_at IS NULL AND t.is_active=TRUE) OR COALESCE(m.amount,0)<>0 OR COALESCE(p.amount,0)<>0 OR COALESCE(b.amount,0)<>0 OR COALESCE(c.chain_amount,0)<>0 OR COALESCE(c.mismatched,0)>0
  ORDER BY t.symbol,n.name,t.id`)
 	if err != nil {
@@ -115,12 +116,31 @@ func (r *Repository) Assets(ctx context.Context) ([]dashboard.Asset, error) {
 	assets := make([]dashboard.Asset, 0)
 	for rows.Next() {
 		var a dashboard.Asset
-		if err := rows.Scan(&a.TokenID, &a.NetworkID, &a.Symbol, &a.Network, &a.NetworkColor, &a.DecimalPlaces, &a.MerchantMinor, &a.PayoutPendingMinor, &a.ObligationMinor, &a.PayoutPendingCount, &a.WalletMinor, &a.ReconciledLedgerMinor, &a.ChainMinor, &a.DeltaMinor, &a.WalletCount, &a.CheckedWalletCount, &a.MismatchedWalletCount, &a.ReconciledAt, &a.CurrencyID, &a.CurrencyCode); err != nil {
+		if err := rows.Scan(&a.TokenID, &a.NetworkID, &a.Symbol, &a.Network, &a.NetworkColor, &a.DecimalPlaces, &a.MerchantMinor, &a.PayoutPendingMinor, &a.ObligationMinor, &a.PayoutPendingCount, &a.WalletMinor, &a.ReconciledLedgerMinor, &a.ChainMinor, &a.DeltaMinor, &a.WalletCount, &a.CheckedWalletCount, &a.MismatchedWalletCount, &a.ReconciledAt, &a.CurrencyID); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)
 	}
-	return assets, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	currencies := make([]id.ID, 0, len(assets))
+	for _, a := range assets {
+		if a.CurrencyID != nil {
+			currencies = append(currencies, *a.CurrencyID)
+		}
+	}
+	codes, err := postgres.CurrencyCodes(ctx, currencies)
+	if err != nil {
+		return nil, err
+	}
+	for i := range assets {
+		if assets[i].CurrencyID != nil {
+			assets[i].CurrencyCode = codes[*assets[i].CurrencyID]
+		}
+	}
+	return assets, nil
 }
 
 func (r *Repository) Analytics(ctx context.Context, period string) (dashboard.Analytics, error) {

@@ -175,3 +175,9 @@ func UserCards(ctx context.Context, userIDs []id.ID) (map[id.ID]UserCard, error)
 
 // ActiveAdminIDs lists the active system administrators in ID order.
 func ActiveAdminIDs(ctx context.Context) ([]id.ID, error) { return core.ActiveAdminIDs(ctx) }
+
+// CurrencyCodes returns the ISO codes of the currencies among currencyIDs,
+// including currencies marked for deletion.
+func CurrencyCodes(ctx context.Context, currencyIDs []id.ID) (map[id.ID]string, error) {
+	return core.CurrencyCodes(ctx, currencyIDs)
+}

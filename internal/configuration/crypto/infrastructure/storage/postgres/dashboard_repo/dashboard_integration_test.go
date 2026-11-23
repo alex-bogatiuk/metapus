@@ -44,6 +44,12 @@ func TestDashboardReadModels(t *testing.T) {
 		require.NoError(t, q.QueryRow(ctx, `SELECT t.id::text,t.network_id::text,w.id::text FROM cat_tokens t JOIN cat_wallets w ON w.network_id=t.network_id LIMIT 1`).Scan(&token, &network, &wallet))
 		require.NoError(t, q.QueryRow(ctx, `SELECT id::text FROM cat_merchants LIMIT 1`).Scan(&merchant))
 		exec(`UPDATE cat_tokens SET is_active=FALSE`)
+		// The token is priced in a currency marked for deletion: its code still shows.
+		var currency string
+		require.NoError(t, q.QueryRow(ctx, `SELECT gen_random_uuid_v7()::text`).Scan(&currency))
+		exec(`INSERT INTO cat_currencies(id,code,name,iso_code,symbol,decimal_places,minor_multiplier,is_base,version,deletion_mark,attributes)
+   VALUES($1,'DSHB','Dashboard test','DSHB','D',2,100,FALSE,1,TRUE,'{}')`, currency)
+		exec(`UPDATE cat_tokens SET currency_id=$2 WHERE id=$1`, token, currency)
 		exec(`UPDATE cat_tokens SET is_active=TRUE WHERE id=$1`, token)
 		exec(`UPDATE cat_wallets SET is_active=TRUE,deletion_mark=FALSE,_deleted_at=NULL`)
 		exec(`INSERT INTO doc_crypto_invoices(public_ref,number,date,merchant_id,token_id,expected_amount,expires_at,status)
@@ -93,6 +99,9 @@ func TestDashboardReadModels(t *testing.T) {
 				require.Equal(t, "900719925474099312345679201", a.ObligationMinor)
 				require.Nil(t, a.ChainMinor)
 				require.Equal(t, 1, a.WalletCount)
+				require.NotNil(t, a.CurrencyID)
+				require.Equal(t, currency, a.CurrencyID.String())
+				require.Equal(t, "DSHB", a.CurrencyCode)
 			}
 		}
 		// Opposite per-wallet deltas must remain visible even when their net sum is zero.

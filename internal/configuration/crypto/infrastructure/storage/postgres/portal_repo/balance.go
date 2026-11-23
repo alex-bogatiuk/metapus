@@ -6,11 +6,13 @@ import (
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
+	"metapus/pkg/sdk/postgres"
 )
 
 // GetMerchantBalances implements crypto.BalanceQueryRepo.
-// Joins reg_crypto_merchant_balance_balances with cat_tokens and cat_currencies
-// to produce fully enriched BalanceRow for the BalanceCalculator.
+// Joins reg_crypto_merchant_balance_balances with cat_tokens and takes the
+// currency codes from the platform to produce fully enriched BalanceRow for
+// the BalanceCalculator.
 func (r *DashboardRepo) GetMerchantBalances(ctx context.Context, merchantIDs []id.ID) ([]crypto.BalanceRow, error) {
 	q := querier(ctx)
 
@@ -22,7 +24,6 @@ func (r *DashboardRepo) GetMerchantBalances(ctx context.Context, merchantIDs []i
 	       COALESCE(n.name, ''),
 		       t.decimal_places,
 		       t.currency_id,
-		       COALESCE(c.iso_code, '') AS iso_code,
 		       b.amount
 		FROM (
             SELECT merchant_id,token_id,amount FROM reg_crypto_merchant_balance_balances WHERE merchant_id=ANY($1)
@@ -35,7 +36,6 @@ func (r *DashboardRepo) GetMerchantBalances(ctx context.Context, merchantIDs []i
         ) b
 		JOIN cat_tokens t ON t.id = b.token_id
 		LEFT JOIN cat_blockchain_networks n ON n.id = t.network_id
-		LEFT JOIN cat_currencies c ON c.id = t.currency_id
 		WHERE b.merchant_id = ANY($1)
 		ORDER BY b.amount DESC
 	`
@@ -57,15 +57,32 @@ func (r *DashboardRepo) GetMerchantBalances(ctx context.Context, merchantIDs []i
 			&row.Network,
 			&row.DecimalPlaces,
 			&row.CurrencyID,
-			&row.CurrencyCode,
 			&row.RawAmount,
 		); err != nil {
 			return nil, fmt.Errorf("scan merchant balance: %w", err)
 		}
 		result = append(result, row)
 	}
-
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	currencies := make([]id.ID, 0, len(result))
+	for _, row := range result {
+		if row.CurrencyID != nil {
+			currencies = append(currencies, *row.CurrencyID)
+		}
+	}
+	codes, err := postgres.CurrencyCodes(ctx, currencies)
+	if err != nil {
+		return nil, fmt.Errorf("read merchant balance currencies: %w", err)
+	}
+	for i := range result {
+		if result[i].CurrencyID != nil {
+			result[i].CurrencyCode = codes[*result[i].CurrencyID]
+		}
+	}
+	return result, nil
 }
 
 // Compile-time interface check.

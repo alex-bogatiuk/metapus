@@ -79,6 +79,7 @@ frontend/{components,lib,hooks,stores,types}   платформа; frontend/conf
 | Конфигурация не пишет в `sys_outbox` сама: `OutboxPublisher.Publish` или `postgres.EnqueueOutbox`, ожидающие сообщения — `PendingOutboxPayloadValues` | `TestConfigurationsUseThePlatformOutbox` |
 | Конфигурация не пишет в `sys_event_log` и `sys_notifications`: аудит — `NewEventLogRepo().Write`, уведомления — `NewNotificationRepo().CreateBatch`, уже уведомлённые — `UsersNotifiedWith` | `TestConfigurationsUseThePlatformEventLogAndNotifications` |
 | Конфигурация не читает `auth_*` платформы: email и имя — `postgres.UserCards(ctx, ids)` после своего запроса, администраторы — `postgres.ActiveAdminIDs` | `TestConfigurationsReadPlatformUsersThroughThePlatform` |
+| Конфигурация не читает `cat_currencies`: ISO-коды — `postgres.CurrencyCodes(ctx, ids)` после своего запроса | `TestConfigurationsReadCurrenciesThroughThePlatform` |
 | Код и миграции платформы не называют таблиц конфигурации; тесты платформы не импортируют конфигурацию | `configuration_storage_test.go` |
 | Каждая команда `cmd/` отнесена к платформе или конфигурации; платформенные не знают конфигураций | `configuration_commands_test.go` |
 | `encoding/json` — только в фасаде `internal/core/json` | `TestEncodingJSONV1IsIsolatedToCompatibilityFacades` |
