@@ -49,6 +49,23 @@ func (r *laneTestRPC) BlockByNumber(ctx context.Context, n *big.Int) (*types.Blo
 	return r.controlledFetchRPC.BlockByNumber(ctx, n)
 }
 
+// waitForLaneOnDeepHeights serves blocks on the ordinary path, but holds deep
+// heights until the lane has read once: the ordinary workers start first and,
+// on a slow machine, would otherwise drain every deep height before the lane
+// under test reads any.
+func waitForLaneOnDeepHeights(blocks map[int64]*types.Block, laneRead <-chan struct{}) func(context.Context, int64) (*types.Block, error) {
+	return func(ctx context.Context, height int64) (*types.Block, error) {
+		if height <= 12-nativeLaneTipDistance {
+			select {
+			case <-laneRead:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		return blocks[height], nil
+	}
+}
+
 func newLaneTestWatcher(t *testing.T, rpc watcherRPC, committer *fakeBlockCommitter) *Watcher {
 	t.Helper()
 	w, err := NewWatcher(WatcherConfig{Network: testSepoliaNetwork(), RPC: rpc, StateRepository: committer.stateRepo, BlockHistoryRepository: committer.historyRepo, BlockCommitter: committer, NetworkHoldRecorder: &fakeNetworkHoldRepo{}, WatcherKey: "native_eth", Settings: chainconfig.EVMSettings{NativeConcurrency: 2, PrefetchBlocks: 16}})
@@ -105,10 +122,12 @@ func TestNativeLaneFailureFallsBackAndClosesLane(t *testing.T) {
 	var laneReads atomic.Int64
 	var outcome blockLaneOutcome
 	rpc := &laneTestRPC{controlledFetchRPC: &controlledFetchRPC{fakeWatcherRPC: &fakeWatcherRPC{latest: headers[12], finalized: headers[1], headers: headers}}}
-	rpc.fetch = func(_ context.Context, height int64) (*types.Block, error) { return blocks[height], nil }
+	laneTried, once := make(chan struct{}), sync.Once{}
+	rpc.fetch = waitForLaneOnDeepHeights(blocks, laneTried)
 	rpc.lanes = func() []blockLane {
 		return []blockLane{{provider: "down", width: 2, read: func(context.Context, int64) (*types.Block, error) {
 			laneReads.Add(1)
+			once.Do(func() { close(laneTried) })
 			return nil, errors.New("provider down")
 		}, finish: func(o blockLaneOutcome) { outcome = o }}}
 	}
@@ -129,10 +148,12 @@ func TestNativeLaneAdmissionPressureRetiresOnlyThatWorker(t *testing.T) {
 	var first atomic.Bool
 	var outcome blockLaneOutcome
 	rpc := &laneTestRPC{controlledFetchRPC: &controlledFetchRPC{fakeWatcherRPC: &fakeWatcherRPC{latest: headers[12], finalized: headers[1], headers: headers}}}
-	rpc.fetch = func(_ context.Context, height int64) (*types.Block, error) { return blocks[height], nil }
+	laneTried := make(chan struct{})
+	rpc.fetch = waitForLaneOnDeepHeights(blocks, laneTried)
 	rpc.lanes = func() []blockLane {
 		return []blockLane{{provider: "paced", width: 2, read: func(_ context.Context, height int64) (*types.Block, error) {
 			if first.CompareAndSwap(false, true) {
+				close(laneTried)
 				return nil, errors.Join(ErrRPCAdmissionBusy, context.DeadlineExceeded)
 			}
 			return blocks[height], nil
