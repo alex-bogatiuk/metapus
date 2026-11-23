@@ -214,6 +214,12 @@ func TestConfigurationsUseThePlatformEventLogAndNotifications(t *testing.T) {
 		"write events and notifications through pkg/sdk/postgres (NewEventLogRepo, NewNotificationRepo)")
 }
 
+func TestConfigurationsReadPlatformUsersThroughThePlatform(t *testing.T) {
+	t.Parallel()
+	requireConfigurationsDoNotName(t, `auth_[a-z_]+`,
+		"read platform users through pkg/sdk/postgres (UserCards, ActiveAdminIDs) and join them by ID in Go")
+}
+
 // requireConfigurationsDoNotName fails for every string literal in the
 // production code of an SDK configuration that names a table the platform's
 // migrations create and the pattern matches.

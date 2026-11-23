@@ -25,22 +25,7 @@ func DeliverIngestionAlert(ctx context.Context, event crypto.IngestionAlertTrans
 		if _, err := q.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "ingestion-alert/"+event.ID); err != nil {
 			return err
 		}
-		rows, err := q.Query(ctx, `SELECT id FROM auth_users
-		 WHERE is_admin=TRUE AND is_active=TRUE AND deletion_mark=FALSE ORDER BY id`)
-		if err != nil {
-			return err
-		}
-		var admins []id.ID
-		for rows.Next() {
-			var user id.ID
-			if err := rows.Scan(&user); err != nil {
-				rows.Close()
-				return err
-			}
-			admins = append(admins, user)
-		}
-		err = rows.Err()
-		rows.Close()
+		admins, err := postgres.ActiveAdminIDs(ctx)
 		if err != nil {
 			return err
 		}

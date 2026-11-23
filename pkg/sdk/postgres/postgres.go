@@ -1,12 +1,14 @@
 // Package postgres is the platform's PostgreSQL storage a configuration's
 // repositories use: the tenant's transaction manager, reference
-// resolution, document locks, the event log and the outbox.
+// resolution, document locks, the event log, the outbox and the cards of
+// platform users the configuration references.
 package postgres
 
 import (
 	"context"
 
 	"metapus/internal/application/readaccess"
+	"metapus/internal/core/id"
 	"metapus/internal/core/security"
 	"metapus/internal/domain/eventlog"
 	"metapus/internal/domain/filter"
@@ -66,6 +68,9 @@ type (
 	// OutboxRecord is an outbox message whose payload and trace context the
 	// caller has already fixed.
 	OutboxRecord = core.OutboxRecord
+	// UserCard is how a configuration shows a platform user its own rows
+	// reference.
+	UserCard = core.UserCard
 )
 
 // DefaultTxOptions returns production-safe defaults.
@@ -161,3 +166,12 @@ func EnqueueOutbox(ctx context.Context, records ...OutboxRecord) error {
 func PendingOutboxPayloadValues(ctx context.Context, aggregateType, field string) ([]string, error) {
 	return core.PendingOutboxPayloadValues(ctx, aggregateType, field)
 }
+
+// UserCards returns the cards of the users among userIDs that are not marked
+// for deletion.
+func UserCards(ctx context.Context, userIDs []id.ID) (map[id.ID]UserCard, error) {
+	return core.UserCards(ctx, userIDs)
+}
+
+// ActiveAdminIDs lists the active system administrators in ID order.
+func ActiveAdminIDs(ctx context.Context) ([]id.ID, error) { return core.ActiveAdminIDs(ctx) }

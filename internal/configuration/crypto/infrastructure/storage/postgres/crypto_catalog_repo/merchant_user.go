@@ -87,26 +87,32 @@ func (r *MerchantUserRepo) UpdateRole(ctx context.Context, userID, merchantID id
 	return nil
 }
 
-// ListByMerchant returns all user associations for a merchant with enriched user info.
+// ListByMerchant returns all user associations for a merchant with the
+// users' email and name from the platform.
 func (r *MerchantUserRepo) ListByMerchant(ctx context.Context, merchantID id.ID) ([]merchant.MerchantUser, error) {
 	const q = `
-		SELECT
-			mu.user_id,
-			mu.merchant_id,
-			mu.role,
-			mu.created_at,
-			COALESCE(u.email, '')          AS user_email,
-			COALESCE(
-				NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''),
-				u.email,
-				''
-			)                              AS user_fullname
-		FROM sys_merchant_users mu
-		LEFT JOIN auth_users u ON u.id = mu.user_id AND u.deletion_mark = FALSE
-		WHERE mu.merchant_id = $1
-		ORDER BY mu.created_at ASC`
+		SELECT user_id, merchant_id, role, created_at
+		FROM sys_merchant_users
+		WHERE merchant_id = $1
+		ORDER BY created_at ASC`
 
-	return r.scanList(ctx, q, merchantID)
+	users, err := r.scanListSimple(ctx, q, merchantID)
+	if err != nil {
+		return nil, err
+	}
+	userIDs := make([]id.ID, len(users))
+	for i, mu := range users {
+		userIDs[i] = mu.UserID
+	}
+	cards, err := postgres.UserCards(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("merchant_user list users: %w", err)
+	}
+	for i := range users {
+		card := cards[users[i].UserID]
+		users[i].UserEmail, users[i].UserFullName = card.Email, card.DisplayName
+	}
+	return users, nil
 }
 
 // ListByUser returns all merchant associations for a user, ordered by created_at.
@@ -129,42 +135,6 @@ func (r *MerchantUserRepo) GetRole(ctx context.Context, userID, merchantID id.ID
 		return 0, apperror.NewNotFound(_merchantUserTable, userID.String())
 	}
 	return merchant.MerchantRole(roleInt), nil
-}
-
-// scanList is a shared helper to scan a list of MerchantUser rows.
-// Expects columns: user_id, merchant_id, role, created_at, user_email, user_fullname
-func (r *MerchantUserRepo) scanList(ctx context.Context, q string, arg id.ID) ([]merchant.MerchantUser, error) {
-	rows, err := r.querier(ctx).Query(ctx, q, arg)
-	if err != nil {
-		return nil, fmt.Errorf("merchant_user list: %w", err)
-	}
-	defer rows.Close()
-
-	var result []merchant.MerchantUser
-	for rows.Next() {
-		var mu merchant.MerchantUser
-		var roleInt int
-		if err := rows.Scan(
-			&mu.UserID,
-			&mu.MerchantID,
-			&roleInt,
-			&mu.CreatedAt,
-			&mu.UserEmail,
-			&mu.UserFullName,
-		); err != nil {
-			return nil, fmt.Errorf("merchant_user list scan: %w", err)
-		}
-		mu.Role = merchant.MerchantRole(roleInt)
-		result = append(result, mu)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("merchant_user list rows: %w", err)
-	}
-
-	// Defensive copy: caller cannot mutate our slice
-	out := make([]merchant.MerchantUser, len(result))
-	copy(out, result)
-	return out, nil
 }
 
 // Ensure compile-time interface satisfaction.

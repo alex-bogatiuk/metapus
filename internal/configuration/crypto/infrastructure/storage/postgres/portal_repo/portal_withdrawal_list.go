@@ -29,7 +29,6 @@ const adminWithdrawalColumns = `
 	wr.token_id::text, t.symbol, COALESCE(n.name, ''),
 	wr.amount, t.decimal_places, wr.dest_address,
 	wr.approved_by::text,
-	NULLIF(COALESCE(NULLIF(BTRIM(CONCAT_WS(' ', au.first_name, au.last_name)), ''), au.email, ''), ''),
 	wr.approved_at, wr.rejection_reason, wr.withdrawal_id::text, wr.created_at,
 	0::int AS total_count,` + amlWithdrawalHistoryColumns
 
@@ -191,8 +190,7 @@ func (r *DashboardRepo) ListAdminWithdrawalRequestsPage(ctx context.Context, f d
 	page := builder.Select(adminWithdrawalColumns).From("doc_withdrawal_requests wr").
 		Join("cat_merchants m ON m.id = wr.merchant_id").
 		Join("cat_tokens t ON t.id = wr.token_id").
-		LeftJoin("cat_blockchain_networks n ON n.id = t.network_id").
-		LeftJoin("auth_users au ON au.id = wr.approved_by AND au.deletion_mark = FALSE")
+		LeftJoin("cat_blockchain_networks n ON n.id = t.network_id")
 	for _, condition := range conditions {
 		page = page.Where(condition)
 	}
@@ -222,9 +220,13 @@ func (r *DashboardRepo) ListAdminWithdrawalRequestsPage(ctx context.Context, f d
 	if err := rows.Err(); err != nil {
 		return result, err
 	}
+	rows.Close()
 	more := len(result.Items) > limit
 	if more {
 		result.Items = result.Items[:limit]
+	}
+	if err := nameAdminWithdrawalApprovers(ctx, result.Items); err != nil {
+		return result, err
 	}
 	if backward {
 		slices.Reverse(result.Items)

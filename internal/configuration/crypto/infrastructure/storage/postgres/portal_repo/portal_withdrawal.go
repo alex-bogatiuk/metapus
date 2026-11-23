@@ -18,6 +18,7 @@ import (
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/postgres"
 	"metapus/pkg/sdk/telemetry"
 	"metapus/pkg/sdk/types"
 )
@@ -276,7 +277,6 @@ func (r *DashboardRepo) ListAdminWithdrawalRequests(ctx context.Context, status 
 		       wr.token_id::text, t.symbol, COALESCE(n.name, '') AS network,
 		       wr.amount, t.decimal_places, wr.dest_address,
 		       wr.approved_by::text,
-		       NULLIF(COALESCE(NULLIF(BTRIM(CONCAT_WS(' ', au.first_name, au.last_name)), ''), au.email, ''), '') AS approved_by_name,
 		       wr.approved_at, wr.rejection_reason,
 		       wr.withdrawal_id::text, wr.created_at,
 		       COUNT(*) OVER() AS total_count,` + amlWithdrawalHistoryColumns + `
@@ -284,7 +284,6 @@ func (r *DashboardRepo) ListAdminWithdrawalRequests(ctx context.Context, status 
 		JOIN cat_merchants m ON m.id = wr.merchant_id
 		JOIN cat_tokens t ON t.id = wr.token_id
 		LEFT JOIN cat_blockchain_networks n ON n.id = t.network_id
-		LEFT JOIN auth_users au ON au.id = wr.approved_by AND au.deletion_mark = FALSE
 		WHERE wr._deleted_at IS NULL
 		  AND (
 		    $1 = 'all'
@@ -311,8 +310,14 @@ func (r *DashboardRepo) ListAdminWithdrawalRequests(ctx context.Context, status 
 		total = rowTotal
 		items = append(items, item)
 	}
-
-	return items, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	rows.Close()
+	if err := nameAdminWithdrawalApprovers(ctx, items); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }
 
 // GetAdminWithdrawalRequest returns one ERP/admin withdrawal request read model.
@@ -329,14 +334,12 @@ func (r *DashboardRepo) GetAdminWithdrawalRequest(ctx context.Context, requestID
 		       wr.amount, t.decimal_places, wr.dest_address,
 		       wr.address_id::text,
 		       wr.approved_by::text,
-		       NULLIF(COALESCE(NULLIF(BTRIM(CONCAT_WS(' ', au.first_name, au.last_name)), ''), au.email, ''), '') AS approved_by_name,
 		       wr.approved_at, wr.rejection_reason,
 		       wr.withdrawal_id::text,` + amlWithdrawalHistoryColumns + `
 		FROM doc_withdrawal_requests wr
 		JOIN cat_merchants m ON m.id = wr.merchant_id
 		JOIN cat_tokens t ON t.id = wr.token_id
 		LEFT JOIN cat_blockchain_networks n ON n.id = t.network_id
-		LEFT JOIN auth_users au ON au.id = wr.approved_by AND au.deletion_mark = FALSE
 		WHERE wr.id = $1 AND wr._deleted_at IS NULL
 	`
 
@@ -344,6 +347,11 @@ func (r *DashboardRepo) GetAdminWithdrawalRequest(ctx context.Context, requestID
 	if err != nil {
 		return item, fmt.Errorf("get admin withdrawal request: %w", err)
 	}
+	names, err := approverNames(ctx, item.ApprovedByID)
+	if err != nil {
+		return item, err
+	}
+	item.ApprovedByName = names[derefString(item.ApprovedByID)]
 	return item, nil
 }
 
@@ -355,7 +363,6 @@ func scanAdminWithdrawalRequestListItem(row rowScanner) (portalapp.AdminWithdraw
 	var item portalapp.AdminWithdrawalRequestItem
 	var amount types.RawAmount
 	var approvedByID *string
-	var approvedByName *string
 	var approvedAt *time.Time
 	var rejectionReason string
 	var withdrawalID *string
@@ -368,7 +375,7 @@ func scanAdminWithdrawalRequestListItem(row rowScanner) (portalapp.AdminWithdraw
 		&item.MerchantID, &item.MerchantName,
 		&item.TokenID, &item.Symbol, &item.Network,
 		&amount, &item.DecimalPlaces, &item.DestAddress,
-		&approvedByID, &approvedByName, &approvedAt, &rejectionReason,
+		&approvedByID, &approvedAt, &rejectionReason,
 		&withdrawalID, &createdAt, &total, &item.RiskClass, &item.RiskAccepted, &riskSources,
 	); err != nil {
 		return item, 0, err
@@ -378,7 +385,6 @@ func scanAdminWithdrawalRequestListItem(row rowScanner) (portalapp.AdminWithdraw
 	}
 	item.Amount = amount.String()
 	item.ApprovedByID = approvedByID
-	item.ApprovedByName = approvedByName
 	item.WithdrawalID = withdrawalID
 	item.CreatedAt = createdAt.Format(time.RFC3339)
 	item.Date = date.Format(time.RFC3339)
@@ -407,7 +413,7 @@ func scanAdminWithdrawalRequestDetail(row rowScanner) (portalapp.AdminWithdrawal
 		&item.MerchantID, &item.MerchantName,
 		&item.TokenID, &item.Symbol, &item.Network,
 		&amount, &item.DecimalPlaces, &item.DestAddress,
-		&item.AddressID, &item.ApprovedByID, &item.ApprovedByName, &approvedAt, &rejectionReason,
+		&item.AddressID, &item.ApprovedByID, &approvedAt, &rejectionReason,
 		&item.WithdrawalID, &item.RiskClass, &item.RiskAccepted, &riskSources,
 	); err != nil {
 		return item, err
@@ -643,4 +649,60 @@ func (r *DashboardRepo) RejectWithdrawalRequest(
 		return fmt.Errorf("withdrawal request not found or already processed")
 	}
 	return nil
+}
+
+// nameAdminWithdrawalApprovers sets the approver names the platform shows
+// for its users; an approver deleted since keeps only the ID.
+func nameAdminWithdrawalApprovers(ctx context.Context, items []portalapp.AdminWithdrawalRequestItem) error {
+	approvers := make([]*string, len(items))
+	for i := range items {
+		approvers[i] = items[i].ApprovedByID
+	}
+	names, err := approverNames(ctx, approvers...)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		items[i].ApprovedByName = names[derefString(items[i].ApprovedByID)]
+	}
+	return nil
+}
+
+// approverNames maps each approver's ID to the platform's display name for
+// the user, leaving out approvers that are gone or have no name or email.
+func approverNames(ctx context.Context, approvers ...*string) (map[string]*string, error) {
+	var userIDs []id.ID
+	for _, approver := range approvers {
+		if approver == nil {
+			continue
+		}
+		userID, err := id.Parse(*approver)
+		if err != nil {
+			return nil, fmt.Errorf("parse withdrawal approver: %w", err)
+		}
+		userIDs = append(userIDs, userID)
+	}
+	cards, err := postgres.UserCards(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("read withdrawal approvers: %w", err)
+	}
+	names := make(map[string]*string, len(cards))
+	for _, approver := range approvers {
+		if approver == nil {
+			continue
+		}
+		userID, _ := id.Parse(*approver)
+		if card, ok := cards[userID]; ok && card.DisplayName != "" {
+			name := card.DisplayName
+			names[*approver] = &name
+		}
+	}
+	return names, nil
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
