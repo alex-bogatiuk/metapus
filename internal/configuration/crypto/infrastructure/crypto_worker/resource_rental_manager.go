@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/secretbox"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/secretbox"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 const (

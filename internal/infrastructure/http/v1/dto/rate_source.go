@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/catalogs/rate_source"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/rate_source"
 )
 
 // --- Request DTOs ---

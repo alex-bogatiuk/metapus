@@ -20,12 +20,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
-	"metapus/internal/infrastructure/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/providerpolicy"
 )
 
 var ErrUnavailable = errors.New("integration accounts unavailable")
@@ -34,12 +34,12 @@ var ErrAttemptBudget = errors.New("integration account attempt budget reached")
 var ErrAccessDenied = profiles.ErrAccessDenied
 
 var wireRequests = func() metric.Int64Counter {
-	counter, _ := otel.Meter("metapus/integrations").Int64Counter("integration.http.requests")
+	counter, _ := otel.Meter("github.com/alex-bogatiuk/metapus/integrations").Int64Counter("integration.http.requests")
 	return counter
 }()
 
 var upstreamResponses = func() metric.Int64Counter {
-	counter, _ := otel.Meter("metapus/integrations").Int64Counter("integration.http.responses")
+	counter, _ := otel.Meter("github.com/alex-bogatiuk/metapus/integrations").Int64Counter("integration.http.responses")
 	return counter
 }()
 

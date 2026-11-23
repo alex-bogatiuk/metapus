@@ -3,11 +3,11 @@ package crypto_network_operation
 import (
 	"context"
 
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/numerator"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
 )
 
 // Service records network operations for the activation workflow. HTTP only

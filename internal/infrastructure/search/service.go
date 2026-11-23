@@ -9,10 +9,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // _minQueryLength is the minimum number of runes to trigger a search.

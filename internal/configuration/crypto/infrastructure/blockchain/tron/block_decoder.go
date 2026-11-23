@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/integrations/providerpolicy"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 const transferTopic = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"

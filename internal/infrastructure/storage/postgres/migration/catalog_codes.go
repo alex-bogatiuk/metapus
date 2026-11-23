@@ -9,8 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
 )
 
 // WithCatalogCodes makes RunAll give every item of the given catalogs that

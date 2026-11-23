@@ -2,9 +2,9 @@
 package portalapp
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"time"
 )
 

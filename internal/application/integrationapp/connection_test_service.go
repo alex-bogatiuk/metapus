@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 )
 
 type ConnectionTargetRepository interface {

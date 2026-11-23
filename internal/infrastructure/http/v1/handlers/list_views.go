@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/listview"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/listview"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 )
 
 // ListViewHandler handles list view CRUD endpoints.

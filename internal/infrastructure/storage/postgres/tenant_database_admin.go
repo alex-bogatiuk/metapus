@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 const duplicateDatabaseSQLState = "42P04"

@@ -3,9 +3,9 @@ package aml
 import (
 	"time"
 
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // TestnetOpening is a synthetic partition of already booked physical money.

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"slices"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 // Permission defines available permissions in the system.

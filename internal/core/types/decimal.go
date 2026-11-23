@@ -11,7 +11,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // Money represents a monetary value with full precision.

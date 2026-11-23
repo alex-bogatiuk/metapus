@@ -1,7 +1,7 @@
 package integration_repo
 
 import (
-	"metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 	"time"
 )
 

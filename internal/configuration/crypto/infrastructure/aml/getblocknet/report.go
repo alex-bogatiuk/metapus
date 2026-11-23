@@ -7,9 +7,9 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 type vendorReport struct {

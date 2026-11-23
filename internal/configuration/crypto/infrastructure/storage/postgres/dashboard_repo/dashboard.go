@@ -6,9 +6,9 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/dashboard"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/dashboard"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 type Repository struct{}

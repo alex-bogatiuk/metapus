@@ -4,11 +4,11 @@
 package registry
 
 import (
-	core "metapus/internal/core/entity"
-	"metapus/internal/domain"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/metadata"
-	"metapus/internal/platform"
+	core "github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/platform"
 )
 
 type (

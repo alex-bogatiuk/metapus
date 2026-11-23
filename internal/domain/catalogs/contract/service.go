@@ -3,9 +3,9 @@ package contract
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // Service provides business logic for Contract catalog.

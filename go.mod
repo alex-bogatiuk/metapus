@@ -1,4 +1,4 @@
-module metapus
+module github.com/alex-bogatiuk/metapus
 
 go 1.27.0
 

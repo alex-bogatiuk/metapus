@@ -120,3 +120,6 @@ db/backup/*.dump
 db/backup/*.sql
 db/backup/*.snap
 db/backup/*.tar
+
+# Built binaries of go build ./cmd/<name> run from the repository root
+/integration-test

@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // Currency resolution is opt-in. Token-based and non-monetary documents do not

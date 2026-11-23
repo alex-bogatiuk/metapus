@@ -9,10 +9,10 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/catalogs/currency"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/currency"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 // CurrencyRepo implements currency.Repository.

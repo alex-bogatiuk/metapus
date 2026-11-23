@@ -6,9 +6,9 @@ package migration
 import (
 	"io/fs"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/version"
-	core "metapus/internal/infrastructure/storage/postgres/migration"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/core/version"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 )
 
 type (

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/application/portalapp"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/portalapp"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // ── Webhook Secret ────────────────────────────────────────────────────

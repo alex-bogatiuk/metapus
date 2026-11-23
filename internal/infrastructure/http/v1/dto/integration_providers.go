@@ -1,6 +1,6 @@
 package dto
 
-import "metapus/internal/domain/integrations"
+import "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 
 type IntegrationKindResponse struct {
 	ID          integrations.Kind `json:"id"`

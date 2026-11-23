@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pbo "metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/command"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
+	pbo "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/command"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 func TestProviderOpeningRejectsMissingMaker(t *testing.T) {

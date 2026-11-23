@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/printing"
 )
 
 type renderFunc func(context.Context, []byte, printing.PDFOptions) ([]byte, error)

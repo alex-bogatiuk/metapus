@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"slices"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // providerIDPattern matches the cat_integration_accounts.provider check.

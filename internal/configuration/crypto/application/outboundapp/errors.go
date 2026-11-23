@@ -3,7 +3,7 @@ package outboundapp
 import (
 	"errors"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 type heldExecutionError struct{ err error }

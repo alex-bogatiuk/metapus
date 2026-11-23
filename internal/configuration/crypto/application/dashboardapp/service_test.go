@@ -3,10 +3,10 @@ package dashboardapp
 import (
 	"context"
 	"errors"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/dashboard"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/exchange_rate"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/dashboard"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers/exchange_rate"
 	"testing"
 	"time"
 )

@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"metapus/internal/core/apperror"
-	corectx "metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	corectx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 func UserID(ctx context.Context) (uuid.UUID, error) {

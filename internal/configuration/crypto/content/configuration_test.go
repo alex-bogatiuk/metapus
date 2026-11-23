@@ -3,8 +3,8 @@ package content_test
 import (
 	"testing"
 
-	"metapus/internal/configuration/crypto/content"
-	"metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
 )
 
 func TestCryptoKeepsTheConfigurationContract(t *testing.T) {

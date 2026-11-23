@@ -7,8 +7,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // TriggerType defines what initiates the rule evaluation.

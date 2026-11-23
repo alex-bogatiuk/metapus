@@ -7,12 +7,12 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // BlockchainNetworkRepo implements blockchain_network.Repository.

@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"strconv"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 // ValueKind is declared by the server's model or dataset registration.

@@ -11,13 +11,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/integrations/transport"
-	"metapus/pkg/sdk/postgres/integration_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/transport"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/integration_repo"
 )
 
 func TestAnkrFreemiumSepoliaPoolProbe(t *testing.T) {

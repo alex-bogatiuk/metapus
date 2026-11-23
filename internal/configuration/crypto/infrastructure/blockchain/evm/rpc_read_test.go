@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/json"
 )
 
 // PublicNode's failure mode: valid fast headers and a started full-block

@@ -9,14 +9,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/autoparts/content"
-	"metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
-	"metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 type stockFixture struct {

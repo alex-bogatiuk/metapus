@@ -3,11 +3,11 @@ package cryptodto
 import (
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/jsoncodec"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/http/jsoncodec"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/types"
 )
 
 func TestWebhookTestResultPreservesOmittedNullAndZero(t *testing.T) {

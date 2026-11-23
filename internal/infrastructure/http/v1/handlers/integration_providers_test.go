@@ -8,11 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
 )
 
 func TestIntegrationProvidersUsesExistingCatalogPermissions(t *testing.T) {

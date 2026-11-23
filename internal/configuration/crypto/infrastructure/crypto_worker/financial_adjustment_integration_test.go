@@ -10,16 +10,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/receipttest"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_payment"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo/receipttest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestFinancialAdjustmentRepeatedPartialReversal(t *testing.T) {

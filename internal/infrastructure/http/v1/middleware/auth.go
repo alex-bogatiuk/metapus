@@ -7,9 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 // JWTValidator interface for token validation.

@@ -2,7 +2,7 @@ package currency
 
 import (
 	"context"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // Repository defines the interface for Currency persistence.

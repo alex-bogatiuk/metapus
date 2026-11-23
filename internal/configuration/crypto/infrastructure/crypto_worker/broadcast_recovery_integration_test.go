@@ -12,13 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestWithdrawalRecoveryReusesSignedAttemptAfterBroadcastBeforePostFailure(t *testing.T) {

@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 )
 
 type IntegrationPoolCommandRequest struct {

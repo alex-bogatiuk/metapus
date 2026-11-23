@@ -3,12 +3,12 @@ package content_test
 import (
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptohandlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/contracts"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/content"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptohandlers"
-	"metapus/pkg/sdk/configuration"
-	"metapus/pkg/sdk/contracts"
 )
 
 // The crypto service routes have wire contracts; the platform's own are

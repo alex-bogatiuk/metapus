@@ -29,8 +29,8 @@ import (
 	// pgx stdlib adapter for database/sql — required by goose.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/tenant"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 const (

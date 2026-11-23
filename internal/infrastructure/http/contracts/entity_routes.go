@@ -1,6 +1,6 @@
 package contracts
 
-import "metapus/internal/infrastructure/http/contracts/spec"
+import "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
 
 func bundleContracts(bundles []spec.Bundle) []Contract {
 	var out []Contract

@@ -1,9 +1,9 @@
 package cryptodto
 
 import (
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/dto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/dto"
 )
 
 // --- Request DTOs ---

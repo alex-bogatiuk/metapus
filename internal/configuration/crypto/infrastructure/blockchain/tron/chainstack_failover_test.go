@@ -3,9 +3,9 @@ package tron
 import (
 	"context"
 	"fmt"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
 	"io"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,12 +16,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/integrations/transport"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/transport"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 type chainstackTestAccounts struct {

@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/notifications"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/notifications"
 )
 
 func TestNotificationBatchAndNotifiedUsers(t *testing.T) {

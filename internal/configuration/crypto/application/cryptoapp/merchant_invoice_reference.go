@@ -5,11 +5,11 @@ import (
 	"errors"
 	"maps"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/eventlog"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/eventlog"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 type BindMerchantInvoiceReferenceInput struct {

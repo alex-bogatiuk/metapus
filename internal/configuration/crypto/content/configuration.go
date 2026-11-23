@@ -3,14 +3,14 @@ package content
 import (
 	"io/fs"
 
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/pkg/sdk/configuration"
-	"metapus/pkg/sdk/contracts"
-	"metapus/pkg/sdk/http/v1"
-	"metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/contracts"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 )
 
 // CryptoName is the crypto-processing configuration's name.

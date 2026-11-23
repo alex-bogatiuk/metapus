@@ -7,12 +7,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // RPCPoolConsumer keeps every keyed pool account and every endpoint of the

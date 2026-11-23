@@ -6,15 +6,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"net/http"
 	"net/url"
 	"os"
 	"sort"
 	"strings"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 const maxConfigBytes = 4 << 20

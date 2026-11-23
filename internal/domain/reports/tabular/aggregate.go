@@ -2,8 +2,8 @@ package tabular
 
 import (
 	"fmt"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
 	"github.com/shopspring/decimal"
-	reportcontract "metapus/internal/domain/reports/contract"
 )
 
 type accumulator struct {

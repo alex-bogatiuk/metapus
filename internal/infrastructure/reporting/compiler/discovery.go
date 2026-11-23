@@ -1,10 +1,10 @@
 package compiler
 
 import (
-	"metapus/internal/core/types"
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // BuildFieldTree builds the tree of available fields for a dataset.

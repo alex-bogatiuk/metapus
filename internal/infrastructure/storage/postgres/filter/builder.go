@@ -7,7 +7,7 @@ import (
 
 	"github.com/Masterminds/squirrel"
 
-	"metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
 )
 
 // BuildSearchConditions generates AND-combined ILIKE conditions for fuzzy search (1С-style).

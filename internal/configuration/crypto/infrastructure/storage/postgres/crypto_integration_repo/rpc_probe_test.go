@@ -1,7 +1,7 @@
 package crypto_integration_repo
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 
-	"metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 )
 
 func TestConnectionProbeValidatesConfiguredNetworkIndependentOfVendor(t *testing.T) {

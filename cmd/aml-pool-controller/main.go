@@ -12,15 +12,15 @@ import (
 	"syscall"
 	"time"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/infrastructure/crypto/merchant_provisioning"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/merchant_provisioning"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
 )
 
 func main() {

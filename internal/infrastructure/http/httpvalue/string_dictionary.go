@@ -4,7 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // StringDictionary distinguishes omission from {} and rejects null,

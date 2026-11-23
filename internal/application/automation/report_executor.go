@@ -2,10 +2,10 @@ package automation
 
 import (
 	"context"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 )
 
 // BindReportExecutor assigns execution authority to the authenticated author

@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 func TestTrustedCommandScopePrefersInstalledResolver(t *testing.T) {

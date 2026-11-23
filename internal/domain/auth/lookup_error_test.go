@@ -11,10 +11,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 type failingLookupUserRepo struct {

@@ -2,10 +2,10 @@ package catalog_repo
 
 import (
 	"context"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/catalogs/rate_source"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/rate_source"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 // RateSourceRepo implements rate_source.Repository.

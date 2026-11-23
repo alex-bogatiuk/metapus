@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 type signingAuthorizationReadiness interface {

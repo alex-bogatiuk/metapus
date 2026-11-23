@@ -14,14 +14,14 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/apperror"
-	corectx "metapus/internal/core/context"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/automations"
-	"metapus/internal/domain/listview"
-	"metapus/internal/domain/reports/variants"
-	"metapus/internal/infrastructure/storage/postgres/migration"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	corectx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/domain/listview"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/variants"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 )
 
 func markerTestDB(t *testing.T) (*pgxpool.Pool, context.Context) {

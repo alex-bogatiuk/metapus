@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/search"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/search"
 )
 
 // GlobalSearchHandler handles GET /api/v1/search.

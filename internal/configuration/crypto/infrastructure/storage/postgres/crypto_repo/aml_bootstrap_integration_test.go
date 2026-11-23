@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	amlruntime "metapus/internal/configuration/crypto/infrastructure/aml/runtime"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	amlruntime "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/aml/runtime"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 
 	"github.com/stretchr/testify/require"
 )

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/wallet"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 type DepositAddressRotationService struct {

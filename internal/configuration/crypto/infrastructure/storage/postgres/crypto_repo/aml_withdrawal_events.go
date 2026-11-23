@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 	"github.com/jackc/pgx/v5"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
 )
 
 func (r *AMLRepository) PublishNextAMLWithdrawalEvent(ctx context.Context) (bool, error) {

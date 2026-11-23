@@ -3,7 +3,7 @@ package automations
 import (
 	"context"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // AccountRepository provides data access for automation accounts.

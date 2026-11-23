@@ -1,9 +1,9 @@
 package v1
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // EntityRegistration derives transport identity from the domain model. Its zero

@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // OutboxRecord is an outbox message whose payload and trace context the

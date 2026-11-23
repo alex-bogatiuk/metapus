@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/filter"
 )
 
 func TestExactRequestBindingPreservesFilterNumbersAndStrictMoney(t *testing.T) {

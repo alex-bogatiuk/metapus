@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
 )
 
 // Reader accumulates configuration errors across reads.

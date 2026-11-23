@@ -4,14 +4,14 @@ package crypto_integration_repo
 
 import (
 	"errors"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
 )
 
 func requireKeyError(t *testing.T, err error, reason string) {

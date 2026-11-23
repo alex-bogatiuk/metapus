@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 type IngestionAlertState struct {

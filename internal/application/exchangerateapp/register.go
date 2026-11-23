@@ -5,12 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	er "metapus/internal/domain/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	er "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
 )
 
 type RegisterService struct {

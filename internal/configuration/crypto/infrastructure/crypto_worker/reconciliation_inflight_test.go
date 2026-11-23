@@ -3,7 +3,7 @@ package crypto_worker
 import (
 	"testing"
 
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // Stand: PYUSD was already on chain while the ERC-20 scanner lagged, and the

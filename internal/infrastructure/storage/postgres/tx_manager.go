@@ -14,11 +14,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	coretx "metapus/internal/core/tx"
-	"metapus/pkg/logger"
+	coretx "github.com/alex-bogatiuk/metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
-var tracer = otel.Tracer("metapus/tx")
+var tracer = otel.Tracer("github.com/alex-bogatiuk/metapus/tx")
 
 // Compile-time check that TxManager implements tx.Manager interface.
 var _ coretx.Manager = (*TxManager)(nil)

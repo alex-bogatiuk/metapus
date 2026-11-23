@@ -1,6 +1,6 @@
 package cryptodto
 
-import "metapus/internal/configuration/crypto/application/portalapp"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/portalapp"
 
 // HTTP names preserve the wire contract while the application owns the query models.
 type PortalSummaryResponse = portalapp.PortalSummaryResponse

@@ -2,11 +2,11 @@ package platform
 
 // Re-export domain service types for client extensions.
 // Extensions should use platform.CatalogService etc. instead of
-// importing "metapus/internal/domain" directly.
+// importing "github.com/alex-bogatiuk/metapus/internal/domain" directly.
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // ── Type Constraints ────────────────────────────────────────────────────

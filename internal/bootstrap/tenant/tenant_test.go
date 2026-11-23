@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/none"
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 func TestParseMigrateArgs(t *testing.T) {

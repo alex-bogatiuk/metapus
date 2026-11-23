@@ -3,16 +3,16 @@ package handlers
 import (
 	"bytes"
 	"fmt"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/infrastructure/http/jsoncodec"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/reporting/export"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/export"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // ---------------------------------------------------------------------------

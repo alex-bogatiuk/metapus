@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // UserCard is how a configuration shows a platform user its own rows

@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // TreeNode represents a node in a nested tree structure.

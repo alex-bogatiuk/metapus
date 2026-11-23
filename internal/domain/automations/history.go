@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // HistoryStatus represents the outcome of a rule evaluation or delivery.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // AccessScopeKind names merchant grants inside a session's access scopes.

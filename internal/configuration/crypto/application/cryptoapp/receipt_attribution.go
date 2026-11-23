@@ -3,10 +3,10 @@ package cryptoapp
 import (
 	"context"
 
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
 )
 
 // A manual attribution of a receipt (merchant credit or platform funding) is

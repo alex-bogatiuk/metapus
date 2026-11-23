@@ -3,11 +3,11 @@ package configuration
 import (
 	"fmt"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/version"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/storage/postgres/migration"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/version"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 )
 
 // MigrationOptions migrate a tenant database of the assembled application:

@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // rateBucket tracks token-bucket state per key.

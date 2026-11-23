@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // maxTreeDepth is the maximum depth of the subordination tree traversal.

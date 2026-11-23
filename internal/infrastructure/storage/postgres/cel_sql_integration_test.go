@@ -4,18 +4,18 @@ package postgres_test
 
 import (
 	"context"
-	"metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"os"
 	"testing"
 
 	"github.com/Masterminds/squirrel"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain/security_profile"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/domain/security_profile"
 )
 
 func TestCELSQLMatchesGoPolicyEngineBeforeAggregation(t *testing.T) {

@@ -7,11 +7,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 func (r *Runtime) Status(ctx context.Context, uid id.ID) (integrations.PoolStatus, error) {

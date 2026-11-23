@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/catalogs/rate_source"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/rate_source"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 func TestIntegrationAccountNeverSerializesSecretMaterial(t *testing.T) {

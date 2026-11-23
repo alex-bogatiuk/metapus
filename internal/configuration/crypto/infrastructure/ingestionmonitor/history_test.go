@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto_worker"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/crypto_worker"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
 )
 
 func TestHistoryKeepsRPCFailureEvidenceWithoutTransportSecrets(t *testing.T) {

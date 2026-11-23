@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // Validatable is implemented by entities that support self-validation.

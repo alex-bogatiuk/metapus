@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"metapus/internal/core/json"
-	"metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
 )
 
 type Server struct {

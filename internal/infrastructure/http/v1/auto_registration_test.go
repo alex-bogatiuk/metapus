@@ -11,17 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/http/contracts"
-	_ "metapus/internal/infrastructure/http/jsoncodec"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/metadata"
-	"metapus/internal/platform"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts"
+	_ "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/platform"
 )
 
 var autoProbeDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "auto_probe", Name: "AutoProbe", Route: "auto-probes", Table: "cat_auto_probes"}

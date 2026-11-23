@@ -1,14 +1,14 @@
 package chainconfig_test
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/cryptoprofiles"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 )
 
 // A loaded chains.json trims the trailing slash of an Alchemy base whose key

@@ -7,10 +7,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // Recovery middleware recovers from panics and returns 500 error.

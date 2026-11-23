@@ -2,7 +2,7 @@ package organization
 
 import (
 	"context"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // Repository defines the interface for organization storage.

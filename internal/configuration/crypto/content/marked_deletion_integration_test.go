@@ -5,9 +5,9 @@ package content
 import (
 	"context"
 	"errors"
-	"metapus/pkg/sdk/configuration"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 	"os"
 	"slices"
 	"testing"
@@ -15,12 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/http/v1"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/readaccess"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/readaccess"
 )
 
 // markedFixture runs fn in a transaction that is always rolled back, with

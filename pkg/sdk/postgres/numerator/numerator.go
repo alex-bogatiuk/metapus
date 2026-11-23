@@ -2,7 +2,7 @@
 package numerator
 
 import (
-	core "metapus/internal/infrastructure/numerator"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/numerator"
 )
 
 // New creates a new numerator service.

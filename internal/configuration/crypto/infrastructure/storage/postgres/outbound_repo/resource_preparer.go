@@ -1,7 +1,7 @@
 package outbound_repo
 
 import (
-	"metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
 )
 
 // ResourceBroadcastCommand binds a resource reservation to the exact signed

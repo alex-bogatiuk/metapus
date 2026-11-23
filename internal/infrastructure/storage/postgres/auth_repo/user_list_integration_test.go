@@ -13,10 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/auth"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 type userListQueryCounter struct{ count atomic.Int32 }

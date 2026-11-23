@@ -3,9 +3,9 @@ package domain
 import (
 	"context"
 	"fmt"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/eventlog"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 )
 
 // NewEventLogCatalogService records successful mutations in the same transaction.

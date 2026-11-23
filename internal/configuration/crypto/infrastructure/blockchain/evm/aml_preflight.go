@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/types"
 )
 
 func (d *Driver) EmptyCheckpoint(ctx context.Context, asset crypto.AssetRef, address string) (crypto.EmptyCheckpoint, error) {

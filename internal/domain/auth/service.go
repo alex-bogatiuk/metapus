@@ -12,14 +12,14 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/tx"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/notifications"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/notifications"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // BcryptCost is the bcrypt work factor for password hashing.

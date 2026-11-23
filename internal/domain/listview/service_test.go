@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/apperror"
-	corectx "metapus/internal/core/context"
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	corectx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 type viewRepositoryStub struct {

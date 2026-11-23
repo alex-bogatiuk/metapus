@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // Name is the register's key: its movements' policy entity and its key in a

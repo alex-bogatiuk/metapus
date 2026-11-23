@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/Masterminds/squirrel"
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
 )
 
 // AuthorizeReport builds sources before the executor can add SUM, UNION, or

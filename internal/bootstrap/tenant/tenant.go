@@ -21,13 +21,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/configuration"
-	"metapus/internal/core/tenant"
-	v1 "metapus/internal/infrastructure/http/v1"
-	postgresstore "metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	postgresstore "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
 )
 
 // application is the configuration the CLI migrates tenants with and the

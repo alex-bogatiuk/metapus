@@ -3,8 +3,8 @@ package evm
 import (
 	"context"
 	"fmt"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
 	"strings"
 	"time"
 )

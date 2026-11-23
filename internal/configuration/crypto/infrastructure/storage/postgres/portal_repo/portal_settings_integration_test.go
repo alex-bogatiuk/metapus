@@ -11,11 +11,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 func TestPortalMerchantSettingsPatch(t *testing.T) {

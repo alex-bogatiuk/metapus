@@ -3,8 +3,8 @@ package dto
 import (
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 )
 
 // EventLogResponse is the API response for a single event log entry.

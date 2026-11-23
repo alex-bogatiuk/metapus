@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations/profiles"
 )
 
 // ConnectionProber checks that a pool answers through its real binding.

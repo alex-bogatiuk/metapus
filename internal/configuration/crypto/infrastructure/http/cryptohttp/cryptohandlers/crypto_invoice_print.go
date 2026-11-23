@@ -6,15 +6,15 @@ import (
 	"strconv"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/metadata"
-	"metapus/pkg/sdk/printing"
-	"metapus/pkg/sdk/printing/render"
-	"metapus/pkg/sdk/readaccess"
-	"metapus/pkg/sdk/security"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/metadata"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/printing"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/printing/render"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/readaccess"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/security"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 const (

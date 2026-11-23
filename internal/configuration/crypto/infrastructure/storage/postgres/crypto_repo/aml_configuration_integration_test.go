@@ -4,9 +4,9 @@ package crypto_repo
 
 import (
 	"context"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 	"testing"
 	"time"
 

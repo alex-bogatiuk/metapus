@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"metapus/internal/application/command"
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/application/command"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // CommandRepository is the PostgreSQL adapter for durable application command

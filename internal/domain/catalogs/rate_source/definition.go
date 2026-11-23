@@ -1,6 +1,6 @@
 package rate_source
 
-import "metapus/internal/core/entity"
+import "github.com/alex-bogatiuk/metapus/internal/core/entity"
 
 var Definition = entity.Definition{
 	Key:   "rate_source",

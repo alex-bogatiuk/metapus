@@ -6,8 +6,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 type SigningAuthorizationService struct {

@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/integrations/profiles"
-	"metapus/pkg/sdk/integrations/transport"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/transport"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

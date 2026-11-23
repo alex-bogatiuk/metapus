@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 
 	"github.com/stretchr/testify/require"
 )

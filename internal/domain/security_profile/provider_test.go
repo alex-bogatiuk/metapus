@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 // mockRepo implements Repository for testing.

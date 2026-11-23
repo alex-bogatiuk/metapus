@@ -7,9 +7,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 const _leaseBlockCheckPeriod = 20 * time.Second

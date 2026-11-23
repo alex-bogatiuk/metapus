@@ -2,7 +2,7 @@ package readpolicy
 
 import (
 	"github.com/Masterminds/squirrel"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 // ApplyConditions returns squirrel WHERE conditions for RLS filtering.

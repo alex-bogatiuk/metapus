@@ -7,15 +7,15 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/content"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/tenant"
 
-	"metapus/pkg/sdk/reports/compiler"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/reports/compiler"
 )
 
 // The configuration's report datasets run against its freshly migrated schema.

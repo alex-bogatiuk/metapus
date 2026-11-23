@@ -1,17 +1,17 @@
 package handlers
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"io"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/auth"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
 )
 
 // SettingsHandler handles system settings endpoints.

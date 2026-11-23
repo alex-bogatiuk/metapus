@@ -3,8 +3,8 @@ package domain
 import (
 	"context"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // DocumentRepository defines CRUD + line operations for document entities.

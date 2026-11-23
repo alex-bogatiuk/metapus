@@ -1,7 +1,7 @@
 package chainconfig
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 )
 
 // Configuration removes clients, resolved secrets and process-local admission

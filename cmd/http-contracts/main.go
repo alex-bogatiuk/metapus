@@ -12,11 +12,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"metapus/extensions"
-	"metapus/internal/configuration"
-	autoparts "metapus/internal/configuration/autoparts/content"
-	crypto "metapus/internal/configuration/crypto/content"
-	"metapus/internal/configuration/none"
+	"github.com/alex-bogatiuk/metapus/extensions"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	autoparts "github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
+	crypto "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
 )
 
 // configurations are the repository's configurations whose frontend files

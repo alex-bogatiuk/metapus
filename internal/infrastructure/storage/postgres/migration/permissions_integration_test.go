@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 )
 
 func migratedPermissionDB(t *testing.T, opts ...Option) *sql.DB {

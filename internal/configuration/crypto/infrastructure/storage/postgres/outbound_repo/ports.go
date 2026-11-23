@@ -1,6 +1,6 @@
 package outbound_repo
 
-import "metapus/internal/configuration/crypto/application/outboundapp"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
 
 // Persistence implements application contracts without depending on worker runtime.
 var (

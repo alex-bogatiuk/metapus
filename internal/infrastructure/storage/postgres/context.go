@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 // MustGetTxManager returns *postgres.TxManager from context.

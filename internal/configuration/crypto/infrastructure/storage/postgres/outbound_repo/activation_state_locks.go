@@ -3,10 +3,10 @@ package outbound_repo
 import (
 	"context"
 
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 const activationWalletSetSQL = crypto_document_repo.CryptoActivationWalletSetSQL

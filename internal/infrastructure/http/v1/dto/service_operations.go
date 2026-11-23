@@ -1,6 +1,6 @@
 package dto
 
-import "metapus/internal/domain"
+import "github.com/alex-bogatiuk/metapus/internal/domain"
 
 type FindReferencesResponse struct {
 	Items []domain.FoundReference `json:"items"`

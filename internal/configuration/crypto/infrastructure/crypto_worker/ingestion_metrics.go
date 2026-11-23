@@ -16,7 +16,7 @@ type IngestionMonitorMetrics struct {
 }
 
 func NewIngestionMonitorMetrics() IngestionMonitorMetrics {
-	m := otel.Meter("metapus/ingestion-monitor")
+	m := otel.Meter("github.com/alex-bogatiuk/metapus/ingestion-monitor")
 	gauge := func(name string) metric.Int64Gauge {
 		instrument, _ := m.Int64Gauge("crypto.ingestion." + name)
 		return instrument

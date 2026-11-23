@@ -1,9 +1,9 @@
 package content
 
 import (
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/pkg/sdk/contracts"
-	"metapus/pkg/sdk/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/contracts"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/metadata"
 )
 
 func (r *CryptoNetworkOperationRegistration) HTTPContracts() contracts.Bundle {

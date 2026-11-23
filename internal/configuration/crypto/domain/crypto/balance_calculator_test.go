@@ -1,12 +1,12 @@
 package crypto
 
 import (
-	"metapus/pkg/sdk/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/exchange_rate"
 	"testing"
 	"time"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestBalanceCalculatorPreservesTokenDecimalPlaces(t *testing.T) {

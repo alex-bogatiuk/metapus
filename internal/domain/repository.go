@@ -3,12 +3,12 @@ package domain
 
 import (
 	"context"
-	"metapus/internal/domain/cursor"
-	"metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 // --- Filter & Pagination ---

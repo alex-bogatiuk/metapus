@@ -6,12 +6,12 @@ package configuration
 import (
 	"io/fs"
 
-	dbassets "metapus/db"
-	"metapus/extensions"
-	core "metapus/internal/configuration"
-	"metapus/internal/domain/auth"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/infrastructure/http/v1"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/extensions"
+	core "github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
 )
 
 type (

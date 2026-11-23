@@ -1,9 +1,9 @@
 package crypto
 
 import (
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers/exchange_rate"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"testing"
 	"time"
 

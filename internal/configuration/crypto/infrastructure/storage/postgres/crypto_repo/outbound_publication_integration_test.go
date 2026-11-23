@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 
 	"github.com/stretchr/testify/require"
 )

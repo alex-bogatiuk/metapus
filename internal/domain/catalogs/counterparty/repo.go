@@ -3,7 +3,7 @@ package counterparty
 import (
 	"context"
 
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // Repository defines the interface for Counterparty persistence.

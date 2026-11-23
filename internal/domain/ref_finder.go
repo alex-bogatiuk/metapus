@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // FindReferencesRequest specifies which entity to search references for.

@@ -3,8 +3,8 @@ package token
 import (
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/id"
 )
 
 func TestTokenDustThresholdAttribute(t *testing.T) {

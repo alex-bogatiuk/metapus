@@ -1,9 +1,9 @@
 package v1
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/metadata"
-	"metapus/internal/platform"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/platform"
 )
 
 type ReadMetadataRegistration interface {

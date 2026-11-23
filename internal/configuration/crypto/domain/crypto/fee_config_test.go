@@ -3,7 +3,7 @@ package crypto
 import (
 	"testing"
 
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestEffectiveFee_Calculate(t *testing.T) {

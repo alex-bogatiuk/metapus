@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/tenant"
 
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestInternalFundingReplayKeepsOneReceiptAndLedgerMovement(t *testing.T) {

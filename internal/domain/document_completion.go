@@ -2,10 +2,10 @@ package domain
 
 import (
 	"context"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/security"
-	"metapus/internal/core/tx"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // runDocumentMutation gives Before and Transaction hooks the same rollback

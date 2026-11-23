@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 const defaultBaseURL = "https://itrx.io"

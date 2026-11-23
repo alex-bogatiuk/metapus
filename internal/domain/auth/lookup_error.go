@@ -3,7 +3,7 @@ package auth
 import (
 	"fmt"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // Expected lookup misses have no internal cause to log. Storage failures retain

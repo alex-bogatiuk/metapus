@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/types"
 )
 
 func (d *Driver) VerificationRequired() bool { return d.rpc != nil }

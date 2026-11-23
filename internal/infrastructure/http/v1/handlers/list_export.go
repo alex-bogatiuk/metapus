@@ -3,22 +3,22 @@ package handlers
 import (
 	"bytes"
 	"fmt"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/httpvalue"
-	"metapus/internal/infrastructure/http/jsoncodec"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/httpvalue"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
 	"net/http"
 	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	domainFilter "metapus/internal/domain/filter"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/listexport"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	domainFilter "github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/listexport"
 )
 
 // ExportMaxRows is the safety limit for list export.

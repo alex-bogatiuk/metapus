@@ -3,17 +3,17 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 	"net/http"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // RefFinderRepo scans all registered entity tables for references to a given object.

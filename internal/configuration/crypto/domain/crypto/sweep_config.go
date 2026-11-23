@@ -1,8 +1,8 @@
 package crypto
 
 import (
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // SweepConfig is the effective resolved sweep configuration for a merchant+token pair.

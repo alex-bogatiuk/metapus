@@ -6,13 +6,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/settings"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/settings"
 )
 
 // CryptoWithdrawalHandler handles HTTP requests for CryptoWithdrawal documents.

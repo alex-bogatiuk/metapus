@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"metapus/internal/application/automation"
+	"github.com/alex-bogatiuk/metapus/internal/application/automation"
 )
 
 //go:embed templates

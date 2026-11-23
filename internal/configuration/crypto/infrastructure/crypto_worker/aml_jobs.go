@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	amlruntime "metapus/internal/configuration/crypto/infrastructure/aml/runtime"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	amlruntime "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/aml/runtime"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // Jobs are opt-in through accepted mappings, explicit account enablement and

@@ -10,11 +10,11 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestFinalityUsesConfirmationsOrProtocolFinalized(t *testing.T) {

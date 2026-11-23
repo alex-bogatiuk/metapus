@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 )
 
 // DirectEventWriter is the HTTP-infrastructure port for events emitted before

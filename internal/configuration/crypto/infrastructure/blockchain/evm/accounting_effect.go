@@ -3,9 +3,9 @@ package evm
 import (
 	"math/big"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
-	"metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // accountingIdentity locates the transfer in the complete successful receipt.

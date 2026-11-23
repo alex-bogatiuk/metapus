@@ -3,14 +3,14 @@ package crypto_integration_repo
 import (
 	"context"
 	"fmt"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"net/url"
 
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 type CryptoRPCEndpointRepo struct {

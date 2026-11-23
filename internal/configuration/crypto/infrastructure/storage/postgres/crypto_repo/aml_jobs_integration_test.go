@@ -17,12 +17,12 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/migration"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/migration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 func amlTestDatabase(t *testing.T) (context.Context, *pgxpool.Pool) {

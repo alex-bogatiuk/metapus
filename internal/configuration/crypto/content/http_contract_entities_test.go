@@ -1,19 +1,19 @@
 package content_test
 
 import (
-	"metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/numerator"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/content"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/http/middleware"
-	"metapus/pkg/sdk/http/v1"
-	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/posting"
 )
 
 // No command is executed. These non-nil ports permit building all production

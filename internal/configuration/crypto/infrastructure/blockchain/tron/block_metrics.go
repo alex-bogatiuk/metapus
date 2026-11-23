@@ -13,7 +13,7 @@ var blockMetrics = func() struct {
 	commits, events, errors metric.Int64Counter
 	pollSeconds             metric.Float64Histogram
 } {
-	m := otel.Meter("metapus/tron/blocks")
+	m := otel.Meter("github.com/alex-bogatiuk/metapus/tron/blocks")
 	commits, _ := m.Int64Counter("crypto.tron.block_commits")
 	events, _ := m.Int64Counter("crypto.tron.decoded_events")
 	errors, _ := m.Int64Counter("crypto.tron.read_failures")

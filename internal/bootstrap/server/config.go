@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/domain/auth"
-	"metapus/internal/platform/envconfig"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/platform/envconfig"
 )
 
 // config is everything the platform API server reads from its environment.

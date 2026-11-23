@@ -3,9 +3,9 @@ package readaccess
 import (
 	"context"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // movementRefURL builds the frontend link of a resolved reference.

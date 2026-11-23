@@ -5,8 +5,8 @@ package readpolicy
 import (
 	"github.com/Masterminds/squirrel"
 
-	"metapus/internal/core/security"
-	core "metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 )
 
 type (

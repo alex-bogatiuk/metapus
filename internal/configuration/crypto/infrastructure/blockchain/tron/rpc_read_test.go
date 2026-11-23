@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 func policyPool(t *testing.T, urls ...string) *RPCPool {

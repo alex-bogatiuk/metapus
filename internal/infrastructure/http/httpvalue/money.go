@@ -5,7 +5,7 @@ package httpvalue
 import (
 	"encoding/json/jsontext"
 	"fmt"
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 	"strconv"
 )
 

@@ -11,19 +11,19 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/telemetry"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_document_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/telemetry"
 )
 
 const _observationPollPeriod = time.Second
 const _observationLease = 5 * time.Minute
 
 func (p *CryptoProcessor) captureChainObservation(ctx context.Context, event crypto.BlockchainEvent) error {
-	ctx, span := otel.Tracer("metapus/crypto/observation").Start(ctx, "chain.observation.capture",
+	ctx, span := otel.Tracer("github.com/alex-bogatiuk/metapus/crypto/observation").Start(ctx, "chain.observation.capture",
 		oteltrace.WithSpanKind(oteltrace.SpanKindProducer), oteltrace.WithAttributes(
 			attribute.String("chain.network_id", event.NetworkID.String()),
 			attribute.String("chain.event_kind", string(event.EffectiveEventKind())),
@@ -74,7 +74,7 @@ func (p *CryptoProcessor) processChainObservations(ctx context.Context) error {
 func (p *CryptoProcessor) processClaimedChainObservation(ctx context.Context, repo *crypto_repo.ChainObservationRepo, observation crypto_repo.ChainObservation) error {
 	workCtx := telemetry.ContinueTrace(ctx, observation.Traceparent)
 	workCtx = telemetry.WithBusinessContext(workCtx, observation.CorrelationID, observation.CausationID)
-	workCtx, span := otel.Tracer("metapus/crypto/observation").Start(workCtx, "chain.observation.process",
+	workCtx, span := otel.Tracer("github.com/alex-bogatiuk/metapus/crypto/observation").Start(workCtx, "chain.observation.process",
 		oteltrace.WithSpanKind(oteltrace.SpanKindConsumer), oteltrace.WithAttributes(
 			attribute.String("chain.observation_id", observation.ID.String()),
 			attribute.String("chain.network_id", observation.NetworkID.String()),

@@ -5,12 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/settings"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/settings"
 )
 
 // CryptoNetworkOperationHandler serves network operations read-only: list,

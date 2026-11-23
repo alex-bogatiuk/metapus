@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // fieldMeta holds cached reflection information for a single struct field.

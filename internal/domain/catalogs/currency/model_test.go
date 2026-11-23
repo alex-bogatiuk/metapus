@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/catalogs/currency"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/currency"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 func TestCurrencyNumericCodeValidation(t *testing.T) {

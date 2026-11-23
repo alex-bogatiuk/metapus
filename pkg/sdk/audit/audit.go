@@ -4,8 +4,8 @@ package audit
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	core "metapus/internal/domain/audit"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/audit"
 )
 
 // EnrichCreatedByDirect is a type-safe helper that sets fields directly.

@@ -5,17 +5,17 @@ package crypto_integration_repo
 import (
 	"context"
 	"errors"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/integration_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/integration_repo"
 )
 
 func TestImportIsAtomicAndRepeatable(t *testing.T) {

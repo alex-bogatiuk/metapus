@@ -14,11 +14,11 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/automation"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/application/automation"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 )
 
 type reliabilityHandler func(context.Context, *OutboxMessage) error

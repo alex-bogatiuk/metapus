@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/filter"
-	"metapus/internal/infrastructure/reporting/compiler"
 )
 
 func TestReportsResolveExactFiltersFromDatasetMetadata(t *testing.T) {

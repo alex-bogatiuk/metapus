@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"metapus/internal/domain/integrations"
-	core "metapus/internal/infrastructure/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations/profiles"
 )
 
 type (

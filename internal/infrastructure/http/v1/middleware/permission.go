@@ -6,11 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // permEventWriter is set via SetPermissionEventWriter during router init.

@@ -3,9 +3,9 @@ package integrations
 import (
 	"context"
 	"errors"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/providerpolicy"
 	"io"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
 	"time"
 )
 

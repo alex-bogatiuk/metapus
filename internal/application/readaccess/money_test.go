@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/application/readaccess"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/core/types"
 )
 
 type currencyRegistry struct{}

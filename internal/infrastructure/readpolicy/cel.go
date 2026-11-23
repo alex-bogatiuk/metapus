@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/operators"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/security"
 )
 
 type SQLScalarKind string

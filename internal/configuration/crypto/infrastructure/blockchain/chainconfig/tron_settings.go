@@ -1,7 +1,7 @@
 package chainconfig
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 )
 
 // TRONSettings is shared with administrative configuration policy.

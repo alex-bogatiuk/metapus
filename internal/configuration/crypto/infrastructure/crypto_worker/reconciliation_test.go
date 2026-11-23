@@ -3,7 +3,7 @@ package crypto_worker
 import (
 	"testing"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
 )
 
 func TestReconciliationKind(t *testing.T) {

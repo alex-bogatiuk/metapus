@@ -3,7 +3,7 @@ package security_profile
 import (
 	"context"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // PolicyRuleRepository defines persistence operations for CEL policy rules.

@@ -1,24 +1,24 @@
 package v1
 
 import (
-	"metapus/internal/application/integrationapp"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"github.com/alex-bogatiuk/metapus/internal/application/integrationapp"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/integration_repo"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/domain/auth"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/listview"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/auth_repo"
-	"metapus/internal/infrastructure/storage/postgres/security_repo"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/listview"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/auth_repo"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/security_repo"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // deriveEntityKey extracts the snake_case entity key from a permission prefix.

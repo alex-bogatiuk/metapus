@@ -7,13 +7,13 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
-	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/wallet"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_fee"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func (r *OutboundRepo) ClaimApprovedTreasuryWithdrawals(ctx context.Context, limit int) ([]TreasuryTask, error) {

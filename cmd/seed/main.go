@@ -4,8 +4,8 @@
 package main
 
 import (
-	"metapus/internal/bootstrap/seed"
-	"metapus/internal/configuration/none"
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/seed"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
 )
 
 func main() { seed.Main(none.New()) }

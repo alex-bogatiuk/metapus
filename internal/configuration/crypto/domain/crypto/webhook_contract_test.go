@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 func TestInvoiceCompletedGoldenWebhookFixture(t *testing.T) {

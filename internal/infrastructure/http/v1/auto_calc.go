@@ -7,10 +7,10 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/formula"
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/formula"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 // Calculated fields of declared documents (meta:"calc:quantity*price"), as

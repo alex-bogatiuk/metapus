@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"

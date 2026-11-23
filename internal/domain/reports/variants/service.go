@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"metapus/internal/core/apperror"
-	corectx "metapus/internal/core/context"
-	"metapus/internal/domain/viewpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	corectx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/domain/viewpolicy"
 )
 
 type Service struct {

@@ -1,6 +1,6 @@
 package platform
 
-import "metapus/internal/domain/posting"
+import "github.com/alex-bogatiuk/metapus/internal/domain/posting"
 
 // ExtensionConfig holds shared cross-cutting services available to client
 // extensions during registration. Built by the composition root (main.go).

@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // WebhookDelivery records a single webhook delivery attempt.

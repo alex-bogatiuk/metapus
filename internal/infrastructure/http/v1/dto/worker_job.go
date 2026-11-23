@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
 )
 
 // WorkerJobResponse is the API representation of a single worker job run.

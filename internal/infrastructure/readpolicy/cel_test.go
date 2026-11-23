@@ -2,11 +2,11 @@ package readpolicy
 
 import (
 	"context"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/apperror"
 )
 
 func TestCompileReadSQLRejectsUnsupportedPolicies(t *testing.T) {

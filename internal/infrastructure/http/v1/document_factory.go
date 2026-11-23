@@ -4,19 +4,19 @@
 package v1
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/posting"
-	"metapus/internal/domain/printing"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	printadapter "metapus/internal/infrastructure/printing"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	printadapter "github.com/alex-bogatiuk/metapus/internal/infrastructure/printing"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 
 	"github.com/gin-gonic/gin"
 )

@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/filter"
-	"metapus/internal/infrastructure/storage/postgres"
 )
 
 func TestFilterMetadataUsesStorageTypesAndColumnWhitelist(t *testing.T) {

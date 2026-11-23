@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/json"
 )
 
 // nonceServer answers the head and nonce reads of ObserveNonceState. headAge

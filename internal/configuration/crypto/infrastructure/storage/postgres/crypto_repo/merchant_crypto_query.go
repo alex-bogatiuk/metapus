@@ -8,13 +8,13 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/configuration/crypto/domain/tariff"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/tariff"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 type MerchantCryptoQueryRepo struct{}

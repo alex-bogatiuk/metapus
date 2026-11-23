@@ -7,10 +7,10 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // WalletStatus defines the availability state of a wallet.

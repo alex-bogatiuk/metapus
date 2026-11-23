@@ -2,7 +2,7 @@
 package security_profile
 
 import (
-	core "metapus/internal/domain/security_profile"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/security_profile"
 )
 
 type (

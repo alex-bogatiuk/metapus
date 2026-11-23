@@ -5,14 +5,14 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/application/checkout"
-	"metapus/internal/configuration/crypto/domain/crypto/publicref"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/checkout"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/publicref"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 // InvoiceCheckoutAggregateType separates new worker invoice registrations from

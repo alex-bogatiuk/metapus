@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"reflect"
 	"strings"
 	"time"
@@ -30,14 +30,14 @@ import (
 	"github.com/shopspring/decimal"
 	"strconv"
 
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/filter"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/infrastructure/storage/postgres"
-	pgfilter "metapus/internal/infrastructure/storage/postgres/filter"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	pgfilter "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/filter"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // MaxJoinDepth is the maximum depth for reference field resolution.

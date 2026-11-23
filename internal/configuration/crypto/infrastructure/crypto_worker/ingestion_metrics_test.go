@@ -3,7 +3,7 @@ package crypto_worker
 import (
 	"testing"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"

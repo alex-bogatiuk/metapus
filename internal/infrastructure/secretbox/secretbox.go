@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	"metapus/internal/core/apperror"
-	corecrypto "metapus/internal/core/crypto"
-	"metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	corecrypto "github.com/alex-bogatiuk/metapus/internal/core/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
 )
 
 // keyName is the secret that holds the key, from the environment or a file.

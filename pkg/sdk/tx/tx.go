@@ -4,7 +4,7 @@ package tx
 import (
 	"context"
 
-	core "metapus/internal/core/tx"
+	core "github.com/alex-bogatiuk/metapus/internal/core/tx"
 )
 
 type (

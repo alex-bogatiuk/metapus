@@ -73,7 +73,7 @@ func TestPlatformTestsDoNotImportConfiguration(t *testing.T) {
 	repoRoot := repositoryRoot(t)
 	actual := map[string]map[string]bool{}
 	walkPlatformGo(t, repoRoot, true, func(rel string, file *ast.File) {
-		pkg := "metapus/" + filepath.ToSlash(filepath.Dir(rel))
+		pkg := "github.com/alex-bogatiuk/metapus/" + filepath.ToSlash(filepath.Dir(rel))
 		for _, imported := range file.Imports {
 			value, err := strconv.Unquote(imported.Path.Value)
 			require.NoError(t, err)
@@ -167,7 +167,7 @@ func walkGo(t *testing.T, repoRoot string, tops []string, tests bool, skip func(
 			if err != nil {
 				return err
 			}
-			if skip("metapus/" + filepath.ToSlash(filepath.Dir(rel))) {
+			if skip("github.com/alex-bogatiuk/metapus/" + filepath.ToSlash(filepath.Dir(rel))) {
 				return nil
 			}
 			mode := parser.SkipObjectResolution

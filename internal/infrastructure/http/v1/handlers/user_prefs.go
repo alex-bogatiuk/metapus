@@ -6,10 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/userpref"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/userpref"
 )
 
 // UserPrefsHandler handles user preferences endpoints.

@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // Status of a worker job execution.

@@ -2,7 +2,7 @@
 package httpvalue
 
 import (
-	core "metapus/internal/infrastructure/http/httpvalue"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/httpvalue"
 )
 
 type (

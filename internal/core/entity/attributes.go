@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"maps"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 
 	"github.com/shopspring/decimal"
 )

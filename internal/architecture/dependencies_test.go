@@ -22,14 +22,14 @@ func TestInternalLayerDependenciesPointInward(t *testing.T) {
 		directory string
 		forbidden []string
 	}{
-		{directory: "core", forbidden: []string{"metapus/internal/application/", "metapus/internal/domain/", "metapus/internal/infrastructure/", "github.com/jackc/pgx", "github.com/georgysavva/scany/v2/pgxscan"}},
-		{directory: "metadata", forbidden: []string{"metapus/internal/infrastructure/"}},
-		{directory: "domain", forbidden: []string{"metapus/internal/application/", "metapus/internal/infrastructure/"}},
-		{directory: "application", forbidden: []string{"metapus/internal/infrastructure/"}},
+		{directory: "core", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/domain/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/jackc/pgx", "github.com/georgysavva/scany/v2/pgxscan"}},
+		{directory: "metadata", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
+		{directory: "domain", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
+		{directory: "application", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
 		// A configuration keeps the same layers inside its own root.
-		{directory: "configuration/crypto/domain", forbidden: []string{"metapus/internal/application/", "metapus/internal/infrastructure/", "metapus/internal/configuration/crypto/application/", "metapus/internal/configuration/crypto/infrastructure/"}},
-		{directory: "configuration/crypto/application", forbidden: []string{"metapus/internal/infrastructure/", "metapus/internal/configuration/crypto/infrastructure/"}},
-		{directory: "configuration/autoparts/domain", forbidden: []string{"metapus/internal/application/", "metapus/internal/infrastructure/", "metapus/internal/configuration/autoparts/application/", "metapus/internal/configuration/autoparts/infrastructure/"}},
+		{directory: "configuration/crypto/domain", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/", "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/"}},
+		{directory: "configuration/crypto/application", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/"}},
+		{directory: "configuration/autoparts/domain", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/application/", "github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/"}},
 	}
 
 	// A configuration reaches the platform through pkg/sdk: importing a
@@ -92,13 +92,13 @@ func sdkFronts(t *testing.T, repoRoot string) map[string][]string {
 		if err != nil {
 			return err
 		}
-		key := "metapus/" + filepath.ToSlash(rel)
+		key := "github.com/alex-bogatiuk/metapus/" + filepath.ToSlash(rel)
 		for _, imported := range file.Imports {
 			value, err := strconv.Unquote(imported.Path.Value)
 			if err != nil {
 				return err
 			}
-			if strings.HasPrefix(value, "metapus/") {
+			if strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/") {
 				direct[key] = append(direct[key], value)
 			}
 		}
@@ -154,7 +154,7 @@ func TestInnerPackagesDoNotTransitivelyDependOnAdapters(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		key := "metapus/internal/" + filepath.ToSlash(rel)
+		key := "github.com/alex-bogatiuk/metapus/internal/" + filepath.ToSlash(rel)
 		for _, imp := range parsed.Imports {
 			value, err := strconv.Unquote(imp.Path.Value)
 			if err != nil {
@@ -168,7 +168,7 @@ func TestInnerPackagesDoNotTransitivelyDependOnAdapters(t *testing.T) {
 	for start := range graph {
 		inner := false
 		for _, layer := range []string{"core", "domain", "application", "configuration/crypto/domain", "configuration/crypto/application", "configuration/autoparts/domain"} {
-			prefix := "metapus/internal/" + layer
+			prefix := "github.com/alex-bogatiuk/metapus/internal/" + layer
 			inner = inner || start == prefix || strings.HasPrefix(start, prefix+"/")
 		}
 		if !inner {

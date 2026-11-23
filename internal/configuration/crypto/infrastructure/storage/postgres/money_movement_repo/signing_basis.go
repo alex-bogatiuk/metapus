@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
-	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 // A table name is selected only from known business document types.

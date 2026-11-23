@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/listview"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/listview"
 )
 
 // ListViewRepo implements listview.Repository.

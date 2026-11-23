@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/infrastructure/storage/postgres/testsupport"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/testsupport"
 )
 
 func TestIntegrationLookups(t *testing.T) {

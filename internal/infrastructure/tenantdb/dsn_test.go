@@ -1,8 +1,8 @@
 package tenantdb
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/tenant"
 	"net/url"
 	"testing"
 )

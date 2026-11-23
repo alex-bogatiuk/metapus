@@ -3,9 +3,9 @@
 package integrations
 
 import (
-	"metapus/internal/core/numerator"
-	"metapus/internal/domain"
-	core "metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 )
 
 type (

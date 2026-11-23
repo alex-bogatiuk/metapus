@@ -3,8 +3,8 @@ package contract
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // Repository defines the interface for Contract persistence.

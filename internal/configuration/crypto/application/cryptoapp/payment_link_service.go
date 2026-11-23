@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/application/checkout"
-	"metapus/internal/configuration/crypto/domain/crypto/publicref"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/checkout"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/publicref"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 type PaymentLinkRepository interface {

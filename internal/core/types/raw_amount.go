@@ -14,7 +14,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 var errNegativeRawAmount = errors.New("raw amount cannot be negative")

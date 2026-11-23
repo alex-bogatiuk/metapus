@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/wallet"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 func TestWalletPoolRefillCandidatesAreSelectedByPolicyStateOnly(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	corejson "metapus/internal/core/json"
+	corejson "github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // RegisterJSONCodecs installs the product JSON v2 semantics for PostgreSQL

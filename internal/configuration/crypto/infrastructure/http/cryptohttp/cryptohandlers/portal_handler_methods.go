@@ -2,7 +2,7 @@ package cryptohandlers
 
 import (
 	"errors"
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,14 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // Balance (detailed, three-bucket).

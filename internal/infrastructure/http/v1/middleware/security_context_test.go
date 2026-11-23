@@ -3,11 +3,11 @@ package middleware
 import (
 	"context"
 	"errors"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/security_profile"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/security_profile"
 	"net/http/httptest"
 	"testing"
 )

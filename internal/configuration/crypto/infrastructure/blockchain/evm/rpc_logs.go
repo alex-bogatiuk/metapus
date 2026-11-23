@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 // Match the explicit eth_getLogs range restriction, not arbitrary invalid

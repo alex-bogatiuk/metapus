@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 
 	"github.com/stretchr/testify/require"
 )

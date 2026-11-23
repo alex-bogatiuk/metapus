@@ -2,7 +2,7 @@
 package contract
 
 import (
-	core "metapus/internal/domain/reports/contract"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
 )
 
 type (

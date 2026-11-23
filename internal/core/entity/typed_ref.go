@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // TypedRef is a universal polymorphic reference trait for linking to any registered entity.

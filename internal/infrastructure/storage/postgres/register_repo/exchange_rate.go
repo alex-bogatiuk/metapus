@@ -8,11 +8,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	er "metapus/internal/domain/registers/exchange_rate"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	er "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 type ExchangeRateRepo struct{}

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	dbassets "metapus/db"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
 )
 
 func TestRejectsInvalidOptionsBeforeWriting(t *testing.T) {
@@ -153,12 +153,12 @@ import (
  "testing"
  "strings"
  "github.com/gin-gonic/gin"
- "metapus/internal/core/numerator"
- "metapus/internal/configuration"
- "metapus/internal/configuration/none"
- "metapus/internal/infrastructure/http/contracts"
- v1 "metapus/internal/infrastructure/http/v1"
- "metapus/internal/infrastructure/http/v1/handlers"
+ "github.com/alex-bogatiuk/metapus/internal/core/numerator"
+ "github.com/alex-bogatiuk/metapus/internal/configuration"
+ "github.com/alex-bogatiuk/metapus/internal/configuration/none"
+ "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts"
+ v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+ "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
 )
 func TestGeneratedBoundary(t *testing.T) {
  gin.SetMode(gin.TestMode)

@@ -3,7 +3,7 @@
 package transport
 
 import (
-	core "metapus/internal/infrastructure/integrations"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations"
 )
 
 type (

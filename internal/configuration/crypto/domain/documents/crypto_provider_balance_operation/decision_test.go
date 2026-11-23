@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
 )
 
 func TestProviderOpeningDecisionPolicyMatrix(t *testing.T) {

@@ -3,7 +3,7 @@
 package metadata
 
 import (
-	core "metapus/internal/metadata"
+	core "github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 type (

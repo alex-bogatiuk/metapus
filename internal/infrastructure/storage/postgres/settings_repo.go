@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
 )
 
 // SettingsRepo implements settings.Repository using the tenant database.

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/tabular"
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/tabular"
 )
 
 func TestCryptoReportExportsBeyondInt64RemainExactText(t *testing.T) {

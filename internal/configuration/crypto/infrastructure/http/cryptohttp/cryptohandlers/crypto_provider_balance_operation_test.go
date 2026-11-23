@@ -9,16 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	pbo "metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/command"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/http/middleware"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	pbo "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/command"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 func TestProviderOpeningDecisionRejectsClientAuthorityFields(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"context"
 	"regexp"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 )
 
 // Pre-compiled regex patterns for validation (performance optimization)

@@ -3,9 +3,9 @@ package cryptodto
 import (
 	"time"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 type ProposeFinancialAdjustmentRequest struct {

@@ -6,8 +6,8 @@ import (
 	"maps"
 	"slices"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 // DataScope defines row-level visibility and mutation boundaries for the current request.

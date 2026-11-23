@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/cache"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/cache"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 // ProfileProvider abstracts fetching a user's effective security profile.

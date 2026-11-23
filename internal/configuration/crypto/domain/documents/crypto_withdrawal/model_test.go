@@ -1,9 +1,9 @@
 package crypto_withdrawal
 
 import (
-	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/cryptoposting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"testing"
 
 	"github.com/stretchr/testify/require"

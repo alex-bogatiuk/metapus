@@ -3,11 +3,11 @@ package handlers
 import (
 	"context"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 // ReadOnlyDocumentPresenter maps a system-owned document to its response DTO.

@@ -70,7 +70,7 @@ frontend/{components,lib,hooks,stores,types}   платформа; frontend/conf
 | Оба правила смотрят **сквозь** `pkg/sdk`: `pkg/sdk/postgres` в домене — то же, что `internal/infrastructure/...` | там же (`sdkFronts`) |
 | Платформа (`internal/`, `pkg/` вне корней конфигураций) не импортирует конфигурацию | `TestPlatformDoesNotDependOnConfiguration` |
 | Конфигурации не импортируют друг друга | `TestConfigurationsDoNotDependOnEachOther` |
-| Конфигурация импортирует из платформы **только** `metapus/pkg/sdk/...` — и в коде, и в тестах | `TestSDKConfigurationsUseOnlyThePublicAPI` |
+| Конфигурация импортирует из платформы **только** `github.com/alex-bogatiuk/metapus/pkg/sdk/...` — и в коде, и в тестах | `TestSDKConfigurationsUseOnlyThePublicAPI` |
 | `pkg/sdk` — только алиасы и тонкие обёртки, своих типов нет | `TestSDKIsAFacade` |
 | `pkg/sdk/sdktest` — только в `_test.go` и пакетах `*test` | `TestSDKTestStaysInTests` |
 | Рабочий код конфигурации не называет `AUTOMATION_ENCRYPTION_KEY`: учётные данные шифрует `pkg/sdk/secretbox`, аккаунты интеграций открывает `catalog_repo.AccountCredentials` | `TestConfigurationsDoNotHoldTheEncryptionKey` |
@@ -146,7 +146,7 @@ make check-configurations                 # если менялась грани
 
 ## 7. Анти-паттерны — стоп-сигналы
 
-- Импорт `metapus/internal/...` из конфигурации или расширения на SDK, даже в тесте.
+- Импорт `github.com/alex-bogatiuk/metapus/internal/...` из конфигурации или расширения на SDK, даже в тесте.
 - Платформенный пакет, который знает имя конфигурации, её таблицу или её тип; `switch` по имени конфигурации в платформе.
 - Новая строка в `known…Leaks` или любом другом списке исключений архитектурных тестов.
 - Тип, объявленный в `pkg/sdk` (не алиас), или поведение, которого платформа не выполняет.

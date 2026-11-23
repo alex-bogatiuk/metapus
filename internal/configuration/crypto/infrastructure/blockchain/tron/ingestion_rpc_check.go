@@ -2,7 +2,7 @@ package tron
 
 import (
 	"context"
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // CheckIngestionRPC checks independent block/receipt coverage for each node role.

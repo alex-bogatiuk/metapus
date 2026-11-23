@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // Fingerprint returns a deterministic SHA-256 over a validated business DTO

@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers/exchange_rate"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 type ValuationService struct {

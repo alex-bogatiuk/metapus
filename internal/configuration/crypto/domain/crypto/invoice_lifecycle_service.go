@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tx"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_payment"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 var ErrInvoiceNotCancellable = errors.New("invoice is not cancellable")

@@ -3,8 +3,8 @@ package crypto_provider_account
 import (
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/id"
 )
 
 func TestValidateBaseURL(t *testing.T) {

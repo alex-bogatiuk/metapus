@@ -3,9 +3,9 @@ package security
 import (
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
 )
 
 func TestReadProjectionDoesNotMutateDomainOrNestedValues(t *testing.T) {

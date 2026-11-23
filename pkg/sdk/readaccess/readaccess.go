@@ -5,8 +5,8 @@ package readaccess
 import (
 	"context"
 
-	core "metapus/internal/application/readaccess"
-	"metapus/internal/core/security"
+	core "github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 type (

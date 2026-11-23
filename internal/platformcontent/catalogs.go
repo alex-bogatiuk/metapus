@@ -3,16 +3,16 @@ package platformcontent
 import (
 	"context"
 
-	"metapus/internal/domain"
-	"metapus/internal/domain/catalogs/contract"
-	"metapus/internal/domain/catalogs/counterparty"
-	"metapus/internal/domain/catalogs/currency"
-	"metapus/internal/domain/catalogs/organization"
-	"metapus/internal/domain/catalogs/rate_source"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/metadata"
-	"metapus/internal/platform"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/counterparty"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/currency"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/organization"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/rate_source"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/platform"
 )
 
 func init() {

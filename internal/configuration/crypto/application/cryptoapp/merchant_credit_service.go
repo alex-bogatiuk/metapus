@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/tx"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/numerator"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // ReceiptRemainder is the unattributed part of a custody receipt, read under

@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
-	"metapus/internal/configuration/crypto/application/portalapp"
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/portalapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // DashboardRepo provides read-only queries for the portal dashboard.

@@ -1,15 +1,15 @@
 package platform
 
 // Re-export core entity types for client extensions.
-// Extensions should import "metapus/internal/platform" instead of
-// "metapus/internal/core/entity" or "metapus/internal/core/id" directly.
+// Extensions should import "github.com/alex-bogatiuk/metapus/internal/platform" instead of
+// "github.com/alex-bogatiuk/metapus/internal/core/entity" or "github.com/alex-bogatiuk/metapus/internal/core/id" directly.
 //
 // This provides a stable import surface — internal package paths may change,
 // but platform/ re-exports remain stable.
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // ── Entity Types ────────────────────────────────────────────────────────

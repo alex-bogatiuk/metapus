@@ -9,11 +9,11 @@ import (
 
 	"github.com/gin-gonic/gin/binding"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/document_repo"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/document_repo"
 )
 
 // autoShape is the wire projection of a declared entity, derived from its

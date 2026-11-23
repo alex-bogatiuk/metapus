@@ -2,7 +2,7 @@
 package jsoncodec
 
 import (
-	core "metapus/internal/infrastructure/http/jsoncodec"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
 )
 
 // Marshal serializes an HTTP response, including domain values in generic

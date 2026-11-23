@@ -2,8 +2,8 @@ package rpcpolicy
 
 import (
 	"context"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
 	"io"
-	"metapus/pkg/sdk/integrations/providerpolicy"
 	"net/http"
 	"strings"
 	"testing"

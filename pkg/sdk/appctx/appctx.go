@@ -5,7 +5,7 @@ package appctx
 import (
 	"context"
 
-	core "metapus/internal/core/context"
+	core "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 type (

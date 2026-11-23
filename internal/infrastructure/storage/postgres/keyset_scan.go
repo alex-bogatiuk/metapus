@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/keyset"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/storage/postgres/keyset"
 )
 
 // ResolveSortSpec takes type/nullability from the actual tenant schema. A Go

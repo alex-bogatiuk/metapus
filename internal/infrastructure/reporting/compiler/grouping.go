@@ -1,8 +1,8 @@
 package compiler
 
 import (
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/tabular"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/tabular"
 )
 
 type DisplayRow = tabular.DisplayRow

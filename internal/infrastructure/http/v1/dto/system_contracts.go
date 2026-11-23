@@ -1,9 +1,9 @@
 package dto
 
 import (
-	"metapus/internal/core/json"
-	"metapus/internal/domain/notifications"
-	"metapus/internal/domain/reports/tabular"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/notifications"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/tabular"
 )
 
 type UpdateSettingsSectionRequest struct {

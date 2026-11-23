@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // slowRequestThreshold defines latency above which a request is logged as api.slow_request.

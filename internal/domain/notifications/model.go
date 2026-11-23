@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // Severity defines the visual importance level of a notification.

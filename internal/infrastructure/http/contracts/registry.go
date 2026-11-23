@@ -1,14 +1,14 @@
 package contracts
 
 import (
-	"metapus/internal/domain"
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/tabular"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/search"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/tabular"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/search"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 	"slices"
 )
 

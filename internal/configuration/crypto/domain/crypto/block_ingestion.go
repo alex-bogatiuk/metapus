@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_payment"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 var ErrVerificationPending = errors.New("chain transfer verification pending")

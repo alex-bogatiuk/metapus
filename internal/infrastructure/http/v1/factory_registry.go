@@ -5,13 +5,13 @@ package v1
 
 import (
 	"fmt"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"github.com/gin-gonic/gin"
-	"metapus/internal/core/entity"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/infrastructure/readpolicy"
 	"strings"
 
-	"metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
 )
 
 // RouteRegistration is a generic interface for route groups that don't follow

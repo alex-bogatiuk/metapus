@@ -7,17 +7,17 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_merchant_balance"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
-	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	"metapus/internal/configuration/crypto/domain/tariff"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_fee"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_merchant_balance"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/cryptoposting"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/tariff"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // PaymentStatus defines the lifecycle state of a crypto payment (FSM).

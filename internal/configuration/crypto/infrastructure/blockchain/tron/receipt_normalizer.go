@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 var ErrUnsupportedTrace = errors.New("unsupported TRON internal transaction type")

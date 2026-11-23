@@ -8,17 +8,17 @@ import (
 	"os"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/evm"
-	evmfunding "metapus/internal/configuration/crypto/infrastructure/blockchain/evm/funding"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/tron"
-	tronfunding "metapus/internal/configuration/crypto/infrastructure/blockchain/tron/funding"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/evm"
+	evmfunding "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/evm/funding"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/tron"
+	tronfunding "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/tron/funding"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
 )
 
 func main() {

@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // UserRepository defines user storage operations.

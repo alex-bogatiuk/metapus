@@ -10,22 +10,22 @@ package content
 
 import (
 	"context"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
-	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/configuration/crypto/domain/catalogs/wallet"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/http/v1"
-	"metapus/pkg/sdk/metadata"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/wallet"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/metadata"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 func init() {

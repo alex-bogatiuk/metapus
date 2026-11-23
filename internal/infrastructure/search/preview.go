@@ -3,12 +3,12 @@ package search
 import (
 	"context"
 	"fmt"
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 // PreviewField is a single label:value pair in the preview card.

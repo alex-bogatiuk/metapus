@@ -4,8 +4,8 @@ package sdktest
 import (
 	"testing"
 
-	"metapus/internal/configuration"
-	"metapus/internal/configuration/configurationtest"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/configurationtest"
 )
 
 // Check verifies that cfg keeps the configuration contract: its API

@@ -1,18 +1,18 @@
 package content
 
 import (
-	"metapus/internal/configuration/crypto/domain/documents/crypto_custody_receipt"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_resource_rental"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
-	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
-	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/pkg/sdk/registry"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_custody_receipt"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_payment"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_resource_rental"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registry"
 )
 
 // movementSources maps each posting document to the source fields behind its

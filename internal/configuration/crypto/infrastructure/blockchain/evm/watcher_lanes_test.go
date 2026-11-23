@@ -18,11 +18,11 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
-	"metapus/pkg/sdk/integrations/providerpolicy"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

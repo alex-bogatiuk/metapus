@@ -3,9 +3,9 @@ package crypto_repo
 import (
 	"context"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 type ResourceRentalWorkflowRepo struct{}

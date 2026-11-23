@@ -11,12 +11,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/readaccess"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 func TestRelatedDocRepoStopsAtUnregisteredBasis(t *testing.T) {

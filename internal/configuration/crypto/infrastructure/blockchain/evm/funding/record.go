@@ -14,13 +14,13 @@ import (
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/evm"
-	chainfunding "metapus/internal/configuration/crypto/infrastructure/blockchain/funding"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/evm"
+	chainfunding "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/funding"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 type rpcReader interface {

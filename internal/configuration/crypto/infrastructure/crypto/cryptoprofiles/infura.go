@@ -1,12 +1,12 @@
 package cryptoprofiles
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/pkg/sdk/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/profiles"
 	"net/http"
 	"time"
 
-	"metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 )
 
 func infura() profiles.Profile {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // Hybrid watchers may initialize concurrently. Busy means the whole SQL

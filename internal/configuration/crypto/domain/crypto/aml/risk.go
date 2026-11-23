@@ -8,8 +8,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 type Class string

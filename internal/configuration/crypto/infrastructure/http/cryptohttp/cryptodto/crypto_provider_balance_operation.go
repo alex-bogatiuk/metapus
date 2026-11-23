@@ -3,11 +3,11 @@ package cryptodto
 import (
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/dto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/dto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 // CryptoProviderBalanceOperationResponse is a maker-checker correction of a

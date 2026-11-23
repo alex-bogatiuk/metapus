@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
 )
 
 type AMLJobRepository interface {

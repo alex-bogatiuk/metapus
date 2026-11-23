@@ -3,13 +3,13 @@ package crypto_repo
 import (
 	"context"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/catalog_repo"
 	"github.com/jackc/pgx/v5"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/cryptoschema"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/catalog_repo"
 )
 
 // ReadAMLConfiguration finishes its read-only snapshot before any Vault calls.

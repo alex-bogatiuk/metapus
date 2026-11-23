@@ -3,9 +3,9 @@ package cryptodto
 import (
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // ─────────────────────────────────────────────────────────────────

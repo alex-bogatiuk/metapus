@@ -8,7 +8,7 @@
 // in 1C:Enterprise. Developers declare Datasets; users select fields at runtime.
 package schema
 
-import reportcontract "metapus/internal/domain/reports/contract"
+import reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
 
 // FieldKind classifies a field's role in the dataset.
 type FieldKind string

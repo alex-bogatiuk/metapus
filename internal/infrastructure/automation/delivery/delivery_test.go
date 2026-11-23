@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"metapus/internal/infrastructure/urlsafe"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/urlsafe"
 )
 
 func TestWebhookAdapterRejectsUnsafeURL(t *testing.T) {

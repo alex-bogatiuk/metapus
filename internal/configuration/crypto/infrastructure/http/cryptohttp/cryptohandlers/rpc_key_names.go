@@ -5,12 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/http/middleware"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // RPCKeyOptionsReader lists the key names, never values, an endpoint may read.

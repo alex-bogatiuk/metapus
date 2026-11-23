@@ -3,7 +3,7 @@
 package crypto_repo
 
 import (
-	"metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
 )
 
 type unusedHistoricalFundingFees struct {

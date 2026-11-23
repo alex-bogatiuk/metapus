@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/tenant"
-	"metapus/pkg/logger"
 )
 
 type fixtureRegistry struct {

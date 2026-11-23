@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations/profiles"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/infrastructure/integrations/profiles"
 )
 
 // A new authentication scheme participates in existing account failover without

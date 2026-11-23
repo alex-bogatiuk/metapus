@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_payment"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_payment"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 type singlePaymentInbox struct {

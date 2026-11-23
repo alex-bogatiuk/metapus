@@ -1,10 +1,10 @@
 package content
 
 import (
-	"metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
-	"metapus/internal/configuration/autoparts/infrastructure/storage/postgres/stock_repo"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/stock_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 )
 
 // Registers are the configuration's accumulation registers over PostgreSQL.

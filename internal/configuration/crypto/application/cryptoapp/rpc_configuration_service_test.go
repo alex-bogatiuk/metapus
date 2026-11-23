@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/eventlog"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/pkg/sdk/eventlog"
-	"metapus/pkg/sdk/id"
 )
 
 type configurationStore struct {

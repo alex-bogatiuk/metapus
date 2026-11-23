@@ -10,11 +10,11 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain/automations"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 type ScheduledRuleExecutor interface {

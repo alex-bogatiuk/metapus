@@ -3,7 +3,7 @@ package automation
 import (
 	"time"
 
-	"metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 )
 
 // ResolvedPeriod holds the calculated date range for a report.

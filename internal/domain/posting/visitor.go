@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 )
 
 // RegisterVisitor examines a Postable document and collects register-specific movements.

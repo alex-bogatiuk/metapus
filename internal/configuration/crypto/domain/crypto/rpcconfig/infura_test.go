@@ -1,8 +1,8 @@
 package rpcconfig
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 	"testing"
 	"time"
 

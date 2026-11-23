@@ -3,17 +3,17 @@ package platformcontent
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/application/exchangerateapp"
-	"metapus/internal/domain"
-	"metapus/internal/domain/catalogs/rate_source"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/application/exchangerateapp"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/rate_source"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/register_repo"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // ---------------------------------------------------------------------------

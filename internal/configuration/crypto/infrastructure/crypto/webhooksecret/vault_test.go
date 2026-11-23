@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
 )
 
 func TestDeleteIsIdempotentWhenVaultMetadataIsAbsent(t *testing.T) {

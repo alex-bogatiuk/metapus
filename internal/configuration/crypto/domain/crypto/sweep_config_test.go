@@ -4,7 +4,7 @@ package crypto
 import (
 	"testing"
 
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestSweepConfig_IsZeroThreshold(t *testing.T) {

@@ -8,12 +8,12 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 	"github.com/georgysavva/scany/v2/pgxscan"
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/infrastructure/readpolicy"
-	"metapus/internal/metadata"
 )
 
 type authorizedReadAdapter struct{ registry *metadata.Registry }

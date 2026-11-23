@@ -7,9 +7,9 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
 )
 
 const _cryptoProviderBalanceMovementsTable = "reg_crypto_provider_balance_movements"

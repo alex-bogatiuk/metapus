@@ -1,13 +1,13 @@
 package content_test
 
 import (
-	"metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/contracts"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/content"
-	"metapus/pkg/sdk/contracts"
-	"metapus/pkg/sdk/http/v1"
 )
 
 func TestEveryBuiltInFactoryHasConcreteFormContracts(t *testing.T) {

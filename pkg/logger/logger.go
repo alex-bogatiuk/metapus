@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	appctx "metapus/internal/core/context"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 // Logger wraps zap.SugaredLogger with context-aware logging.

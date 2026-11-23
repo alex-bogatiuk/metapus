@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 	"github.com/jackc/pgx/v5"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
 )
 
 const merchantPoolColumns = `p.id,p.merchant_id,p.network_id,p.wallet_role,p.token_id,COALESCE(p.risk_class,''),p.enabled,p.version,p.low_watermark,p.target_ready,p.max_total,p.max_provision_batch,p.automatic_baseline`

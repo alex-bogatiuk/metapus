@@ -5,12 +5,12 @@ package auth_repo
 import (
 	"context"
 	"errors"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
 	"os"
 	"testing"
 )

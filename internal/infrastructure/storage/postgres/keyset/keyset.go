@@ -7,9 +7,9 @@ package keyset
 
 import (
 	"fmt"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 	"github.com/shopspring/decimal"
 	"math"
-	"metapus/internal/core/id"
 	"reflect"
 	"strconv"
 	"strings"
@@ -17,8 +17,8 @@ import (
 
 	"github.com/Masterminds/squirrel"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/cursor"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
 )
 
 // SortSpec describes the parsed ORDER BY specification.

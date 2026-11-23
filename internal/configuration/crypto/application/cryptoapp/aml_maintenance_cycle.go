@@ -2,7 +2,7 @@ package cryptoapp
 
 import (
 	"context"
-	"metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
 	"time"
 )
 

@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
-	"metapus/internal/configuration/crypto/domain/documents/outbound_settlement"
-	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/outbound_settlement"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/numerator"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
 )
 
 type WithdrawalExecutor struct {

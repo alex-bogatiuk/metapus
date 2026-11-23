@@ -3,9 +3,9 @@ package cryptodto
 import (
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_resource_rental"
-	"metapus/pkg/sdk/http/dto"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_resource_rental"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/dto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 // CryptoResourceRentalResponse is a TRON resource rental the rental workflow

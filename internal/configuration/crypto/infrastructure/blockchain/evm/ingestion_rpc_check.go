@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/integrations/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 // CheckIngestionRPC checks every endpoint directly, so a working fallback

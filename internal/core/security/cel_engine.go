@@ -12,8 +12,8 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 // PolicyRule is a minimal interface to avoid circular imports with security_profile package.

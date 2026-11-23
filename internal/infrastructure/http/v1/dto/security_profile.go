@@ -3,8 +3,8 @@ package dto
 import (
 	"time"
 
-	"metapus/internal/core/security"
-	"metapus/internal/domain/security_profile"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain/security_profile"
 )
 
 // --- SecurityProfile Response DTOs ---

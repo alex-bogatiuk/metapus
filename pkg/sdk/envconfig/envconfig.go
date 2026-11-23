@@ -2,7 +2,7 @@
 package envconfig
 
 import (
-	core "metapus/internal/platform/envconfig"
+	core "github.com/alex-bogatiuk/metapus/internal/platform/envconfig"
 )
 
 type (

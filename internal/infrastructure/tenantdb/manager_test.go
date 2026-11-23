@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	tenantcore "metapus/internal/core/tenant"
-	"metapus/pkg/logger"
+	tenantcore "github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 type prewarmRegistry struct {

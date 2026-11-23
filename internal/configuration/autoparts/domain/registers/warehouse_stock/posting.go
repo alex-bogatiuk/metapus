@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 )
 
 // MovementSource is implemented by documents that move warehouse stock.

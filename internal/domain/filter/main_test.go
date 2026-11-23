@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
 )
 
 // --- M5: ExtractSearchQuery tests ---

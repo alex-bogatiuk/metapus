@@ -8,11 +8,11 @@ import (
 	"context"
 	"io/fs"
 
-	"metapus/internal/configuration"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/pkg/sdk"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk"
 )
 
 // Name is the empty configuration's name.

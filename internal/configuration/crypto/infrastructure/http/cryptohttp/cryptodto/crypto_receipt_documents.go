@@ -3,13 +3,13 @@ package cryptodto
 import (
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_custody_receipt"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/dto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_custody_receipt"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_platform_funding"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/dto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 // The custody receipt and its manual attributions are system-owned documents:

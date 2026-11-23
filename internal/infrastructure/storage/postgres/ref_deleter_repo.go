@@ -10,12 +10,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/metadata"
-	"metapus/pkg/logger"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 const (

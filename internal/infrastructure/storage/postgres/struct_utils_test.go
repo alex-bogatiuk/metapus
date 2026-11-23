@@ -1,8 +1,8 @@
 package postgres
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 	"testing"
 	"time"
 

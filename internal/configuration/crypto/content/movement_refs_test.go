@@ -1,11 +1,11 @@
 package content
 
 import (
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"metapus/pkg/sdk/configuration"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
 )
 
 // Every "ref" movement column of a register names an entity of the read

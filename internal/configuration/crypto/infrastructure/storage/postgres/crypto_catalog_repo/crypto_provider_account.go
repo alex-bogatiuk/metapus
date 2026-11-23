@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/catalog_repo"
-	"metapus/pkg/sdk/secretbox"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/secretbox"
 )
 
 type CryptoProviderAccountRepo struct {

@@ -13,10 +13,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
-	"metapus/internal/configuration"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/contracts"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts"
 )
 
 var migrationName = regexp.MustCompile(`^\d{5}_[a-z0-9_]+\.sql$`)

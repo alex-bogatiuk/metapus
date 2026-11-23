@@ -2,7 +2,7 @@
 
 package crypto_worker
 
-import "metapus/internal/configuration/crypto/domain/crypto"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 
 type fakeSweepNetworkDriver struct{ accounts crypto.AccountLifecycle }
 

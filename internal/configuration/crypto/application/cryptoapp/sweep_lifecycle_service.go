@@ -3,8 +3,8 @@ package cryptoapp
 import (
 	"context"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
 )
 
 type SweepLifecycleRepository interface {

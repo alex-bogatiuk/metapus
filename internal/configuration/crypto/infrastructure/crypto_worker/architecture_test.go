@@ -24,11 +24,11 @@ func TestGenericOrchestrationDoesNotImportFamilyAdapters(t *testing.T) {
 		}
 	}
 	forbidden := []string{
-		"metapus/internal/configuration/crypto/infrastructure/blockchain/tron",
-		"metapus/internal/configuration/crypto/infrastructure/blockchain/evm",
-		"metapus/internal/configuration/crypto/infrastructure/blockchain/ton",
-		"metapus/internal/configuration/crypto/infrastructure/blockchain/solana",
-		"metapus/internal/configuration/crypto/infrastructure/crypto/resources",
+		"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/tron",
+		"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/evm",
+		"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/ton",
+		"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/solana",
+		"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/resources",
 	}
 	for _, target := range targets {
 		t.Run(target, func(t *testing.T) {

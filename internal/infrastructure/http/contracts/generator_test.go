@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/httpvalue"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/httpvalue"
-	"metapus/internal/infrastructure/http/jsoncodec"
 )
 
 type presenceFixture struct {

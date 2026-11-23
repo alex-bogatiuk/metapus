@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 // claimNativeFundingConfirmations deliberately has no parent, wallet status,

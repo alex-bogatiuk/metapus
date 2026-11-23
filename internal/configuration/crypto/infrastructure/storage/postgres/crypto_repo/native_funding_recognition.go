@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 	"github.com/google/uuid"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
 )
 
 func (NativeFundingSettlementRepo) PrepareNativeFundingPrincipal(ctx context.Context, funding crypto.NativeFunding, receipt crypto.ChainReceipt) error {

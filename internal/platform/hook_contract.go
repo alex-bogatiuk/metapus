@@ -1,7 +1,7 @@
 package platform
 
 import (
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // Re-export hook types for client extensions.

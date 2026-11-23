@@ -1,8 +1,8 @@
 package portalapp
 
 import (
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/types"
 	"testing"
 )
 

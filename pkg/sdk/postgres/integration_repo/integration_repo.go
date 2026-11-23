@@ -3,8 +3,8 @@
 package integration_repo
 
 import (
-	"metapus/internal/domain/integrations"
-	core "metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/integration_repo"
 )
 
 func NewRuntime(catalog *integrations.Catalog) *core.Runtime { return core.NewRuntime(catalog) }

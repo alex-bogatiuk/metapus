@@ -27,7 +27,7 @@
 | `pkg/sdk/postgres/...`, `http/...`, `tenantdb`, `registers`, `migration` | infrastructure |
 | `pkg/sdk/registry`, `configuration`, `contracts` | infrastructure — поэтому регистрация сущностей и сборка конфигурации живут в `content/`, а не в `domain/` |
 
-Точную принадлежность смотри по импортам файла фасада — тест делает так же: `grep '"metapus/internal' pkg/sdk/<пакет>/*.go`.
+Точную принадлежность смотри по импортам файла фасада — тест делает так же: `grep '"github.com/alex-bogatiuk/metapus/internal' pkg/sdk/<пакет>/*.go`.
 
 **Типичное нарушение.** Доменный сервис конфигурации импортирует `pkg/sdk/postgres/catalog_repo`, чтобы вызвать репозиторий напрямую.
 
@@ -57,7 +57,7 @@
 ## 3. Публичный API `pkg/sdk`
 
 **Правила.**
-- `TestSDKConfigurationsUseOnlyThePublicAPI` — конфигурации из `sdkConfigurations` (`autoparts`, `crypto`) импортируют из `metapus/...` только свой корень и `metapus/pkg/sdk/...`. Тесты тоже.
+- `TestSDKConfigurationsUseOnlyThePublicAPI` — конфигурации из `sdkConfigurations` (`autoparts`, `crypto`) импортируют из `metapus/...` только свой корень и `github.com/alex-bogatiuk/metapus/pkg/sdk/...`. Тесты тоже.
 - `TestSDKIsAFacade` — в `pkg/sdk` только `type X = internal.X`, обёртки-функции и ограничения дженериков. Свой тип — только `sdktest.Tenant` (список `sdkOwnTypes`).
 - `TestSDKTestStaysInTests` — `pkg/sdk/sdktest` (фикстуры строят `TxManager` над сырым пулом и вручную привязывают тенанта) нельзя импортировать в рабочем коде конфигурации, кроме пакетов с именем `*test`.
 

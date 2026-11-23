@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
-	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/numerator"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 )
 
 const _treasuryExecPeriod = 10 * time.Second

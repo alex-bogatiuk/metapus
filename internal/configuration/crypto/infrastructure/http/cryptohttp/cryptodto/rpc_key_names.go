@@ -1,6 +1,6 @@
 package cryptodto
 
-import "metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 
 // IntegrationRPCKeyAccount lists key names of one pool account, never values.
 type IntegrationRPCKeyAccount struct {

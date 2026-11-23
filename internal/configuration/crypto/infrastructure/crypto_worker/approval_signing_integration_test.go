@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
 
-	"metapus/pkg/sdk/telemetry"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/telemetry"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 type remediationApprovalSigner struct {

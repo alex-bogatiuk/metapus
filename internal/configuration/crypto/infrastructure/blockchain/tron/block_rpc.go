@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/integrations/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 func (p *rpcGeneration) independentPairExcept(role chainconfig.Role, excluded map[string]bool) ([]*rpcEndpoint, error) {

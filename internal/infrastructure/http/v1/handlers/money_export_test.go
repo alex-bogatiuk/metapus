@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
 
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/httpvalue"
-	"metapus/internal/infrastructure/listexport"
-	printadapter "metapus/internal/infrastructure/printing"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/httpvalue"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/listexport"
+	printadapter "github.com/alex-bogatiuk/metapus/internal/infrastructure/printing"
 )
 
 func TestListExportUsesDeclaredMoneyAndDoesNotRescaleQuantity(t *testing.T) {

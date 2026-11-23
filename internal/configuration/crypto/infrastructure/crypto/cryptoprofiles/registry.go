@@ -6,8 +6,8 @@ package cryptoprofiles
 import (
 	"sync"
 
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/pkg/sdk/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/profiles"
 )
 
 // Profiles returns the configuration's provider profiles, paced as their

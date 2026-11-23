@@ -2,13 +2,13 @@ package cryptoprofiles
 
 import (
 	"errors"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/pkg/sdk/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/profiles"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 )
 
 func alchemy() profiles.Profile {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 )
 
 // setValidServerEnv sets the minimum environment loadConfig accepts: no

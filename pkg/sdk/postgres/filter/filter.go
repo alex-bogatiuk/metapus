@@ -4,8 +4,8 @@ package filter
 import (
 	"github.com/Masterminds/squirrel"
 
-	"metapus/internal/domain/filter"
-	core "metapus/internal/infrastructure/storage/postgres/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/filter"
 )
 
 // BuildSearchConditions generates AND-combined ILIKE conditions for fuzzy search (1С-style).

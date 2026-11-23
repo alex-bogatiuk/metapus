@@ -2,7 +2,7 @@
 package filter
 
 import (
-	core "metapus/internal/domain/filter"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/filter"
 )
 
 type (

@@ -9,17 +9,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	domainFilter "metapus/internal/domain/filter"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	domainFilter "github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 // BaseDocumentHandler provides generic HTTP handlers for document entities.

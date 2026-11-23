@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"metapus/internal/application/command"
-	corejson "metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/application/command"
+	corejson "github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 func TestReadCanonicalCommandBodyRejectsTrailingJSONValue(t *testing.T) {

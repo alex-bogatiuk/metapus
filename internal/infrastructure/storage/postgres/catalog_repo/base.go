@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/cursor"
-	filterPkg "metapus/internal/domain/filter"
-	"metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
+	filterPkg "github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -17,12 +17,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/storage/postgres"
-	pgfilter "metapus/internal/infrastructure/storage/postgres/filter"
-	"metapus/internal/infrastructure/storage/postgres/keyset"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	pgfilter "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/keyset"
 )
 
 // NewCatalogRepoForDefinition uses the same hierarchy and logical key as the

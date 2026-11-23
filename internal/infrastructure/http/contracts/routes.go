@@ -3,7 +3,7 @@ package contracts
 import (
 	"bytes"
 	"fmt"
-	"metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
 	"reflect"
 	"regexp"
 	"slices"

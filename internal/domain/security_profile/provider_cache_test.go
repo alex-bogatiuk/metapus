@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 
 	"github.com/stretchr/testify/require"
 )

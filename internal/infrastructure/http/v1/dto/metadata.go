@@ -1,6 +1,6 @@
 package dto
 
-import "metapus/internal/metadata"
+import "github.com/alex-bogatiuk/metapus/internal/metadata"
 
 // EntitySummaryResponse is the lightweight metadata contract used by navigation.
 type EntitySummaryResponse struct {

@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // Fn is the signature of a recordable background task.

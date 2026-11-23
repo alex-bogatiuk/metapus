@@ -10,10 +10,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/providerpolicy"
 )
 
 // A pool governor paces one tenant pool in this process after the provider
@@ -48,7 +48,7 @@ const (
 )
 
 var poolThrottles = func() metric.Int64Counter {
-	counter, _ := otel.Meter("metapus/integrations").Int64Counter("integration.pool.throttles")
+	counter, _ := otel.Meter("github.com/alex-bogatiuk/metapus/integrations").Int64Counter("integration.pool.throttles")
 	return counter
 }()
 

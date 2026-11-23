@@ -5,11 +5,11 @@ import (
 	"crypto/subtle"
 	"fmt"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/secretbox"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/secretbox"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 func (r *IntegrationAccountRepo) Create(ctx context.Context, a *integrations.Account) error {

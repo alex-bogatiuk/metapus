@@ -1,6 +1,6 @@
 package cryptodto
 
-import "metapus/internal/configuration/crypto/domain/catalogs/merchant"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
 
 type SetMerchantNetworkPolicyRequest struct {
 	Mode   merchant.NetworkPolicyMode `json:"mode" binding:"required"`

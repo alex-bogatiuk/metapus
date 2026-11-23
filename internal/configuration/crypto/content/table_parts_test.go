@@ -1,10 +1,10 @@
 package content
 
 import (
-	"metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
 	"testing"
 
-	"metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
 )
 
 // Building the read registry binds every inspected collection to a declared

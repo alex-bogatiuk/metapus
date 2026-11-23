@@ -1,6 +1,6 @@
 package platform
 
-import "metapus/internal/metadata"
+import "github.com/alex-bogatiuk/metapus/internal/metadata"
 
 // ---------------------------------------------------------------------------
 // Optional interfaces — implement to provide richer metadata.

@@ -5,8 +5,8 @@ package crypto
 import (
 	"time"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // EventType defines the type of blockchain event.

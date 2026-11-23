@@ -3,7 +3,7 @@ package metadata
 import (
 	"testing"
 
-	"metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 )
 
 type partsHeader struct {

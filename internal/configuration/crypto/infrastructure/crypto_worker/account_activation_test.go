@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 func TestActivationReceiptRequiresSuccessfulOrRevertedFinalEvidence(t *testing.T) {

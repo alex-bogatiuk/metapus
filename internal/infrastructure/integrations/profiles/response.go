@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/json"
-	model "metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 )
 
 // Classify is the default classification of a failed provider response.

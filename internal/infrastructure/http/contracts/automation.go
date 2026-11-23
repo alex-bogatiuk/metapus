@@ -1,8 +1,8 @@
 package contracts
 
 import (
-	"metapus/internal/domain/automations"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 )
 
 func automationContracts() []Contract {

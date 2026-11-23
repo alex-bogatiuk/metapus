@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 func TestBlockchainNetworkValidateExplorerURL(t *testing.T) {

@@ -19,11 +19,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/version"
-	postgresstore "metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
-	"metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/version"
+	postgresstore "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
 
 func TestTenantProvisioningPostgres(t *testing.T) {

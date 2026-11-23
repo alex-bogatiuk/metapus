@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 // CurrencyUnit contains only independently authorized unit fields. A missing

@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 func TestCryptoPrecisionIntegration(t *testing.T) {

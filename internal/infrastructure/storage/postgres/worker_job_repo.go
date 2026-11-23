@@ -9,9 +9,9 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
 )
 
 // WorkerJobRepo implements workerjob.Repository using a direct pgxpool.Pool.

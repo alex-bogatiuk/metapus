@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // Repository defines storage operations for tenant-level system settings.

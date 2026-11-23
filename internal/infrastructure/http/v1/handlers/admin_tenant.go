@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/version"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/version"
 )
 
 // AdminTenantHandler exposes read-only tenant metadata for administrators.

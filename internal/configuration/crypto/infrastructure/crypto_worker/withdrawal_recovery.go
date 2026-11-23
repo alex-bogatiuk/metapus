@@ -6,8 +6,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
 )
 
 func isPreEffectWithdrawalError(err error) bool { return outboundapp.IsPreEffectWithdrawalError(err) }

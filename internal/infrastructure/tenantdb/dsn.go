@@ -1,7 +1,7 @@
 package tenantdb
 
 import (
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 	"net"
 	"net/url"
 	"strconv"

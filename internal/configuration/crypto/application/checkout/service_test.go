@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"metapus/internal/configuration/crypto/domain/crypto/publicref"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/publicref"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 func TestResolveTenantUsesMetaReferenceWithoutTenantHint(t *testing.T) {

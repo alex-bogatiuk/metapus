@@ -4,7 +4,7 @@
 package posting
 
 import (
-	core "metapus/internal/domain/posting"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/posting"
 )
 
 type (

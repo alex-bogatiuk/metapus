@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 )
 
 const cryptoReceiptSuspenseKey = "crypto_receipt_suspense"

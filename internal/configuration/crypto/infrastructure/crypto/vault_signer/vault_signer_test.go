@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	domaincrypto "metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/pkg/sdk/json"
+	domaincrypto "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 const testTenantID = "00000000-0000-0000-0000-000000000001"

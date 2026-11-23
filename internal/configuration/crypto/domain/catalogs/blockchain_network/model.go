@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"strings"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 const ExplorerTxHashPlaceholder = "{txHash}"

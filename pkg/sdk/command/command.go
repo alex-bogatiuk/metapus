@@ -3,9 +3,9 @@
 package command
 
 import (
-	core "metapus/internal/application/command"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tx"
+	core "github.com/alex-bogatiuk/metapus/internal/application/command"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
 )
 
 type (

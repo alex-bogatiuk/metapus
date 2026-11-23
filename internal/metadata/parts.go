@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 )
 
 // BindParts attaches the entity's declared SQL table parts to the inspected

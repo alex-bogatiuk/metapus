@@ -6,7 +6,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 type Problem struct {

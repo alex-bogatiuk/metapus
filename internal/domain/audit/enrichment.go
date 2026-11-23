@@ -4,8 +4,8 @@ package audit
 import (
 	"context"
 
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // getUserIDFromCtx extracts user ID from context and parses it as id.ID.

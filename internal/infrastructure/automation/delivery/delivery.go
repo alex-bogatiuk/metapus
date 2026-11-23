@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/application/automation"
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/urlsafe"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/application/automation"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/urlsafe"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // newMIMEWriter wraps multipart.NewWriter for use in Telegram sendDocument.

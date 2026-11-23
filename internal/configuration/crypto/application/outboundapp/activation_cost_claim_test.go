@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
 )
 
 type costRepairStoreStub struct {

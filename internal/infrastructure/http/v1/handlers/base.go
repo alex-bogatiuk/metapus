@@ -6,15 +6,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/json"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	"metapus/internal/domain/cursor"
-	domainFilter "metapus/internal/domain/filter"
-	_ "metapus/internal/infrastructure/http/jsoncodec"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
+	domainFilter "github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	_ "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 )
 
 // BaseHandler provides common handler utilities.

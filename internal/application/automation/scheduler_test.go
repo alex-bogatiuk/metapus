@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/automations"
 )
 
 type schedulerRuleRepo struct {

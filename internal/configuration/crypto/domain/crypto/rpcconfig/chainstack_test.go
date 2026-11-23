@@ -1,8 +1,8 @@
 package rpcconfig
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"testing"
 )
 

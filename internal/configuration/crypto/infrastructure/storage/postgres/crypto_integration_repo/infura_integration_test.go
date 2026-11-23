@@ -3,19 +3,19 @@
 package crypto_integration_repo
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"io"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/integration_repo"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/postgres/integration_repo"
 )
 
 func TestInfuraEncryptedKeyBindingAndDailyStatus(t *testing.T) {

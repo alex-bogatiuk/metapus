@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 func (r *OutboundRepo) ClaimAMLWithdrawalLines(ctx context.Context, limit int) ([]WithdrawalTask, error) {

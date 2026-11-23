@@ -3,9 +3,9 @@ package cryptoapp
 import (
 	"context"
 	"errors"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/pkg/sdk/id"
 	"testing"
 )
 

@@ -4,7 +4,7 @@ package logger
 import (
 	"context"
 
-	core "metapus/pkg/logger"
+	core "github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 type (

@@ -3,7 +3,7 @@ package integrations
 import (
 	"context"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // PoolConsumer is a catalog that reads accounts through integration pools,

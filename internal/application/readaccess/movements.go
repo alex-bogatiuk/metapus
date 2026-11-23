@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 type ReadSnapshot func(context.Context, func(context.Context) error) error

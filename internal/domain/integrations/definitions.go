@@ -1,6 +1,6 @@
 package integrations
 
-import "metapus/internal/core/entity"
+import "github.com/alex-bogatiuk/metapus/internal/core/entity"
 
 var AccountDefinition = entity.Definition{
 	Key:   "integration_account",

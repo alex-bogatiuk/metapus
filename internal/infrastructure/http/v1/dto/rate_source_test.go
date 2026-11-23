@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"metapus/internal/core/json"
-	"metapus/internal/domain/catalogs/rate_source"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/rate_source"
 )
 
 func TestRateSourceAPIKeyIsWriteOnly(t *testing.T) {

@@ -1,13 +1,13 @@
 package content
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/http/v1"
-	"metapus/pkg/sdk/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/metadata"
 )
 
 type CryptoRPCEndpointRegistration struct {

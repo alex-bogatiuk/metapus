@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/posting"
 )
 
 // Intentionally has no currency methods: non-monetary documents use both bases.

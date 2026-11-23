@@ -4,10 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/tabular"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/json"
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/tabular"
 )
 
 func TestGroupingWireContractMatchesBrowserFixture(t *testing.T) {

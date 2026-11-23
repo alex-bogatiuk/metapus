@@ -6,9 +6,9 @@ import (
 	"sync"
 	"testing"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_merchant_credit"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 
 	"github.com/stretchr/testify/require"
 )

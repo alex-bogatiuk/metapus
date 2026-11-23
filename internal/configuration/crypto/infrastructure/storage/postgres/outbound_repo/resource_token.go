@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 func (r *OutboundRepo) FindNativeTokenID(ctx context.Context, networkID id.ID) (id.ID, error) {

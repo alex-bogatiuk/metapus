@@ -6,10 +6,10 @@ import (
 	"slices"
 	"time"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // SessionInfo holds metadata for authentication sessions.

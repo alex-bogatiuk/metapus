@@ -2,8 +2,8 @@
 package dto
 
 import (
-	"metapus/internal/core/id"
-	core "metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 )
 
 type (

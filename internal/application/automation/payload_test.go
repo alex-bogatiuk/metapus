@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 func TestSanitizePayloadNumbersConvertsOnlyExactInt64Values(t *testing.T) {

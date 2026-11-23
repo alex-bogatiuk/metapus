@@ -11,8 +11,8 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/tabular"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/tabular"
 )
 
 // XLSX creates an XLSX file from report items and writes to the writer.

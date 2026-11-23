@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"time"
 
-	"metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
 )
 
 type Browser struct {

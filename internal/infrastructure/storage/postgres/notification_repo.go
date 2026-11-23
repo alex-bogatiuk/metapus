@@ -7,10 +7,10 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/notifications"
-	"metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/notifications"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
 
 type NotificationRepo struct{}

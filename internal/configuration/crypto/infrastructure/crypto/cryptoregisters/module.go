@@ -3,17 +3,17 @@
 package cryptoregisters
 
 import (
-	"metapus/internal/configuration/crypto/domain/registers/crypto_balance"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_merchant_balance"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
-	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_balance"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_fee"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_merchant_balance"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/cryptoposting"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_register_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 )
 
 // Registers holds the crypto register services backed by PostgreSQL.

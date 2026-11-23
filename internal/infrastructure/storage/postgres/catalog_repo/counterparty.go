@@ -5,9 +5,9 @@ import (
 
 	"github.com/Masterminds/squirrel"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/catalogs/counterparty"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/counterparty"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 // CounterpartyRepo implements counterparty.Repository.

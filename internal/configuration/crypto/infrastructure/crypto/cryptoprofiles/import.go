@@ -2,11 +2,11 @@ package cryptoprofiles
 
 import (
 	"errors"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"net/url"
 
-	"metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 )
 
 // ImportRPC normalizes an imported chains-file endpoint without exposing a secret in the

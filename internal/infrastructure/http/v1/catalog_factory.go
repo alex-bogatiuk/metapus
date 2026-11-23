@@ -4,14 +4,14 @@
 package v1
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
 	"github.com/gin-gonic/gin"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/infrastructure/http/v1/handlers"
 )
 
 // CatalogDeps holds shared dependencies injected into every catalog factory.

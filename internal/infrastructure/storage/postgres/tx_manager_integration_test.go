@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	coretx "metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	coretx "github.com/alex-bogatiuk/metapus/internal/core/tx"
 )
 
 func TestTransactionRollsBackWhenCallbackCallsGoexit(t *testing.T) {

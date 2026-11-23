@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"metapus/internal/core/id"
-	"metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 )
 
 type UpdateAutomationCredentialsRequest struct {

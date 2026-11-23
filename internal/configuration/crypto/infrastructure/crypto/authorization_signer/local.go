@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // LocalAuthorizationSigner is an explicit development/test implementation.

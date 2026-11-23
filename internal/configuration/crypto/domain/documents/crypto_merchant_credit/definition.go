@@ -1,6 +1,6 @@
 package crypto_merchant_credit
 
-import "metapus/pkg/sdk/entity"
+import "github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 
 const DocumentType = "CryptoMerchantCredit"
 

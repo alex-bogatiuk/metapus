@@ -3,7 +3,7 @@ package security
 import (
 	"context"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // CheckRLSAccess verifies that the current DataScope allows access to the entity.

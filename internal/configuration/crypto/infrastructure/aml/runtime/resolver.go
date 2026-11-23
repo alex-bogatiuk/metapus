@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"metapus/internal/configuration/crypto/domain/crypto/aml"
-	"metapus/internal/configuration/crypto/infrastructure/aml/emulator"
-	"metapus/internal/configuration/crypto/infrastructure/aml/getblocknet"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/aml/emulator"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/aml/getblocknet"
 )
 
 type Store interface {

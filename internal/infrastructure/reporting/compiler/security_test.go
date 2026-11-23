@@ -7,16 +7,16 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/domain/filter"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/infrastructure/readpolicy"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // These cases need no database: authorization and policy checks run before

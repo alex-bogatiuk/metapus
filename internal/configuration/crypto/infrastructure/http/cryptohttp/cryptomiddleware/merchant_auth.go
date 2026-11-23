@@ -10,14 +10,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/http/middleware"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/tenant"
-	"metapus/pkg/sdk/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenantdb"
 )
 
 // merchantCtxKey is the context key for the authenticated merchant context.

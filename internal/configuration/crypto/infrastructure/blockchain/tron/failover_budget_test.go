@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
 )
 
 func TestQuorumTimeoutPreservesBudgetForIndependentReserve(t *testing.T) {

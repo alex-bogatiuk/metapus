@@ -1,9 +1,9 @@
 package contracts
 
 import (
-	"metapus/internal/domain/settings"
-	"metapus/internal/domain/userpref"
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/domain/userpref"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 )
 
 func systemContracts() []Contract {

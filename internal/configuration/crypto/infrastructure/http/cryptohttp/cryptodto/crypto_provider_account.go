@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/http/dto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/secretbox"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/crypto_provider_account"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/dto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/secretbox"
 )
 
 type CreateCryptoProviderAccountRequest struct {

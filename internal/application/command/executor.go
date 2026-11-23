@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strings"
 
-	"metapus/internal/core/json"
-	"metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
 )
 
 var (

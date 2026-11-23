@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
 	"github.com/georgysavva/scany/v2/pgxscan"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_receipt_suspense"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers"
 )
 
 var receiptSuspenseColumns = []string{

@@ -6,12 +6,12 @@ import (
 	"reflect"
 	"strings"
 
-	core_entity "metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/tx"
-	"metapus/internal/core/types"
-	"metapus/pkg/logger"
+	core_entity "github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // CurrencyInfo holds minimal currency metadata for event enrichment.

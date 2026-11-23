@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 )
 
 // AutomationFileRepo implements automations.FileRepository using the tenant database.

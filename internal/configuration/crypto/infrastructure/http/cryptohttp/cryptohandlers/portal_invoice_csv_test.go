@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 )
 
 func TestPortalInvoiceCSVAppendsAndEscapesOrderReference(t *testing.T) {

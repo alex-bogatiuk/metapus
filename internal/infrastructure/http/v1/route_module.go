@@ -3,7 +3,7 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // RouteModule mounts one configuration's routes on the platform router.

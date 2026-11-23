@@ -1,10 +1,10 @@
 package middleware
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/domain/security_profile"
 	"github.com/gin-gonic/gin"
-	"metapus/internal/application/readaccess"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/domain/security_profile"
 )
 
 // SecurityContext uses the shared application builder for HTTP and scheduled reads.

@@ -5,13 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/tenant"
-	"metapus/pkg/sdk/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/workerjob"
 )
 
 const _accountActivationPeriod = outboundapp.ActivationRetryPeriod

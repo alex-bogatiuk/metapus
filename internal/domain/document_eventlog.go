@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain/eventlog"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // EventLogDocumentService is a decorator that records data events

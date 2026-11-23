@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 func TestUpdateCryptoNetworkPolicyMapsExternalResources(t *testing.T) {

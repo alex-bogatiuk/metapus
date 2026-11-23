@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

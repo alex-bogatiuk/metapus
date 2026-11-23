@@ -3,11 +3,11 @@ package cryptoapp
 import (
 	"context"
 
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/eventlog"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/eventlog"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
 )
 
 type RPCConfigurationService struct {

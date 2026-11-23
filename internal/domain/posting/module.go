@@ -1,6 +1,6 @@
 package posting
 
-import "metapus/internal/core/entity"
+import "github.com/alex-bogatiuk/metapus/internal/core/entity"
 
 // Module plugs one configuration's registers into a posting engine: it adds
 // visitors, recorders and in-transaction validators, and returns the movement

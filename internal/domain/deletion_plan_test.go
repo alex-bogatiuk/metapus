@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 func ref(entity string) MarkedObjectRef { return MarkedObjectRef{EntityName: entity, EntityID: id.New()} }

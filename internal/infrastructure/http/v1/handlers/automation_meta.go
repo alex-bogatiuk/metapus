@@ -3,8 +3,8 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
 )
 
 // AutomationMetaHandler serves static metadata for automation UI.

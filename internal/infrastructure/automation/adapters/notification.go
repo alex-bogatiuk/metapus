@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/application/automation"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/notifications"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/application/automation"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/notifications"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // InternalNotificationProvider is the action type name.

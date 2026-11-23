@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	core "metapus/internal/core/workerjob"
+	core "github.com/alex-bogatiuk/metapus/internal/core/workerjob"
 )
 
 type (

@@ -1,6 +1,6 @@
 package metadata
 
-import "metapus/internal/core/entity"
+import "github.com/alex-bogatiuk/metapus/internal/core/entity"
 
 // CodeAssignment tells forms how the server fills the code of a catalog
 // item, as entity.Definition.Code declares it.

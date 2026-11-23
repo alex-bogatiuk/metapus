@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 	"github.com/jackc/pgx/v5"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
 )
 
 // CustodyRecognitionRepo owns shared first-generation controlled principal

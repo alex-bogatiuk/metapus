@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/integrations/providerpolicy"
-	"metapus/pkg/sdk/integrations/transport"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/rpcpolicy"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/transport"
 )
 
 const (

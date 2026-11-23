@@ -3,15 +3,15 @@ package handlers
 import (
 	"context"
 
+	"github.com/alex-bogatiuk/metapus/internal/application/command"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 	"github.com/jackc/pgx/v5"
-	"metapus/internal/application/command"
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/infrastructure/http/jsoncodec"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres"
 )
 
 // present is the single projection boundary for catalog responses. FK collection

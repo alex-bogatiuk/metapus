@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
 )
 
 const (

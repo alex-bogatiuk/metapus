@@ -4,8 +4,8 @@ package tenant
 
 import (
 	"context"
-	core "metapus/internal/core/tenant"
-	"metapus/internal/core/tx"
+	core "github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
 )
 
 type (

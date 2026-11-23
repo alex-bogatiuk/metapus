@@ -2,7 +2,7 @@
 package schema
 
 import (
-	core "metapus/internal/domain/reports/schema"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
 )
 
 type (

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
 )
 
 // maxWindowMembers bounds the independent sources one catch-up window spreads

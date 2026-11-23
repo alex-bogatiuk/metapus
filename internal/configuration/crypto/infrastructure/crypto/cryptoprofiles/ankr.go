@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/integrations/profiles"
-	"metapus/pkg/sdk/integrations/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
 )
 
 func ankr() profiles.Profile {

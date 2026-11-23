@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	corectx "metapus/internal/core/context"
+	corectx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 func TestMutationRightsAreIndependentOfVisibility(t *testing.T) {

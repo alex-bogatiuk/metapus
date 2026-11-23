@@ -1,6 +1,6 @@
 package integrations
 
-import "metapus/internal/core/id"
+import "github.com/alex-bogatiuk/metapus/internal/core/id"
 
 // ConnectionTarget is what a pool's connection check reads through. It
 // carries configuration only, never resolved credentials. A pool read through

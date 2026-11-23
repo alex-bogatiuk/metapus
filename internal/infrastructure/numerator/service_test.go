@@ -8,8 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	corenumerator "metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
+	corenumerator "github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 type mockRow struct {

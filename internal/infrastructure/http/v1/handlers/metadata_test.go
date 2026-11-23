@@ -7,9 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/json"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 func TestListEntitiesSummaryIncludesDocumentCapabilitiesAndActions(t *testing.T) {

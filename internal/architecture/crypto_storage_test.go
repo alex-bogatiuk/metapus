@@ -86,11 +86,11 @@ func TestPostgresAdaptersDoNotDependOnCryptoWorker(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if value == "metapus/internal/configuration/crypto/infrastructure/crypto_worker" || strings.HasPrefix(value, "metapus/internal/configuration/crypto/infrastructure/crypto_worker/") {
+				if value == "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto_worker" || strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto_worker/") {
 					t.Errorf("%s depends on crypto worker runtime", path)
 				}
 				if strings.Contains(filepath.ToSlash(path), "/outbound_repo/") &&
-					(strings.HasPrefix(value, "go.opentelemetry.io/") || strings.HasPrefix(value, "metapus/internal/configuration/crypto/infrastructure/blockchain/") || strings.HasPrefix(value, "metapus/internal/configuration/crypto/infrastructure/crypto/")) {
+					(strings.HasPrefix(value, "go.opentelemetry.io/") || strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/") || strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/")) {
 					t.Errorf("%s imports a runtime adapter %s in persistence", path, value)
 				}
 			}

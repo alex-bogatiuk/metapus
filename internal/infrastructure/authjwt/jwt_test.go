@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/domain/auth"
 )
 
 func TestJWTServiceRejectsDifferentHMACAlgorithm(t *testing.T) {

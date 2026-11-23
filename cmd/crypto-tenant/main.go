@@ -4,9 +4,9 @@
 package main
 
 import (
-	"metapus/extensions"
-	"metapus/internal/bootstrap/tenant"
-	"metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/extensions"
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
 )
 
 func main() { tenant.Main(content.Crypto(content.Services{}), extensions.Register) }

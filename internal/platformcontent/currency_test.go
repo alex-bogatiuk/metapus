@@ -9,13 +9,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/json"
-	"metapus/internal/core/security"
-	_ "metapus/internal/infrastructure/http/jsoncodec"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	_ "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
 )
 
 func TestCreateCurrencyInvalidNumericCodeReturnsBadRequest(t *testing.T) {

@@ -1,8 +1,8 @@
 package automations
 
 import (
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // SubscriberType defines how a subscriber receives notifications.

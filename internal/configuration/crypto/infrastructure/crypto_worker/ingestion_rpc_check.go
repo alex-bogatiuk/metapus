@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 func (p *CryptoProcessor) RunIngestionRPCCheck(ctx context.Context, networkCode string, options crypto.IngestionRPCCheckOptions) (crypto.IngestionRPCCheckResult, error) {

@@ -14,10 +14,10 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	platformtelemetry "github.com/alex-bogatiuk/metapus/internal/platform/telemetry"
 )
 
 type traceCapturingOutboxHandler struct {

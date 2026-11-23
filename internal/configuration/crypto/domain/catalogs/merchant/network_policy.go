@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"time"
 
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // CodeNetworkDenied rejects a request from outside a merchant network allowlist.

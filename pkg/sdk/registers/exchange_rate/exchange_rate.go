@@ -7,7 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	core "metapus/internal/domain/registers/exchange_rate"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
 )
 
 type (

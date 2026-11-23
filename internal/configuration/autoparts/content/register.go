@@ -1,10 +1,10 @@
 package content
 
 import (
-	"metapus/internal/configuration/autoparts/domain/catalogs/item"
-	"metapus/internal/configuration/autoparts/domain/catalogs/warehouse"
-	"metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
-	"metapus/pkg/sdk/registry"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/item"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/warehouse"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registry"
 )
 
 func register(reg *registry.Registry) {

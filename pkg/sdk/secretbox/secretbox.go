@@ -4,7 +4,7 @@
 package secretbox
 
 import (
-	core "metapus/internal/infrastructure/secretbox"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/secretbox"
 )
 
 // ErrNotConfigured is the cause of Ready's error when the key is not set.

@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 type MetadataHandler struct {

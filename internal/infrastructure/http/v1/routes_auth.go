@@ -3,10 +3,10 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/security_repo"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/security_repo"
 )
 
 // registerAuthRoutes registers authentication endpoints.

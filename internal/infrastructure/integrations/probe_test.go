@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations/profiles"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
 )
 
 // fixtureProbe stands in for the configuration's endpoint probe: it posts to

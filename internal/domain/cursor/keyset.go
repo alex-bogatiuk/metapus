@@ -3,7 +3,7 @@ package cursor
 import (
 	"encoding/base64"
 	"fmt"
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // KeysetPayload binds a boundary to its complete ordering contract. Values are

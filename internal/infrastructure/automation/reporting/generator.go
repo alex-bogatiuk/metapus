@@ -7,15 +7,15 @@ import (
 	"maps"
 	"time"
 
-	"metapus/internal/application/automation"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/automations"
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/reporting/export"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/application/automation"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/export"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // _fileExpirationTTL is how long generated report files are kept before cleanup.

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/core/security"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/tx"
-	"metapus/internal/domain/posting"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 )
 
 // DocumentEntity is the combined constraint for document types used by BaseDocumentService.

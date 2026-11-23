@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 type CredentialKeyFormat string

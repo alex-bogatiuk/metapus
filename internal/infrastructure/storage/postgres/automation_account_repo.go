@@ -6,11 +6,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/domain/automations"
-	"metapus/internal/infrastructure/secretbox"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/secretbox"
 )
 
 // AutomationAccountRepo implements automations.AccountRepository and automations.CredentialManager.

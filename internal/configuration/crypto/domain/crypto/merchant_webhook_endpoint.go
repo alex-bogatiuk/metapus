@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 const WebhookSecretRotationOverlap = 24 * time.Hour

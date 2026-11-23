@@ -6,8 +6,8 @@ package posting
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain/registers/settlement"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/settlement"
 )
 
 // RegisterRecorder handles recording and reversal of movements for one register type.

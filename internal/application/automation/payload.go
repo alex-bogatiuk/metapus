@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/big"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // SanitizePayloadNumbers recursively walks a map[string]any (typically produced

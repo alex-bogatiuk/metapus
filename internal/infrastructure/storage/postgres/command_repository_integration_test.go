@@ -14,10 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/application/command"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/application/command"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 func TestConcurrentCommandExecutorRunsOneCallbackAndRollbackLeavesNoPendingOwner(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
 
 // --- Multi-Tenant Health Handler ---

@@ -4,7 +4,7 @@ package registers
 import (
 	"context"
 
-	core "metapus/internal/infrastructure/storage/postgres/register_repo"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
 type (

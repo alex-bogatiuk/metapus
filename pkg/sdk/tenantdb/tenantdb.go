@@ -4,7 +4,7 @@
 package tenantdb
 
 import (
-	core "metapus/internal/infrastructure/tenantdb"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
 
 // Manager manages database connections for multiple tenants.

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
 )
 
 // appendReversalsByRecorder appends linked opposite movements for the five

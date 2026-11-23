@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
 )
 
 func TestPrepareTakesTheWholeRemainderWithItsReason(t *testing.T) {

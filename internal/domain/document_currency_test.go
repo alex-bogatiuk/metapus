@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
 )
 
 type monetaryLifecycle struct {

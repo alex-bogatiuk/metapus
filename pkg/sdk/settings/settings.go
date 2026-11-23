@@ -2,7 +2,7 @@
 package settings
 
 import (
-	core "metapus/internal/domain/settings"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/settings"
 )
 
 type (

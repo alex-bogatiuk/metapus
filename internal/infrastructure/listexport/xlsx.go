@@ -14,9 +14,9 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/domain/reports/tabular"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/tabular"
 )
 
 type MoneyCell struct {

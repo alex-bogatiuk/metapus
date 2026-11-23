@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain/integrations"
-	er "metapus/internal/domain/registers/exchange_rate"
-	integrationhttp "metapus/internal/infrastructure/integrations"
-	"metapus/internal/infrastructure/storage/postgres/integration_repo"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	er "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
+	integrationhttp "github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/integration_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 	"net/http"
 )
 

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/httpvalue"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/httpvalue"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

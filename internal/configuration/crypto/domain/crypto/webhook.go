@@ -3,7 +3,7 @@ package crypto
 
 import (
 	"context"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"time"
 )
 

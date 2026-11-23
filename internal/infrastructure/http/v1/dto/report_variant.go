@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"metapus/internal/domain/reports/variants"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/variants"
 )
 
 type CreateVariantRequest struct {

@@ -5,10 +5,10 @@ package dashboard_repo
 import (
 	"context"
 	"errors"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/sdktest"
-	"metapus/pkg/sdk/tenant"
 
 	"os"
 	"testing"

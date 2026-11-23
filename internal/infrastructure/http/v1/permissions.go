@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"metapus/internal/domain/auth"
-	"metapus/internal/metadata"
-	"metapus/internal/platform"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/platform"
 )
 
 // permissionActionLabels names the standard actions in the role editor.

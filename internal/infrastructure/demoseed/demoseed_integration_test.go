@@ -7,13 +7,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/demoseed"
-	"metapus/internal/infrastructure/secretbox"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/testsupport"
-	"metapus/pkg/logger"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/demoseed"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/secretbox"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/testsupport"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 func TestDemoSeedIsIdempotent(t *testing.T) {

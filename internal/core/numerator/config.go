@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 )
 
 // Config holds numbering configuration.

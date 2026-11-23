@@ -1,13 +1,13 @@
 package platformcontent
 
 import (
-	"metapus/internal/domain"
-	"metapus/internal/domain/integrations"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // registerProviderEnum lists the catalog's providers as the values of

@@ -1,10 +1,10 @@
 package crypto_worker
 
 import (
-	"metapus/internal/configuration/crypto/domain/registers/crypto_fee"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_fee"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 const _outboundBatchLimit = outbound_repo.DefaultBatchLimit

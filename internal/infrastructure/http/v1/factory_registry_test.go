@@ -3,10 +3,10 @@ package v1
 import (
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/entity"
-	"metapus/internal/domain"
-	"metapus/internal/infrastructure/http/contracts/spec"
 )
 
 type definitionCatalog struct{ entity.Definition }

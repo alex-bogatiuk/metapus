@@ -6,8 +6,8 @@
 package platformcontent
 
 import (
-	"metapus/internal/domain/integrations"
-	v1 "metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
 )
 
 // Integrations is what the integration catalogs take from the configuration.

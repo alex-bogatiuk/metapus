@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io/fs"
 
-	"metapus/pkg/sdk/configuration"
-	"metapus/pkg/sdk/migration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/migration"
 )
 
 // Name is the crypto-processing configuration's name.

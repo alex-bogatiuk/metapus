@@ -2,7 +2,7 @@
 package cursor
 
 import (
-	core "metapus/internal/domain/cursor"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/cursor"
 )
 
 type (

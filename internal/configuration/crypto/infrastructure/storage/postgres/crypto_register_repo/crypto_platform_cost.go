@@ -7,9 +7,9 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
 )
 
 const _cryptoPlatformCostMovementsTable = "reg_crypto_platform_cost_movements"

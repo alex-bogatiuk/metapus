@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"metapus/internal/core/json"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 var upgrader = websocket.Upgrader{

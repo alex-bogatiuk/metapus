@@ -22,8 +22,8 @@ import (
 // contract package itself, the empty configuration (none) and
 // internal/platformcontent with the shared applied catalogs.
 var configurationPackages = []string{
-	"metapus/internal/configuration/autoparts",
-	"metapus/internal/configuration/crypto",
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts",
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto",
 }
 
 // knownConfigurationLeaks lists tolerated platform → configuration imports.
@@ -39,7 +39,7 @@ func TestPlatformDoesNotDependOnConfiguration(t *testing.T) {
 	repoRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
 
 	for _, pkg := range configurationPackages {
-		dir := filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(pkg, "metapus/")))
+		dir := filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(pkg, "github.com/alex-bogatiuk/metapus/")))
 		info, err := os.Stat(dir)
 		require.NoErrorf(t, err, "configuration package %s no longer exists; update configurationPackages", pkg)
 		require.Truef(t, info.IsDir(), "configuration package %s is not a directory", pkg)
@@ -58,7 +58,7 @@ func TestPlatformDoesNotDependOnConfiguration(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			pkg := "metapus/" + filepath.ToSlash(rel)
+			pkg := "github.com/alex-bogatiuk/metapus/" + filepath.ToSlash(rel)
 			if isConfigurationPackage(pkg) {
 				return nil
 			}
@@ -127,7 +127,7 @@ func TestConfigurationsDoNotDependOnEachOther(t *testing.T) {
 		return ""
 	}
 	for _, root := range configurationPackages {
-		dir := filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(root, "metapus/")))
+		dir := filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(root, "github.com/alex-bogatiuk/metapus/")))
 		err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" {
 				return walkErr

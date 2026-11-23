@@ -3,7 +3,7 @@
 package secretfile
 
 import (
-	core "metapus/internal/platform/secretfile"
+	core "github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
 )
 
 // Get returns a value or fallback when neither NAME nor NAME_FILE is set, or

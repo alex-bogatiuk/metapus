@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/crypto/custody"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/custody"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // AMLConfigurationPreflight owns readiness ports only. It cannot start worker

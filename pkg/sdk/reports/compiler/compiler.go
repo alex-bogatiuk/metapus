@@ -2,11 +2,11 @@
 package compiler
 
 import (
-	"metapus/internal/application/readaccess"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/infrastructure/readpolicy"
-	core "metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 type (

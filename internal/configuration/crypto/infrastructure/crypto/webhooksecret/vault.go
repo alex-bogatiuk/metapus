@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
 )
 
 var validRefSegment = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)

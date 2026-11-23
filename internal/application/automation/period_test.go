@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 )
 
 func TestResolvePeriod(t *testing.T) {

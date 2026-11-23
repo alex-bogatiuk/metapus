@@ -3,18 +3,18 @@ package handlers
 import (
 	"context"
 	"errors"
-	printadapter "metapus/internal/infrastructure/printing"
+	printadapter "github.com/alex-bogatiuk/metapus/internal/infrastructure/printing"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	"metapus/internal/domain/printing"
-	"metapus/internal/infrastructure/http/v1/middleware"
 )
 
 type printFixtureDoc struct {

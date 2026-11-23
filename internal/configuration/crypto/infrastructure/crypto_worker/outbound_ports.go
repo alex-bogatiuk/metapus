@@ -1,8 +1,8 @@
 package crypto_worker
 
 import (
-	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
 )
 
 // Convert optional concrete dependencies without creating non-nil interfaces

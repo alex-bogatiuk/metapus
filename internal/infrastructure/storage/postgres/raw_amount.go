@@ -3,7 +3,7 @@ package postgres
 import (
 	"errors"
 
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 // NullableRawAmount is the PostgreSQL adapter for nullable NUMERIC(78,0)

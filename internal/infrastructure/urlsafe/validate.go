@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // ValidatePublicURL checks that a URL is safe for outbound server requests.

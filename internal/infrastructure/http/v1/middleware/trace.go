@@ -8,8 +8,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	appctx "metapus/internal/core/context"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	platformtelemetry "github.com/alex-bogatiuk/metapus/internal/platform/telemetry"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 func Trace() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		parent := otel.GetTextMapPropagator().Extract(c.Request.Context(), propagation.HeaderCarrier(c.Request.Header))
-		spanCtx, span := otel.Tracer("metapus/http").Start(parent, c.Request.Method,
+		spanCtx, span := otel.Tracer("github.com/alex-bogatiuk/metapus/http").Start(parent, c.Request.Method,
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer))
 		defer span.End()
 		// Get or generate request ID

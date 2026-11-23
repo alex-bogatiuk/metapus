@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // MarkedObjectRef identifies one object by its registry entity name and ID.

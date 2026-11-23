@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
-	corejson "metapus/internal/core/json"
+	corejson "github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 func TestRegisterJSONCodecsUsesProductV2Semantics(t *testing.T) {

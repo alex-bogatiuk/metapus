@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // Payload is the internal structure of a cursor token.

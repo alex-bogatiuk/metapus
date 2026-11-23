@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 	"github.com/jackc/pgx/v5"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
 )
 
 // Advisory locks are scoped to the current tenant database and table OID.

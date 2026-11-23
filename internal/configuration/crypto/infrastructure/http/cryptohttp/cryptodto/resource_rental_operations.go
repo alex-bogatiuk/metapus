@@ -1,6 +1,6 @@
 package cryptodto
 
-import "metapus/internal/configuration/crypto/application/cryptoapp"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
 
 type ResourceRentalMetricsResponse = cryptoapp.ResourceRentalMetrics
 

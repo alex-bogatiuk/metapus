@@ -11,13 +11,13 @@ import (
 	"io/fs"
 	"regexp"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/auth"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/platformcontent"
-	"metapus/pkg/sdk"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/platformcontent"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk"
 )
 
 // Configuration is an industry configuration built on the platform.
@@ -31,7 +31,7 @@ type Configuration interface {
 	// (see ValidName): db/configuration/<name>/ holds its migrations and
 	// frontend/configuration/<name>/ its user interface.
 	Name() string
-	// APIVersion is the version of the platform API (metapus/pkg/sdk) the
+	// APIVersion is the version of the platform API (github.com/alex-bogatiuk/metapus/pkg/sdk) the
 	// configuration is built for, sdk.APIVersion at its build. The platform
 	// refuses to run a configuration it cannot serve (CheckAPIVersion).
 	APIVersion() string

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"github.com/Masterminds/squirrel"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/readpolicy"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/readpolicy"
 	"testing"
 )
 

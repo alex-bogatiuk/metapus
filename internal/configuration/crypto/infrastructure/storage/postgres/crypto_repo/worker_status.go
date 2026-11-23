@@ -3,9 +3,9 @@ package crypto_repo
 import (
 	"context"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 func (r *WorkerRuntimeRepo) PersistNetworkRuntimeStatus(ctx context.Context, status crypto.NetworkRuntimeStatus) error {

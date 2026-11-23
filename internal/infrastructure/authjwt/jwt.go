@@ -7,8 +7,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	appctx "metapus/internal/core/context"
-	"metapus/internal/domain/auth"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 )
 
 // JWTConfig holds JWT configuration.

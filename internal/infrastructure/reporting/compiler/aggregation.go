@@ -2,8 +2,8 @@ package compiler
 
 import (
 	"fmt"
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
 	"strings"
 )
 

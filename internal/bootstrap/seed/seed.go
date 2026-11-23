@@ -15,14 +15,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
-	"metapus/internal/configuration"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/demoseed"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/internal/platform/secretfile"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/demoseed"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 const (

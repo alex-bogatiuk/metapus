@@ -4,8 +4,8 @@ package settlement
 import (
 	"context"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // Repository defines operations for the settlement register.

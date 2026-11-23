@@ -1,8 +1,8 @@
 package crypto_worker
 
 import (
-	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/outbound_repo"
 )
 
 type nativeFundingConfirmationStore = outbound_repo.NativeFundingConfirmationStore

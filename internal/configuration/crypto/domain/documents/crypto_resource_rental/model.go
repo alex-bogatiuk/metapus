@@ -5,14 +5,14 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
-	"metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
-	"metapus/internal/configuration/crypto/domain/registers/cryptoposting"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_platform_cost"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/crypto_provider_balance"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/registers/cryptoposting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 type Status string

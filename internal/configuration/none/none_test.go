@@ -5,13 +5,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration"
-	"metapus/internal/configuration/configurationtest"
-	"metapus/internal/configuration/none"
-	"metapus/internal/domain/auth"
-	"metapus/internal/domain/integrations"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/platformcontent"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/configurationtest"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/platformcontent"
 )
 
 func TestKeepsTheConfigurationContract(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 // ContextTxManager resolves the concrete per-tenant transaction manager at

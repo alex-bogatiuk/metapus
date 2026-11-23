@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"time"
 
-	"metapus/internal/core/types"
-	"metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
 )
 
 // ExtractFilterFields derives trusted filter storage semantics from actual Go

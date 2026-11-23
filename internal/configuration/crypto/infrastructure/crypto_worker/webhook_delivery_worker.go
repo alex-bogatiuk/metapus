@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/workerjob"
 )
 
 // WebhookDeliveryWorker owns HTTP delivery independently of chain ingestion.

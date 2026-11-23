@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 var evmOperationalMetrics = newEVMOperationalMetrics()
@@ -32,7 +32,7 @@ type evmMetrics struct {
 }
 
 func newEVMOperationalMetrics() evmMetrics {
-	meter := otel.Meter("metapus/evm")
+	meter := otel.Meter("github.com/alex-bogatiuk/metapus/evm")
 	rpcDivergence, _ := meter.Int64Counter("crypto.evm.rpc.divergence")
 	watcherLagBlocks, _ := meter.Int64Histogram("crypto.evm.watcher.lag_blocks")
 	checkpointRewinds, _ := meter.Int64Counter("crypto.evm.watcher.checkpoint_rewinds")

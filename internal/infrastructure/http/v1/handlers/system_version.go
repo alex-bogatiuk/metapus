@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/version"
+	"github.com/alex-bogatiuk/metapus/internal/core/version"
 )
 
 // SystemVersionHandler exposes build and schema version information.

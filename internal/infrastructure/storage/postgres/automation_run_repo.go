@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain/automations"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/domain/automations"
 )
 
 type AutomationRunRepo struct{}

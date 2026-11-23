@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/integrations/profiles"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

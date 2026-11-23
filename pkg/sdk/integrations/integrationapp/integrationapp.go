@@ -2,7 +2,7 @@
 package integrationapp
 
 import (
-	core "metapus/internal/application/integrationapp"
+	core "github.com/alex-bogatiuk/metapus/internal/application/integrationapp"
 )
 
 func NewConnectionTestService(targets core.ConnectionTargetRepository, prober core.ConnectionProber) *core.ConnectionTestService {

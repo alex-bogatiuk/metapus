@@ -16,7 +16,7 @@ import (
 )
 
 // sdkConfigurations are the configurations built on the public platform API
-// (metapus/pkg/sdk) alone, as a configuration in its own repository has to
+// (github.com/alex-bogatiuk/metapus/pkg/sdk) alone, as a configuration in its own repository has to
 // be: their code and tests import no other platform package.
 var sdkConfigurations = []string{"autoparts", "crypto"}
 
@@ -24,7 +24,7 @@ func TestSDKConfigurationsUseOnlyThePublicAPI(t *testing.T) {
 	t.Parallel()
 	repoRoot := repositoryRoot(t)
 	for _, name := range sdkConfigurations {
-		own := "metapus/internal/configuration/" + name
+		own := "github.com/alex-bogatiuk/metapus/internal/configuration/" + name
 		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" {
 				return walkErr
@@ -38,12 +38,12 @@ func TestSDKConfigurationsUseOnlyThePublicAPI(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if !strings.HasPrefix(value, "metapus/") || value == own || strings.HasPrefix(value, own+"/") ||
-					value == "metapus/pkg/sdk" || strings.HasPrefix(value, "metapus/pkg/sdk/") {
+				if !strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/") || value == own || strings.HasPrefix(value, own+"/") ||
+					value == "github.com/alex-bogatiuk/metapus/pkg/sdk" || strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/pkg/sdk/") {
 					continue
 				}
 				rel, _ := filepath.Rel(repoRoot, path)
-				t.Errorf("%s imports %s; a configuration on the public API uses metapus/pkg/sdk only (add what it needs there)", filepath.ToSlash(rel), value)
+				t.Errorf("%s imports %s; a configuration on the public API uses github.com/alex-bogatiuk/metapus/pkg/sdk only (add what it needs there)", filepath.ToSlash(rel), value)
 			}
 			return nil
 		})
@@ -134,7 +134,7 @@ func TestSDKTestStaysInTests(t *testing.T) {
 				return nil
 			}
 			for _, imported := range file.Imports {
-				if value, _ := strconv.Unquote(imported.Path.Value); value == "metapus/pkg/sdk/sdktest" {
+				if value, _ := strconv.Unquote(imported.Path.Value); value == "github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest" {
 					rel, _ := filepath.Rel(repoRoot, path)
 					t.Errorf("%s imports %s outside tests", filepath.ToSlash(rel), value)
 				}

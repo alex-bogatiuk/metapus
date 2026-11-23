@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	walletcatalog "metapus/internal/configuration/crypto/domain/catalogs/wallet"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	walletcatalog "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/wallet"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 type vaultClient struct {

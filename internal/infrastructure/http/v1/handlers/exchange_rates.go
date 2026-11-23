@@ -1,12 +1,12 @@
 package handlers
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/application/exchangerateapp"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	er "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"github.com/gin-gonic/gin"
-	"metapus/internal/application/exchangerateapp"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	er "metapus/internal/domain/registers/exchange_rate"
-	"metapus/internal/infrastructure/http/v1/dto"
 	"strconv"
 	"time"
 )

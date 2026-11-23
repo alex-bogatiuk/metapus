@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 )
 
 // AdminRoleCode is the system role that receives every newly created permission.

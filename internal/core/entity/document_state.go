@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // DocumentStateName identifies the lifecycle state of a document.

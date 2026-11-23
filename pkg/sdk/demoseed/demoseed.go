@@ -6,10 +6,10 @@ package demoseed
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	core "metapus/internal/infrastructure/demoseed"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/demoseed"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 type (

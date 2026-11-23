@@ -3,7 +3,7 @@ package integrations
 import (
 	"time"
 
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // PoolUnavailableError describes account availability without disclosing credentials.

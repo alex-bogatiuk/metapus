@@ -5,7 +5,7 @@ package json
 import (
 	"io"
 
-	core "metapus/internal/core/json"
+	core "github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 type (

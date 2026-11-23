@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/tariff"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/tariff"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
 )
 
 func TestPrepareFixesTariffAndBalancesGross(t *testing.T) {

@@ -1,6 +1,6 @@
 package dto
 
-import "metapus/internal/core/json"
+import "github.com/alex-bogatiuk/metapus/internal/core/json"
 
 // ExportListRequest is the DTO for universal list export to XLSX.
 // Frontend sends the visible columns (in display order) along with the same

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/cache"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/cache"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 type authStateKey struct {

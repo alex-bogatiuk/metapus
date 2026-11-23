@@ -4,23 +4,23 @@ package compiler_test
 
 import (
 	"context"
-	"metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"net/http"
 	"os"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/filter"
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/storage/postgres"
 )
 
 func TestReportPoliciesApplyBeforeUnionAndAggregation(t *testing.T) {

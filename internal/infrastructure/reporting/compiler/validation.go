@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
 )
 
 func reportPathError(message, field string, err error) error {

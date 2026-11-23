@@ -101,7 +101,7 @@ import (
     "net/http"
     "time"
 
-    metapus "github.com/metapus/merchant-sdk-go/metapus"
+    metapus "github.com/alex-bogatiuk/metapus/sdk/go/metapus"
 )
 
 func Handler(w http.ResponseWriter, r *http.Request) {

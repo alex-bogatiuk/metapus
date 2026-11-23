@@ -10,8 +10,8 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/core/id"
-	tenantcore "metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	tenantcore "github.com/alex-bogatiuk/metapus/internal/core/tenant"
 )
 
 // tenantColumns is the shared SELECT column list for all tenant queries.

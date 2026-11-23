@@ -5,8 +5,8 @@ import (
 	"slices"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // DocumentService is the canonical interface for document service operations.

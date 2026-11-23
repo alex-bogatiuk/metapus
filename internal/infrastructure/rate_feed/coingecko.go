@@ -13,8 +13,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"metapus/internal/core/json"
-	er "metapus/internal/domain/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	er "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
 )
 
 const (

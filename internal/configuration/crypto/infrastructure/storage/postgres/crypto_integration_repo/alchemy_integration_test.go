@@ -3,8 +3,8 @@
 package crypto_integration_repo
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"io"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"net/http"
 	"strings"
 	"testing"
@@ -12,10 +12,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/tron"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/tron"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 )
 
 func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {

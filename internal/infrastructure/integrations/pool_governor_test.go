@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/id"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/providerpolicy"
 )
 
 func sendAt(g *poolGovernor, count int, now time.Time) {

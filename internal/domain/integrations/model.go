@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/core/numerator"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 )
 
 // Provider identifies a ProviderDefinition of the application's Catalog.

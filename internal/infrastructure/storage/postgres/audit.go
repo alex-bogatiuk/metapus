@@ -8,9 +8,9 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 // AuditAction represents the type of audited operation.

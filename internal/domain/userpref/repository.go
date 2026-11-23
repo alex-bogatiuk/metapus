@@ -3,8 +3,8 @@ package userpref
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 // Repository defines storage operations for user preferences.

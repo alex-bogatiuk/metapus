@@ -3,9 +3,9 @@ package crypto_repo
 import (
 	"context"
 
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 func checkWithdrawalCancellationReplay(ctx context.Context, request id.ID, reason, actor string) error {

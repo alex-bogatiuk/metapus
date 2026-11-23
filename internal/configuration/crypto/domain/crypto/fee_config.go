@@ -3,9 +3,9 @@ package crypto
 import (
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/tariff"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/tariff"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // FeeDirection represents the type of operation for fee calculation.

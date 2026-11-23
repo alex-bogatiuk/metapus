@@ -3,7 +3,7 @@ package metadata
 import (
 	"testing"
 
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 func TestInspect_ListHiddenFromMetaTag(t *testing.T) {

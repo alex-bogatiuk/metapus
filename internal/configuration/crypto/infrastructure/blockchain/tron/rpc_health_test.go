@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 )
 
 func TestRelativeLagNeedsTwoIndependentGroupsAndIgnoresSingleHighOutlier(t *testing.T) {

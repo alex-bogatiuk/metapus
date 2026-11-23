@@ -4,9 +4,9 @@
 package domain
 
 import (
-	"metapus/internal/core/entity"
-	core "metapus/internal/domain"
-	"metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	core "github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 )
 
 type (

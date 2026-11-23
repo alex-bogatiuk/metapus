@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"github.com/Masterminds/squirrel"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/domain/security_profile"
-	"metapus/internal/infrastructure/readpolicy"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/domain/security_profile"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // Independent sources exercise the compiler's security contract without tying

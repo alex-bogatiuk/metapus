@@ -1,7 +1,7 @@
 package platform
 
 import (
-	"metapus/internal/domain/posting"
+	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 )
 
 // Re-export posting extension interfaces for client extensions.

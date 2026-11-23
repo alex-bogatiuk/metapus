@@ -2,16 +2,16 @@ package cryptoprofiles
 
 import (
 	"context"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/transport"
 	"io"
-	"metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
-	"metapus/pkg/sdk/integrations/transport"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/integrations"
 )
 
 type infuraAccounts struct {

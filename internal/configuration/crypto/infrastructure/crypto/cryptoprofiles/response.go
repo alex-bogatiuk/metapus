@@ -3,9 +3,9 @@ package cryptoprofiles
 import (
 	"net/http"
 
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/integrations/profiles"
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/profiles"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 type rpcErrorCode struct {

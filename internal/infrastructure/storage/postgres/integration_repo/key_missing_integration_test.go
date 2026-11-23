@@ -6,10 +6,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 func TestSelectionReportsMissingKeyName(t *testing.T) {

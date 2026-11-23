@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // AuthorizedPreviewData batches related rows by their own entity policy. Only

@@ -3,7 +3,7 @@
 package entity
 
 import (
-	core "metapus/internal/core/entity"
+	core "github.com/alex-bogatiuk/metapus/internal/core/entity"
 )
 
 // Definitions.

@@ -1,6 +1,6 @@
 # {{.PascalName}}
 
-1. Add the import `metapus/extensions/{{.Name}}` and `{{.Name}}.Register(reg)` to `extensions/register.go`.
+1. Add the import `github.com/alex-bogatiuk/metapus/extensions/{{.Name}}` and `{{.Name}}.Register(reg)` to `extensions/register.go`.
    The server and `go run ./cmd/http-contracts` read this same module list.
 2. Run `go run ./cmd/http-contracts` and `go run ./cmd/http-contracts -check`.
 3. The migration is in `db/extensions/{{.Name}}/{{printf "%05d" .Version}}_{{.Table}}.sql`. It is embedded into the binaries and applied after the platform's and the configuration's migrations by `tenant migrate` (goose history `goose_db_version_extensions`), which then creates the module's permissions (`{{if .Document}}document{{else}}catalog{{end}}:{{.Key}}:read`, `create`, …) from its registration and grants them to the admin role; assign other roles explicitly.

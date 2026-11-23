@@ -1,7 +1,7 @@
 package rpcpolicy
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // SafeReason only exposes known categories, never upstream errors or URLs.

@@ -3,7 +3,7 @@ package crypto_worker
 import (
 	"strings"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // trackableAmbiguousBroadcast identifies the one ambiguous outcome that can

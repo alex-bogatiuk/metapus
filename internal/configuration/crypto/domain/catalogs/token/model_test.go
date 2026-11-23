@@ -5,8 +5,8 @@ import (
 	"context"
 	"testing"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 func TestToken_Validate_SweepFields(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	core "metapus/internal/infrastructure/providerpolicy"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/providerpolicy"
 )
 
 type (

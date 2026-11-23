@@ -2,9 +2,9 @@ package platform
 
 // Re-export error types for client extensions.
 // Extensions should use platform.NewValidation() etc. instead of
-// importing "metapus/internal/core/apperror" directly.
+// importing "github.com/alex-bogatiuk/metapus/internal/core/apperror" directly.
 
-import "metapus/internal/core/apperror"
+import "github.com/alex-bogatiuk/metapus/internal/core/apperror"
 
 // ── Error constructors ──────────────────────────────────────────────────
 

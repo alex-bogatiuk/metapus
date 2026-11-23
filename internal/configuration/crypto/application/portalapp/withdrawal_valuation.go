@@ -2,9 +2,9 @@ package portalapp
 
 import (
 	"context"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/exchange_rate"
 	"github.com/shopspring/decimal"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers/exchange_rate"
 	"strings"
 	"time"
 )

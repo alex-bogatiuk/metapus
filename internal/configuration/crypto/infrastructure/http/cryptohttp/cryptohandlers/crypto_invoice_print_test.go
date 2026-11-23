@@ -10,16 +10,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/printing"
-	"metapus/pkg/sdk/printing/render"
-	"metapus/pkg/sdk/readaccess"
-	"metapus/pkg/sdk/security"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/printing"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/printing/render"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/readaccess"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/security"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 type printRefRegistry struct{}

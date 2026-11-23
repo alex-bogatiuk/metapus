@@ -7,9 +7,9 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/document_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_withdrawal"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/document_repo"
 )
 
 // CryptoWithdrawalRepo implements crypto_withdrawal.Repository.

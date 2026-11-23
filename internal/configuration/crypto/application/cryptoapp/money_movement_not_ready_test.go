@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
 )
 
 type unsignedIntentRepo struct {

@@ -2,7 +2,7 @@
 package apperror
 
 import (
-	core "metapus/internal/core/apperror"
+	core "github.com/alex-bogatiuk/metapus/internal/core/apperror"
 )
 
 // AppError is an error with a code the API returns.

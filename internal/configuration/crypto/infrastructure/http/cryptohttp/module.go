@@ -6,19 +6,19 @@ package cryptohttp
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/configuration/crypto/application/checkout"
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptohandlers"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptomiddleware"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/http/middleware"
-	"metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/checkout"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptohandlers"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptomiddleware"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_integration_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/portal_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
 )
 
 // Config holds the crypto configuration's HTTP dependencies.

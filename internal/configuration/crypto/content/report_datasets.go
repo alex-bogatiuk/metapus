@@ -2,13 +2,13 @@ package content
 
 import (
 	"context"
-	"metapus/pkg/sdk/readpolicy"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/readpolicy"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 
-	"metapus/pkg/sdk/reports/contract"
-	"metapus/pkg/sdk/reports/schema"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/reports/contract"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/reports/schema"
 )
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ package telemetry
 import (
 	"context"
 
-	core "metapus/internal/platform/telemetry"
+	core "github.com/alex-bogatiuk/metapus/internal/platform/telemetry"
 )
 
 func BusinessIDs(ctx context.Context, fallback string) core.BusinessContext {

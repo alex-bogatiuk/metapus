@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	"metapus/internal/core/apperror"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
 )
 
 func (s *Service) RequireReport(ctx context.Context, ds *schema.Dataset) error {

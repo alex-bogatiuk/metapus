@@ -2,11 +2,11 @@ package integrations
 
 import (
 	"context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/providerpolicy"
 	"github.com/stretchr/testify/require"
 	"io"
-	"metapus/internal/core/id"
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
 	"net/http"
 	"strings"
 	"testing"

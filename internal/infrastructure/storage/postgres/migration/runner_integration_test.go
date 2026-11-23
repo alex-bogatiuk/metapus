@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/version"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/version"
 )
 
 func TestRunAllFreshCryptoLifecycleSchema(t *testing.T) {

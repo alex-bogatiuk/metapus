@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
 )
 
 func (d *Driver) checkBlockIngestionRPC(ctx context.Context, options crypto.IngestionRPCCheckOptions) (crypto.IngestionRPCCheckResult, error) {

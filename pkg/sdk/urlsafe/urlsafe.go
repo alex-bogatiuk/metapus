@@ -3,7 +3,7 @@
 package urlsafe
 
 import (
-	core "metapus/internal/infrastructure/urlsafe"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/urlsafe"
 )
 
 type (

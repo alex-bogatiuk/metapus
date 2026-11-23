@@ -2,7 +2,7 @@
 package id
 
 import (
-	core "metapus/internal/core/id"
+	core "github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // ID identifies a record.

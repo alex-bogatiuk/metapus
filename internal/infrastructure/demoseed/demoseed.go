@@ -14,11 +14,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/secretbox"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/platform/secretfile"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/secretbox"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // Currency is a demo currency; its code is its ISO code.

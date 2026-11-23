@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/application/automation"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/application/automation"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 )
 
 // authRoleAdapter adapts auth.RoleRepository to automation.RoleRepository.

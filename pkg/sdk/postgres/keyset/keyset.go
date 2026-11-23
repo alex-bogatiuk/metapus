@@ -4,7 +4,7 @@ package keyset
 import (
 	"github.com/Masterminds/squirrel"
 
-	core "metapus/internal/infrastructure/storage/postgres/keyset"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/keyset"
 )
 
 func BuildCursorFromRow(p0 core.SortSpec, sortValue any, idValue any) (string, error) {

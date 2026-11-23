@@ -1,10 +1,10 @@
 package types
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"math"
-	"metapus/internal/core/json"
 	"testing"
 )
 

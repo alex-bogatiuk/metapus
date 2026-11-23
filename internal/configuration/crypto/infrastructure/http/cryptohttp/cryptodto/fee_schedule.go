@@ -1,8 +1,8 @@
 package cryptodto
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // ── Fee Schedule DTOs ────────────────────────────────────────────────────

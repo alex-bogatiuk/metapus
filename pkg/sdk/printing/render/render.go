@@ -4,9 +4,9 @@ package render
 import (
 	"io"
 
-	"metapus/internal/core/types"
-	"metapus/internal/domain/printing"
-	core "metapus/internal/infrastructure/printing"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/printing"
 )
 
 type (

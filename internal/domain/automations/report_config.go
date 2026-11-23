@@ -1,8 +1,8 @@
 package automations
 
 import (
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // PeriodType defines how the report period is calculated relative to trigger time.

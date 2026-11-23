@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/configuration/none"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // The platform's server starts with the empty configuration and none of an

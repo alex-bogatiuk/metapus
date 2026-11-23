@@ -2,9 +2,9 @@ package exchange_rate
 
 import (
 	"context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
 	"testing"
 	"time"
 )

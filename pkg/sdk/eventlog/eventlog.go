@@ -2,7 +2,7 @@
 package eventlog
 
 import (
-	core "metapus/internal/domain/eventlog"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 )
 
 type (

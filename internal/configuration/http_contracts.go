@@ -1,10 +1,10 @@
 package configuration
 
 import (
-	"metapus/internal/infrastructure/http/contracts"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/platformcontent"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/platformcontent"
 )
 
 // HTTPContractBundles returns every wire contract of the assembled

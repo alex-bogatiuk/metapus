@@ -3,8 +3,8 @@
 package extensions
 
 import (
-	"metapus/internal/infrastructure/http/contracts/spec"
-	v1 "metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
 )
 
 func Register(reg *v1.FactoryRegistry) {

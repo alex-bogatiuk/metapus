@@ -1,10 +1,10 @@
 package dto
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/core/json"
-	"metapus/internal/domain"
-	"metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
 )
 
 type BatchActionRequest struct {

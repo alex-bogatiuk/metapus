@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 func TestFormatRawUnitsIsExactForTheTokenScale(t *testing.T) {

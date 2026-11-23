@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
 )
 
 func TestRawAmount_ArbitraryPrecisionArithmetic(t *testing.T) {

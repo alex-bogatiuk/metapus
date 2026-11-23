@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"metapus/internal/core/json"
-	"metapus/internal/domain/listview"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/listview"
 )
 
 // CreateListViewRequest is the request body for creating a new list view.

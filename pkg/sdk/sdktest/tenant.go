@@ -8,11 +8,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/configuration"
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres/migration"
-	"metapus/internal/infrastructure/storage/postgres/testsupport"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/testsupport"
 )
 
 // Tenant is a fresh tenant database migrated with a configuration.

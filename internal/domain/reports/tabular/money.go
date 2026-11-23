@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
 	"github.com/shopspring/decimal"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	reportcontract "metapus/internal/domain/reports/contract"
 )
 
 type MoneyUnit struct {

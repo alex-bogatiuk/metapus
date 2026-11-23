@@ -3,9 +3,9 @@ package rate_feed
 import (
 	"context"
 	"fmt"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	er "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	er "metapus/internal/domain/registers/exchange_rate"
 	"net/http"
 	"net/http/httptest"
 	"strings"

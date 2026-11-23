@@ -1,9 +1,9 @@
 package keyset
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/cursor"
 	"testing"
 )
 

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"metapus/internal/configuration/crypto/application/outboundapp"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/outboundapp"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 // The shared workflow/operation -> policy -> scopes/wallets -> task prefix

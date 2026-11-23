@@ -3,8 +3,8 @@ package cryptodto
 import (
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/json"
 )
 
 func TestInvoiceReferenceRequestMetadataPresenceAndStrictShape(t *testing.T) {

@@ -12,9 +12,9 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/registers"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
 )
 
 const (

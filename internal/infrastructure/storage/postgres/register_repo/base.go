@@ -9,8 +9,8 @@ import (
 
 	"github.com/Masterminds/squirrel"
 
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
 // MovementRowMapper converts a typed movement into a flat row of values for COPY/INSERT.

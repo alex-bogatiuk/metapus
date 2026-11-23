@@ -2,8 +2,8 @@
 package document_repo
 
 import (
-	"metapus/internal/core/entity"
-	core "metapus/internal/infrastructure/storage/postgres/document_repo"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/document_repo"
 )
 
 type (

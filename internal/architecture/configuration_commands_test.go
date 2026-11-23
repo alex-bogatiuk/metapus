@@ -60,8 +60,8 @@ var platformCommands = []string{
 // configuration from a configuration's own main. Only remove entries: a new
 // edge fails the test.
 var knownCommandConfigurationLeaks = map[string][]string{
-	"metapus/cmd/integration-test": {
-		"metapus/internal/configuration/crypto/content",
+	"github.com/alex-bogatiuk/metapus/cmd/integration-test": {
+		"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content",
 	},
 }
 
@@ -138,7 +138,7 @@ func commandConfigurationImports(t *testing.T, tests bool) map[string]map[string
 	t.Helper()
 	actual := map[string]map[string]bool{}
 	walkGo(t, repositoryRoot(t), []string{"cmd"}, tests, isConfigurationCommandPackage, func(rel string, file *ast.File) {
-		pkg := "metapus/" + filepath.ToSlash(filepath.Dir(rel))
+		pkg := "github.com/alex-bogatiuk/metapus/" + filepath.ToSlash(filepath.Dir(rel))
 		for _, imported := range file.Imports {
 			value, err := strconv.Unquote(imported.Path.Value)
 			require.NoError(t, err)
@@ -156,7 +156,7 @@ func commandConfigurationImports(t *testing.T, tests bool) map[string]map[string
 
 func isConfigurationCommandPackage(importPath string) bool {
 	for _, name := range configurationCommands {
-		pkg := "metapus/cmd/" + name
+		pkg := "github.com/alex-bogatiuk/metapus/cmd/" + name
 		if importPath == pkg || strings.HasPrefix(importPath, pkg+"/") {
 			return true
 		}

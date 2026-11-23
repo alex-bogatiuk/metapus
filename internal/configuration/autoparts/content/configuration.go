@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"io/fs"
 
-	"metapus/pkg/sdk/configuration"
-	"metapus/pkg/sdk/contracts"
-	"metapus/pkg/sdk/integrations"
-	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/registry"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/contracts"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registry"
 )
 
 // Name is the auto parts configuration's name.

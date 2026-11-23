@@ -188,7 +188,7 @@ go run ./cmd/crypto-tenant migrate --id <tenant-uuid>
 ### Внутренний runner
 
 ```go
-import "metapus/internal/infrastructure/storage/postgres/migration"
+import "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 
 result, err := migration.Run(dsn, configuration.MigrationOptions(cfg, extensions.Register)...)
 // result.Schema — конфигурация и версии платформы и конфигурации

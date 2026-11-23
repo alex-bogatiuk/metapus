@@ -1,7 +1,7 @@
 // Package platform reexports neutral report contracts for extension compatibility.
 package platform
 
-import "metapus/internal/domain/reports/contract"
+import "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
 
 type ReportMeta = contract.ReportMeta
 type FieldTreeNode = contract.FieldTreeNode

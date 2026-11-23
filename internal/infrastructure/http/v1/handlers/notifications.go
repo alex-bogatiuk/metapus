@@ -1,17 +1,17 @@
 package handlers
 
 import (
-	"metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/auth"
-	"metapus/internal/domain/notifications"
-	ws "metapus/internal/infrastructure/websocket"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/domain/notifications"
+	ws "github.com/alex-bogatiuk/metapus/internal/infrastructure/websocket"
 )
 
 type NotificationHandler struct {

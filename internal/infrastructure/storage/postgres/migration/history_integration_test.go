@@ -13,10 +13,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/version"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/version"
 )
 
 // withCrypto applies the crypto configuration's migrations, which the

@@ -3,8 +3,8 @@ package crypto_worker
 import (
 	"time"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // CryptoSweepAttempt is worker control-plane state for one wallet/token sweep.

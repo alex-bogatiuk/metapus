@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	dbassets "metapus/db"
-	"metapus/internal/core/types"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 func TestCryptoInvoiceIdempotencyIndexesAreInBaseMigration(t *testing.T) {

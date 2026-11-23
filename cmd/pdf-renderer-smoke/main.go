@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain/printing"
-	"metapus/internal/infrastructure/pdfrender"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/pdfrender"
 )
 
 func main() {

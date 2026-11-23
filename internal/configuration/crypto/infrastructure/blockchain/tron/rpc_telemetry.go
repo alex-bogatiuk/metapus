@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tronRPCTracer = otel.Tracer("metapus/crypto/tron-rpc")
+var tronRPCTracer = otel.Tracer("github.com/alex-bogatiuk/metapus/crypto/tron-rpc")
 
 type tronRPCInstruments struct {
 	requests           metric.Int64Counter
@@ -23,7 +23,7 @@ type tronRPCInstruments struct {
 var tronRPCMetrics = newTRONRPCInstruments()
 
 func newTRONRPCInstruments() tronRPCInstruments {
-	meter := otel.Meter("metapus/crypto/tron-rpc")
+	meter := otel.Meter("github.com/alex-bogatiuk/metapus/crypto/tron-rpc")
 	requests, _ := meter.Int64Counter("crypto.rpc.requests")
 	durationMillis, _ := meter.Int64Histogram("crypto.rpc.duration_ms")
 	circuitObservation, _ := meter.Int64Counter("crypto.rpc.circuit_state_observations")

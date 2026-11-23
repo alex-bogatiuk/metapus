@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/viewpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/viewpolicy"
 )
 
 type Service struct{ repo Repository }

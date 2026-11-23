@@ -3,7 +3,7 @@ package auth
 import (
 	"time"
 
-	appctx "metapus/internal/core/context"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
 )
 
 // ClaimsFormatVersion identifies the access token claim layout. Tokens with a

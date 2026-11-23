@@ -1,10 +1,10 @@
 package v1
 
 import (
-	"metapus/internal/core/security"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // NewReportCompiler builds the report compiler of an assembled application

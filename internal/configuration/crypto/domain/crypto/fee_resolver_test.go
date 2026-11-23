@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // mockFeeScheduleRepo is a minimal in-memory implementation for testing.

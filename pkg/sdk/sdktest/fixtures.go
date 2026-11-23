@@ -5,9 +5,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/migration"
-	"metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
 
 // The fixtures below set up a database by hand, for a test that needs a

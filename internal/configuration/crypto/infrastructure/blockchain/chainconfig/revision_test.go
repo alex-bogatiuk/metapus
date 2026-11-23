@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/json"
 )
 
 func TestRPCRevisionIsDeterministicAndExcludesLocalTransports(t *testing.T) {

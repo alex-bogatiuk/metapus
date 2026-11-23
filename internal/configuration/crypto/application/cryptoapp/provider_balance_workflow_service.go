@@ -7,16 +7,16 @@ import (
 	"strings"
 	"time"
 
-	pbo "metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/command"
-	"metapus/pkg/sdk/entity"
-	"metapus/pkg/sdk/eventlog"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/security"
-	"metapus/pkg/sdk/types"
+	pbo "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_provider_balance_operation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/command"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/eventlog"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/numerator"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/security"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 // EventProviderOpeningDecision records a provider opening approval or

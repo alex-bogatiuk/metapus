@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 func TestWallet_IsTransient(t *testing.T) {

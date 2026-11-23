@@ -3,13 +3,13 @@ package printing
 import (
 	"embed"
 	"fmt"
+	printmodel "github.com/alex-bogatiuk/metapus/internal/domain/printing"
 	"html/template"
 	"io"
-	printmodel "metapus/internal/domain/printing"
 	"strings"
 	"time"
 
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 //go:embed templates

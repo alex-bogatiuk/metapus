@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto/publicref"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/publicref"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 var ErrReferenceCollision = errors.New("checkout public reference collision")

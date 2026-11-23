@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // DocLocker implements posting.DocumentLocker using PostgreSQL advisory locks.

@@ -1,9 +1,9 @@
 package cryptohttp
 
 import (
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
-	spec "metapus/pkg/sdk/contracts"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
+	spec "github.com/alex-bogatiuk/metapus/pkg/sdk/contracts"
 )
 
 // HTTPContracts declares the wire contracts of the crypto routes that this

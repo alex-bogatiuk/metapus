@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/blockchain/chainconfig"
-	"metapus/pkg/sdk/json"
 )
 
 func rpcBlockServer(t *testing.T, block *BlockInfo, receipts []TransactionInfo, batch string, receiptCalls *atomic.Int32) *httptest.Server {

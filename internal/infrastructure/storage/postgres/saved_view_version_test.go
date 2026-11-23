@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/listview"
-	"metapus/internal/domain/reports/variants"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/listview"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/variants"
 )
 
 // Capture the executed statement at the pgx boundary. A stale write must carry

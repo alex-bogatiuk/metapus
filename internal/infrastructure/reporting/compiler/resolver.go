@@ -2,14 +2,14 @@ package compiler
 
 import (
 	"fmt"
-	"metapus/internal/core/apperror"
-	reportcontract "metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
 	"strings"
 
-	"metapus/internal/core/types"
-	"metapus/internal/domain/filter"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // JoinStep describes a single LEFT JOIN needed to resolve a reference field path.

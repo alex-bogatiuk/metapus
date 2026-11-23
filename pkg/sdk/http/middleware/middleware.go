@@ -6,8 +6,8 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 
-	core "metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/tenantdb"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
 
 type (

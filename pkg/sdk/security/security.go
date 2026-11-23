@@ -5,7 +5,7 @@ package security
 import (
 	"context"
 
-	core "metapus/internal/core/security"
+	core "github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 type (

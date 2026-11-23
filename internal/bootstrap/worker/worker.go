@@ -21,30 +21,30 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
-	"metapus/internal/application/automation"
-	"metapus/internal/application/readaccess"
-	"metapus/internal/configuration"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/security"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/automation/adapters"
-	automationdelivery "metapus/internal/infrastructure/automation/delivery"
-	automationreport "metapus/internal/infrastructure/automation/reporting"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/rate_feed"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/auth_repo"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
-	"metapus/internal/infrastructure/storage/postgres/security_repo"
-	"metapus/internal/infrastructure/tenantdb"
-	ws "metapus/internal/infrastructure/websocket"
-	"metapus/internal/platform/secretfile"
-	platformtelemetry "metapus/internal/platform/telemetry"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/application/automation"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/automation/adapters"
+	automationdelivery "github.com/alex-bogatiuk/metapus/internal/infrastructure/automation/delivery"
+	automationreport "github.com/alex-bogatiuk/metapus/internal/infrastructure/automation/reporting"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/rate_feed"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/auth_repo"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/register_repo"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/security_repo"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	ws "github.com/alex-bogatiuk/metapus/internal/infrastructure/websocket"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
+	platformtelemetry "github.com/alex-bogatiuk/metapus/internal/platform/telemetry"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // Build identifies the running binary; mains set it from ldflags.
@@ -176,8 +176,8 @@ type MultiTenantWorker struct {
 // NewMultiTenantWorker builds the worker of the application factories
 // describe, with the configuration's part.
 func NewMultiTenantWorker(manager *tenantdb.Manager, log *logger.Logger, factories *v1.FactoryRegistry, part configuration.Worker) *MultiTenantWorker {
-	ready, _ := otel.Meter("metapus/worker").Int64Gauge("worker.component.ready")
-	restarts, _ := otel.Meter("metapus/worker").Int64Counter("worker.component.restarts")
+	ready, _ := otel.Meter("github.com/alex-bogatiuk/metapus/worker").Int64Gauge("worker.component.ready")
+	restarts, _ := otel.Meter("github.com/alex-bogatiuk/metapus/worker").Int64Counter("worker.component.restarts")
 	return &MultiTenantWorker{
 		manager:   manager,
 		factories: factories,

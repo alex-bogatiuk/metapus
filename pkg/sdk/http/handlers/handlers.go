@@ -5,12 +5,12 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 
-	"metapus/internal/domain/settings"
-	"metapus/internal/infrastructure/http/v1/dto"
-	core "metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
 )
 
 type (

@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"metapus/pkg/sdk/integrations/providerpolicy"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations/providerpolicy"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
 const (

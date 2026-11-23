@@ -2,10 +2,10 @@
 package crypto_invoice
 
 import (
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/numerator"
-	"metapus/pkg/sdk/posting"
-	"metapus/pkg/sdk/tx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/numerator"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
 )
 
 // Service provides business operations for crypto invoice documents.

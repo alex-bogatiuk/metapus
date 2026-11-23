@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
 )
 
 // Context keys for tenant-related values.

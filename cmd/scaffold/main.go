@@ -17,7 +17,7 @@ import (
 	"strings"
 	"text/template"
 
-	dbassets "metapus/db"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
 )
 
 //go:embed templates/*

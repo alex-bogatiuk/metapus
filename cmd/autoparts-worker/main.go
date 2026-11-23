@@ -3,9 +3,9 @@
 package main
 
 import (
-	"metapus/extensions"
-	"metapus/internal/bootstrap/worker"
-	"metapus/internal/configuration/autoparts/content"
+	"github.com/alex-bogatiuk/metapus/extensions"
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/worker"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
 )
 
 // Version information — set via ldflags at build time:

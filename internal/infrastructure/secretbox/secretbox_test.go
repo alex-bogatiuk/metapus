@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/infrastructure/secretbox"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/secretbox"
 )
 
 func TestSealOpensWithTheSameKey(t *testing.T) {

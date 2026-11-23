@@ -1,12 +1,12 @@
 package contracts
 
 import (
-	"metapus/internal/application/exchangerateapp"
-	"metapus/internal/core/json"
-	"metapus/internal/domain"
-	er "metapus/internal/domain/registers/exchange_rate"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/application/exchangerateapp"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	er "github.com/alex-bogatiuk/metapus/internal/domain/registers/exchange_rate"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 func serviceOperationContracts() []Contract {

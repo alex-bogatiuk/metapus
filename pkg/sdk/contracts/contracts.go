@@ -2,10 +2,10 @@
 package contracts
 
 import (
-	"metapus/internal/core/entity"
-	"metapus/internal/infrastructure/http/contracts"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 // Bundle is a set of HTTP route contracts.

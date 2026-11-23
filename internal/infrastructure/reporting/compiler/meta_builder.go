@@ -1,9 +1,9 @@
 package compiler
 
 import (
-	reportcontract "metapus/internal/domain/reports/contract"
-	"metapus/internal/domain/reports/schema"
-	"metapus/internal/metadata"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 	"slices"
 )
 

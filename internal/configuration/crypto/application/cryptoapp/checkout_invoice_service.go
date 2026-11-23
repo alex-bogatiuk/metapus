@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"metapus/internal/configuration/crypto/application/checkout"
-	"metapus/internal/configuration/crypto/domain/crypto/publicref"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/checkout"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/publicref"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // CheckoutInvoiceService decorates CryptoInvoice creation with public checkout

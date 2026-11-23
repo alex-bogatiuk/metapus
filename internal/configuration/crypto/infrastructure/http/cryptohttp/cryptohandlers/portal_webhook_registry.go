@@ -3,7 +3,7 @@ package cryptohandlers
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptomiddleware"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptomiddleware"
 )
 
 // PortalWebhookRegistryHandler reuses the merchant webhook application

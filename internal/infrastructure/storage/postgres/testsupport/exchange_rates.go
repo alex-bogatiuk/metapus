@@ -5,10 +5,10 @@ package testsupport
 
 import (
 	"context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/core/id"
 	"net/url"
 	"os"
 	"testing"

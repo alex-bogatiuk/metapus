@@ -3,9 +3,9 @@ package cryptodto
 import (
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
-	"metapus/pkg/sdk/http/dto"
-	"metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_network_operation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/dto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
 )
 
 // CryptoNetworkOperationResponse is a wallet activation transaction and the

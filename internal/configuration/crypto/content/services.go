@@ -1,8 +1,8 @@
 package content
 
 import (
-	"metapus/internal/configuration/crypto/application/checkout"
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/checkout"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // Services are crypto-configuration dependencies that some document

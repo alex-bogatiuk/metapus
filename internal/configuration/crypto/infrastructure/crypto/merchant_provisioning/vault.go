@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	evm "metapus/internal/configuration/crypto/infrastructure/crypto/evm_vault_signer"
-	tron "metapus/internal/configuration/crypto/infrastructure/crypto/vault_signer"
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	evm "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/evm_vault_signer"
+	tron "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/vault_signer"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 type Vault struct {

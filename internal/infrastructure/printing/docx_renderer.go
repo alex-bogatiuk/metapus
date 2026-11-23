@@ -2,8 +2,8 @@ package printing
 
 import (
 	"fmt"
+	printmodel "github.com/alex-bogatiuk/metapus/internal/domain/printing"
 	"io"
-	printmodel "metapus/internal/domain/printing"
 
 	"github.com/gomutex/godocx"
 	"github.com/gomutex/godocx/wml/stypes"

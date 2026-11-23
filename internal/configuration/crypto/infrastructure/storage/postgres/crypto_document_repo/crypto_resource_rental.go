@@ -1,9 +1,9 @@
 package crypto_document_repo
 
 import (
-	"metapus/internal/configuration/crypto/domain/documents/crypto_resource_rental"
-	"metapus/pkg/sdk/postgres"
-	"metapus/pkg/sdk/postgres/document_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_resource_rental"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/document_repo"
 )
 
 // CryptoResourceRentalRepo persists system-generated reusable resource leases.

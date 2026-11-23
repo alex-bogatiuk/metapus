@@ -15,12 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/extensions"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 	"github.com/jackc/pgx/v5"
-	"metapus/extensions"
-	"metapus/internal/configuration"
-	"metapus/internal/configuration/crypto/content"
-	"metapus/internal/core/id"
-	"metapus/internal/infrastructure/storage/postgres/migration"
 )
 
 func main() {

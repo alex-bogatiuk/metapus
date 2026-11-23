@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	_ "metapus/internal/infrastructure/http/jsoncodec"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	_ "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // ErrorHandler middleware transforms errors into consistent JSON responses.

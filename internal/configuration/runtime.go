@@ -5,17 +5,17 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"metapus/internal/application/integrationapp"
-	"metapus/internal/core/id"
-	corenumerator "metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain/auth"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/posting"
-	v1 "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/application/integrationapp"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	corenumerator "github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
+	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // ServerEnv is what the API server hands a configuration that builds its

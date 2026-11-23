@@ -3,7 +3,7 @@ package version
 import (
 	"testing"
 
-	dbassets "metapus/db"
+	dbassets "github.com/alex-bogatiuk/metapus/db"
 )
 
 func TestExpectedSchemaVersionMatchesPlatformMigrations(t *testing.T) {

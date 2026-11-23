@@ -5,10 +5,10 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/entity"
-	core "metapus/internal/infrastructure/http/v1"
-	"metapus/internal/metadata"
-	"metapus/pkg/sdk/registry"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registry"
 )
 
 type (

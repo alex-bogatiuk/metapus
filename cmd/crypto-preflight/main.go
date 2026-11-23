@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	chainbootstrap "metapus/internal/configuration/crypto/infrastructure/blockchain/bootstrap"
-	"metapus/internal/configuration/crypto/infrastructure/crypto_worker"
-	"metapus/internal/core/json"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/tenantdb"
-	"metapus/internal/platform/secretfile"
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	chainbootstrap "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/blockchain/bootstrap"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto_worker"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/platform/secretfile"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 func main() {

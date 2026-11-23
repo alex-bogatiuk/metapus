@@ -6,11 +6,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/evm_vault_signer"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/infrastructure/crypto/evm_vault_signer"
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/pkg/sdk/json"
 )
 
 func TestAMLReadinessRejectsCustodyOnlyPluginsForBothFamilies(t *testing.T) {

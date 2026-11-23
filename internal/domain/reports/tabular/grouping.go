@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	reportcontract "metapus/internal/domain/reports/contract"
+	reportcontract "github.com/alex-bogatiuk/metapus/internal/domain/reports/contract"
 )
 
 // DisplayRow mirrors the frontend discriminated union type.

@@ -4,10 +4,10 @@ package catalog_repo
 import (
 	"context"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/domain/integrations"
-	core "metapus/internal/infrastructure/storage/postgres/catalog_repo"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/catalog_repo"
 )
 
 type (

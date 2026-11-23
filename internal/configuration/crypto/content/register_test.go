@@ -1,18 +1,18 @@
 package content
 
 import (
-	"metapus/pkg/sdk/configuration"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
 	"net/http"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
-	"metapus/internal/configuration/crypto/domain/catalogs/token"
-	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/http/v1"
-	"metapus/pkg/sdk/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/blockchain_network"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/metadata"
 )
 
 func TestCryptoSweepHTTPExposesReadRoutesAndRetry(t *testing.T) {

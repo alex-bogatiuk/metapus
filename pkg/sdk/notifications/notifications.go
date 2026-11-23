@@ -2,7 +2,7 @@
 package notifications
 
 import (
-	core "metapus/internal/domain/notifications"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/notifications"
 )
 
 type (

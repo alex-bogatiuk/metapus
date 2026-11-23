@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 // RecordType defines movement direction for accumulation registers.

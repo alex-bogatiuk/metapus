@@ -1,6 +1,6 @@
 package cryptodto
 
-import "metapus/internal/configuration/crypto/domain/dashboard"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/dashboard"
 
 type AdminDashboardQueuesResponse = dashboard.Queues
 type AdminDashboardFinanceResponse = dashboard.Finance

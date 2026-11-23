@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"strings"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/infrastructure/http/v1/dto"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 type Direction uint8

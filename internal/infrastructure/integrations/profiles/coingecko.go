@@ -1,8 +1,8 @@
 package profiles
 
 import (
-	"metapus/internal/core/json"
-	model "metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 )
 
 func coinGecko() Profile {

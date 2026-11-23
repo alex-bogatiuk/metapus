@@ -1,5 +1,5 @@
 package cryptodto
 
-import "metapus/internal/configuration/crypto/domain/crypto/aml"
+import "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/aml"
 
 type PortalRiskBalanceResponse = aml.MerchantBalanceSnapshot

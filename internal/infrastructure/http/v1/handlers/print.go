@@ -5,19 +5,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	printadapter "metapus/internal/infrastructure/printing"
+	printadapter "github.com/alex-bogatiuk/metapus/internal/infrastructure/printing"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/domain"
-	"metapus/internal/domain/printing"
-	"metapus/internal/infrastructure/pdfrender"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/pdfrender"
 )
 
 // DocumentPrintHandlerConfig configures a document print handler.

@@ -6,11 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"metapus/extensions"
-	"metapus/internal/configuration"
-	"metapus/internal/configuration/none"
-	"metapus/internal/infrastructure/http/contracts"
-	"metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/extensions"
+	"github.com/alex-bogatiuk/metapus/internal/configuration"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
 )
 
 // The platform's service routes (automation, authentication, list views)

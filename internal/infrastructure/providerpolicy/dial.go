@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"metapus/internal/infrastructure/urlsafe"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/urlsafe"
 )
 
 // PublicDialContext pins the validated destination IP. An optional DNS-over-TLS

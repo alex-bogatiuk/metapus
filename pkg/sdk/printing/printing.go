@@ -2,7 +2,7 @@
 package printing
 
 import (
-	core "metapus/internal/domain/printing"
+	core "github.com/alex-bogatiuk/metapus/internal/domain/printing"
 )
 
 type (

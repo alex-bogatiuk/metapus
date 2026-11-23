@@ -1,17 +1,17 @@
 package v1
 
 import (
-	"metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/domain"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/metadata"
-	"metapus/internal/platform"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/platform"
 )
 
 // registerCatalogRoutes registers catalog (reference) endpoints via the Abstract Factory registry.

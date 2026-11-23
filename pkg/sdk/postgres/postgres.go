@@ -7,13 +7,13 @@ package postgres
 import (
 	"context"
 
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/filter"
-	core "metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 type (

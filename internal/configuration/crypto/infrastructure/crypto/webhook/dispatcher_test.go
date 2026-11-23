@@ -9,8 +9,8 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 	"io"
-	"metapus/internal/configuration/crypto/domain/crypto"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/urlsafe"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/urlsafe"
 )
 
 func TestValidateWebhookURL(t *testing.T) {

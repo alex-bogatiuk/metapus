@@ -11,9 +11,9 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	ginjson "github.com/gin-gonic/gin/codec/json"
 
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/httpvalue"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/httpvalue"
 )
 
 func init() {

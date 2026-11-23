@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	model "metapus/internal/domain/integrations"
-	"metapus/internal/infrastructure/providerpolicy"
+	model "github.com/alex-bogatiuk/metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/providerpolicy"
 )
 
 type Profile struct {

@@ -16,11 +16,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/workerjob"
-	"metapus/internal/domain"
-	platformtelemetry "metapus/internal/platform/telemetry"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/workerjob"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	platformtelemetry "github.com/alex-bogatiuk/metapus/internal/platform/telemetry"
 )
 
 // OutboxStatus represents the state of an outbox message.
@@ -386,7 +386,7 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 	}
 	workCtx := platformtelemetry.ContinueTrace(ctx, msg.Traceparent)
 	workCtx = platformtelemetry.WithBusinessContext(workCtx, msg.CorrelationID, msg.CausationID)
-	workCtx, span := otel.Tracer("metapus/outbox").Start(workCtx, "outbox.deliver",
+	workCtx, span := otel.Tracer("github.com/alex-bogatiuk/metapus/outbox").Start(workCtx, "outbox.deliver",
 		oteltrace.WithSpanKind(oteltrace.SpanKindConsumer), oteltrace.WithAttributes(
 			attribute.String("outbox.id", msg.ID.String()),
 			attribute.String("outbox.event_type", msg.EventType),

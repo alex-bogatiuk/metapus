@@ -1,6 +1,6 @@
 package blockchain_network
 
-import "metapus/pkg/sdk/entity"
+import "github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 
 var Definition = entity.Definition{
 	Key:   "blockchain_network",

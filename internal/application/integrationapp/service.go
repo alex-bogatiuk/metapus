@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tx"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/integrations"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tx"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/integrations"
 )
 
 type Service struct {

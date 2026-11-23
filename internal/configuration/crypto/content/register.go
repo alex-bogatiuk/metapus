@@ -1,9 +1,9 @@
 package content
 
 import (
-	"metapus/pkg/sdk/http/v1"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/v1"
 
-	"metapus/pkg/sdk/reports/schema"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/reports/schema"
 )
 
 // register adds the crypto configuration's entities and reports: its

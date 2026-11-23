@@ -1,8 +1,8 @@
 package readpolicy
 
 import (
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 	"github.com/stretchr/testify/assert"
-	"metapus/internal/core/security"
 	"testing"
 )
 

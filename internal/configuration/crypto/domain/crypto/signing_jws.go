@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
 )
 
 var (

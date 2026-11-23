@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
 type testDocumentRouteHandler struct{}

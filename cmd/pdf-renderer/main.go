@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"metapus/internal/domain/printing"
-	"metapus/internal/infrastructure/pdfrender"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/pdfrender"
 )
 
 func main() {

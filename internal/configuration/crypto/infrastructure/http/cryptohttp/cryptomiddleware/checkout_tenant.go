@@ -5,12 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metapus/internal/configuration/crypto/application/checkout"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/http/middleware"
-	"metapus/pkg/sdk/logger"
-	"metapus/pkg/sdk/tenant"
-	"metapus/pkg/sdk/tenantdb"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/checkout"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenantdb"
 )
 
 // CheckoutTenantDB resolves tenant for public checkout routes from an opaque

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // PolicyRule is a CEL-based authorization rule attached to a SecurityProfile.

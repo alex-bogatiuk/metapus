@@ -2,11 +2,11 @@ package postgres
 
 import (
 	"fmt"
-	"metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"reflect"
 	"strings"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 func (a *authorizedReadAdapter) PolicyProjection(key, alias string) (map[string]readpolicy.SQLPolicyField, error) {

@@ -2,11 +2,11 @@ package readpolicy
 
 import (
 	"context"
-	"metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
 
 	"github.com/Masterminds/squirrel"
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 // SQLRegistry supplies trusted projections equivalent to the policy engine's

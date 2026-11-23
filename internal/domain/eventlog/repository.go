@@ -3,8 +3,8 @@ package eventlog
 import (
 	"context"
 
-	"metapus/internal/core/id"
-	"metapus/internal/domain/cursor"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
 )
 
 // Writer records events into the event log.

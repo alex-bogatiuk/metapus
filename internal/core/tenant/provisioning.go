@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // DatabaseAdmin owns cluster-level tenant database creation.

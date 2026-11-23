@@ -8,9 +8,9 @@ import (
 	"maps"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/security"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 )
 
 // SecurityProfile is a named configuration of RLS + FLS rules.

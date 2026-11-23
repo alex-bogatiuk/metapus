@@ -10,12 +10,12 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/types"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
-var cryptoProcessingTracer = otel.Tracer("metapus/crypto-processing")
+var cryptoProcessingTracer = otel.Tracer("github.com/alex-bogatiuk/metapus/crypto-processing")
 
 type cryptoProcessingInstruments struct {
 	executionAttempts       metric.Int64Counter
@@ -52,7 +52,7 @@ type cryptoProcessingInstruments struct {
 var cryptoMetrics = newCryptoProcessingInstruments()
 
 func newCryptoProcessingInstruments() cryptoProcessingInstruments {
-	meter := otel.Meter("metapus/crypto-processing")
+	meter := otel.Meter("github.com/alex-bogatiuk/metapus/crypto-processing")
 	executionAttempts, _ := meter.Int64Counter("crypto.execution.attempts")
 	executionOutcomes, _ := meter.Int64Counter("crypto.execution.outcomes")
 	signerChecks, _ := meter.Int64Counter("crypto.signer.readiness_checks")

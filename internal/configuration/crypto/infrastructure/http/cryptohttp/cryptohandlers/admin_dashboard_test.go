@@ -1,10 +1,10 @@
 package cryptohandlers
 
 import (
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"metapus/pkg/sdk/appctx"
-	"metapus/pkg/sdk/http/middleware"
 	"net/http"
 	"net/http/httptest"
 	"testing"

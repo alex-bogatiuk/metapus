@@ -8,12 +8,12 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"metapus/internal/application/readaccess"
-	"metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 	"net/http"
 	"strings"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // RefDisplay is a lightweight representation of a referenced catalog entity.

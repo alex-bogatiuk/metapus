@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/dashboardapp"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/handlers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/http/middleware"
 	"github.com/gin-gonic/gin"
-	"metapus/internal/configuration/crypto/application/dashboardapp"
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/http/handlers"
-	"metapus/pkg/sdk/http/middleware"
 )
 
 type AdminDashboardHandler struct {

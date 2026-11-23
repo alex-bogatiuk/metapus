@@ -1,6 +1,6 @@
 package crypto_payment
 
-import "metapus/pkg/sdk/entity"
+import "github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 
 var Definition = entity.Definition{
 	Key:    "crypto_payment",

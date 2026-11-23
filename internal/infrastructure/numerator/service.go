@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	corenumerator "metapus/internal/core/numerator"
-	"metapus/internal/core/tenant"
-	"metapus/internal/infrastructure/tenantdb"
+	corenumerator "github.com/alex-bogatiuk/metapus/internal/core/numerator"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
 
 // Querier interface for database operations.
@@ -37,7 +37,7 @@ var _ corenumerator.Generator = (*Service)(nil)
 // nextDuration is how long taking a number takes, by series. It includes the
 // wait for the counter row held by a concurrent uncommitted write, so a hot
 // series shows up here first.
-var nextDuration, _ = otel.Meter("metapus/numerator").Float64Histogram("numerator.next.duration",
+var nextDuration, _ = otel.Meter("github.com/alex-bogatiuk/metapus/numerator").Float64Histogram("numerator.next.duration",
 	metric.WithUnit("s"), metric.WithDescription("Time to take the next number of a series, including the wait for its counter"))
 
 // New creates a new numerator service.

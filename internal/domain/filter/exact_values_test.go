@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"metapus/internal/core/json"
-	"metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
 )
 
 func TestExactFiltersRejectLossyOrInvalidValues(t *testing.T) {

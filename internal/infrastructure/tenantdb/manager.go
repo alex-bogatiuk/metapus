@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/singleflight"
 
-	tenantcore "metapus/internal/core/tenant"
-	"metapus/pkg/logger"
+	tenantcore "github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // ManagerConfig configures MultiTenantManager behavior.

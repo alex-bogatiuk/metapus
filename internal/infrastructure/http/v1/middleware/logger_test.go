@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"metapus/pkg/logger"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 func TestLoggerDoesNotRecordQueryValues(t *testing.T) {

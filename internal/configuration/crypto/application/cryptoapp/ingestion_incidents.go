@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 )
 
 // AdvanceIngestionIncidents keeps mandatory coverage, evidence and streams in

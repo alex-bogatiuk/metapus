@@ -6,8 +6,8 @@ import (
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_sweep"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 // CryptoSweepCardData is a read projection. Amounts remain exact minor-unit strings.

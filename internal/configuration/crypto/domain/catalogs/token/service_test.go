@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"metapus/pkg/sdk/apperror"
-	"metapus/pkg/sdk/domain"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 type identityRepoStub struct {

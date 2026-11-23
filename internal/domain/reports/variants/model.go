@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
 )
 
 // Visibility defines who can see a report variant.

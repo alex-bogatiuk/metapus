@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/id"
-	"metapus/internal/core/tenant"
-	"metapus/internal/domain/catalogs/contract"
-	"metapus/internal/domain/catalogs/currency"
-	"metapus/internal/domain/catalogs/organization"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/contract"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/currency"
+	"github.com/alex-bogatiuk/metapus/internal/domain/catalogs/organization"
 )
 
 // currencyTTL is the cache lifetime for contract/organization currency lookups.

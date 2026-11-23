@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/json"
+	"github.com/alex-bogatiuk/metapus/internal/core/types"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/contracts/spec"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/httpvalue"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
 	"github.com/shopspring/decimal"
-	"metapus/internal/core/id"
-	"metapus/internal/core/json"
-	"metapus/internal/core/types"
-	"metapus/internal/infrastructure/http/contracts/spec"
-	"metapus/internal/infrastructure/http/httpvalue"
-	"metapus/internal/infrastructure/http/jsoncodec"
 )
 
 type Direction = spec.Direction

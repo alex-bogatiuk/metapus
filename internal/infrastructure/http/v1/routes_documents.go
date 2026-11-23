@@ -1,22 +1,22 @@
 package v1
 
 import (
+	printadapter "github.com/alex-bogatiuk/metapus/internal/infrastructure/printing"
 	"github.com/gin-gonic/gin"
-	printadapter "metapus/internal/infrastructure/printing"
 
-	"metapus/internal/core/entity"
-	"metapus/internal/domain/eventlog"
-	"metapus/internal/domain/posting"
-	"metapus/internal/domain/printing"
-	"metapus/internal/domain/registers/settlement"
-	"metapus/internal/domain/reports/variants"
-	"metapus/internal/infrastructure/http/v1/handlers"
-	"metapus/internal/infrastructure/http/v1/middleware"
-	"metapus/internal/infrastructure/reporting/compiler"
-	"metapus/internal/infrastructure/storage/postgres"
-	"metapus/internal/infrastructure/storage/postgres/register_repo"
-	"metapus/internal/metadata"
-	"metapus/internal/platform"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
+	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
+	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/settlement"
+	"github.com/alex-bogatiuk/metapus/internal/domain/reports/variants"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/reporting/compiler"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/register_repo"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
+	"github.com/alex-bogatiuk/metapus/internal/platform"
 )
 
 // registerDocumentRoutes registers document endpoints via the Abstract Factory registry.

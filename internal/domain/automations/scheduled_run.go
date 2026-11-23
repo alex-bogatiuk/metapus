@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 // Schedule abstracts a calendar schedule without depending on a cron library.

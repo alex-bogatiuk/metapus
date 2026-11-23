@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	appctx "metapus/internal/core/context"
-	"metapus/internal/core/id"
+	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
 )
 
 type stubScopeProvider struct {

@@ -1,7 +1,7 @@
 package crypto_worker
 
 import (
-	"metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
 	"testing"
 	"time"
 

@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"metapus/internal/infrastructure/readpolicy"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"strconv"
 	"strings"
 	"time"
@@ -15,15 +15,15 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 
-	"metapus/internal/core/apperror"
-	"metapus/internal/core/entity"
-	"metapus/internal/core/id"
-	"metapus/internal/domain"
-	"metapus/internal/domain/cursor"
-	"metapus/internal/domain/filter"
-	"metapus/internal/infrastructure/storage/postgres"
-	pgfilter "metapus/internal/infrastructure/storage/postgres/filter"
-	"metapus/internal/infrastructure/storage/postgres/keyset"
+	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
+	"github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	pgfilter "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/keyset"
 )
 
 func NewDocumentRepoForDefinition[T any](def entity.Definition, selectCols []string, newFn func() T) *BaseDocumentRepo[T] {

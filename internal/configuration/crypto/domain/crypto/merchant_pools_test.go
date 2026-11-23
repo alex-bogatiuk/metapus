@@ -1,7 +1,7 @@
 package crypto
 
 import (
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"testing"
 
 	"github.com/stretchr/testify/require"

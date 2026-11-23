@@ -5,8 +5,8 @@ import (
 	"maps"
 	"time"
 
-	"metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
-	"metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/crypto_invoice"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 )
 
 const MerchantWebhookAggregateType = "merchant_webhook"

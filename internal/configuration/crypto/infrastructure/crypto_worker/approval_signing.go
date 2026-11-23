@@ -12,16 +12,16 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"metapus/internal/configuration/crypto/application/cryptoapp"
-	"metapus/internal/configuration/crypto/domain/crypto"
-	"metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
-	"metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
-	"metapus/internal/configuration/crypto/infrastructure/crypto/approval_signer"
-	"metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
-	"metapus/internal/configuration/crypto/infrastructure/vaultclient"
-	"metapus/pkg/sdk/json"
-	"metapus/pkg/sdk/telemetry"
-	"metapus/pkg/sdk/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/cryptoapp"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/treasury_withdrawal"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/documents/withdrawal_request"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/crypto/approval_signer"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/money_movement_repo"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/vaultclient"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/json"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/telemetry"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tenant"
 )
 
 const _approvalSigningPoll = 3 * time.Second
@@ -63,7 +63,7 @@ func (p *CryptoProcessor) processApprovalSigningJobs(ctx context.Context) error 
 func (p *CryptoProcessor) processClaimedApprovalSigningJob(ctx context.Context, job money_movement_repo.SigningJob) error {
 	jobCtx := telemetry.ContinueTrace(ctx, job.Traceparent)
 	jobCtx = telemetry.WithBusinessContext(jobCtx, job.CorrelationID, job.CausationID)
-	jobCtx, span := otel.Tracer("metapus/crypto/approval-signing").Start(jobCtx,
+	jobCtx, span := otel.Tracer("github.com/alex-bogatiuk/metapus/crypto/approval-signing").Start(jobCtx,
 		"approval.signing_job", oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
 		oteltrace.WithAttributes(
 			attribute.String("job.id", job.ID.String()),

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/merchant"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/tx"
 	"github.com/stretchr/testify/require"
-	"metapus/internal/configuration/crypto/domain/catalogs/merchant"
-	"metapus/pkg/sdk/id"
-	"metapus/pkg/sdk/tx"
 )
 
 type commandTx struct{ committed bool }

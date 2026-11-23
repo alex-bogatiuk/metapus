@@ -5,7 +5,7 @@ package types
 import (
 	"math/big"
 
-	core "metapus/internal/core/types"
+	core "github.com/alex-bogatiuk/metapus/internal/core/types"
 )
 
 type (
