@@ -26,7 +26,7 @@ Metapus — мультитенантная ERP-платформа (Go 1.27, gin,
 ## 1. Карта системы
 
 ```
-cmd/<конфиг>-server|worker|tenant|seed   тонкие main: вызывают internal/bootstrap/* с конфигурацией
+cmd/<конфиг>-server|worker|tenant|seed   тонкие main: launch.Server|Worker|Tenant|Seed из pkg/sdk/launch
 internal/bootstrap/                      Composition Root платформы (сборка, запуск, shutdown)
 internal/infrastructure/                 адаптеры: http/v1 (gin), storage/postgres, tenantdb, worker
 internal/application/                    сценарии и их порты (command, automation, integrationapp…)
@@ -76,6 +76,7 @@ frontend/{components,lib,hooks,stores,types}   платформа; frontend/conf
 | Рабочий код конфигурации не называет `AUTOMATION_ENCRYPTION_KEY`: учётные данные шифрует `pkg/sdk/secretbox`, аккаунты интеграций открывает `catalog_repo.AccountCredentials` | `TestConfigurationsDoNotHoldTheEncryptionKey` |
 | Рабочий код конфигурации не называет таблиц интеграций платформы (`cat_integration_*`, `sys_integration_*`): провайдеры, пулы и годные аккаунты даёт `catalog_repo`, свои таблицы соединяются с ID через `= ANY($n)` | `TestConfigurationsDoNotQueryIntegrationTables` |
 | Сид конфигурации не пишет в `sys_automation_*` и `reg_rate_source_mappings`: валюты, курсы и уведомления в Telegram заводит `pkg/sdk/demoseed` | `TestConfigurationSeedsUseThePlatformDemoSeed` |
+| Команды конфигурации (`cmd/<конфиг>-*`) берут из платформы только `pkg/sdk` и `extensions`: `main` — `launch.Server/Worker/Tenant/Seed` | `TestConfigurationCommandsUseThePublicLauncher` |
 | Конфигурация не пишет в `sys_outbox` сама: `OutboxPublisher.Publish` или `postgres.EnqueueOutbox`, ожидающие сообщения — `PendingOutboxPayloadValues` | `TestConfigurationsUseThePlatformOutbox` |
 | Конфигурация не пишет в `sys_event_log` и `sys_notifications`: аудит — `NewEventLogRepo().Write`, уведомления — `NewNotificationRepo().CreateBatch`, уже уведомлённые — `UsersNotifiedWith` | `TestConfigurationsUseThePlatformEventLogAndNotifications` |
 | Конфигурация не читает `auth_*` платформы: email и имя — `postgres.UserCards(ctx, ids)` после своего запроса, администраторы — `postgres.ActiveAdminIDs` | `TestConfigurationsReadPlatformUsersThroughThePlatform` |

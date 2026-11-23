@@ -5,8 +5,10 @@ package main
 
 import (
 	"github.com/alex-bogatiuk/metapus/extensions"
-	"github.com/alex-bogatiuk/metapus/internal/bootstrap/tenant"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/launch"
 )
 
-func main() { tenant.Main(content.Crypto(content.Services{}), extensions.Register) }
+func main() {
+	launch.Tenant(content.Crypto(content.Services{}), launch.WithExtensions(extensions.Register))
+}

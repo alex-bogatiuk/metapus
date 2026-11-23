@@ -5,8 +5,9 @@ package main
 
 import (
 	"github.com/alex-bogatiuk/metapus/extensions"
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/launch"
 	"github.com/alex-bogatiuk/metapus/internal/bootstrap/tenant"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
 )
 
-func main() { tenant.Main(none.New(), extensions.Register) }
+func main() { tenant.Main(none.New(), launch.WithExtensions(extensions.Register)) }

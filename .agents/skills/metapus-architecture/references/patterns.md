@@ -194,7 +194,7 @@ func (Visitor) CollectMovements(ctx context.Context, doc posting.Postable, set *
 
 **Когда.** Сборка сервисов, сервера, воркера, сида.
 
-**Как.** Зависимости собираются руками, без DI-фреймворка, в одном месте: у платформы — `internal/bootstrap/{server,worker,tenant,seed}`, у конфигурации — её `content/`. Конфигурация целиком — одно значение `configuration.Configuration`: `Name`, `APIVersion`, `Register`, `RouteContracts`, `Migrations`, `IntegrationCatalog`, `PoolConsumers`, `Server(ctx, env)`, `Worker(ctx, env)`, `Seed(ctx, env)`. Свои настройки окружения конфигурация читает в `Server`/`Worker` и возвращает ошибку, если они неверны. `cmd/<имя>-server` — однострочный `main`: `server.Main(server.Build{…}, content.Autoparts(), extensions.Register)`. Тест конфигурации — `sdktest.Check(t, cfg)`.
+**Как.** Зависимости собираются руками, без DI-фреймворка, в одном месте: у платформы — `internal/bootstrap/{server,worker,tenant,seed}`, у конфигурации — её `content/`. Конфигурация целиком — одно значение `configuration.Configuration`: `Name`, `APIVersion`, `Register`, `RouteContracts`, `Migrations`, `IntegrationCatalog`, `PoolConsumers`, `Server(ctx, env)`, `Worker(ctx, env)`, `Seed(ctx, env)`. Свои настройки окружения конфигурация читает в `Server`/`Worker` и возвращает ошибку, если они неверны. `cmd/<имя>-server` — однострочный `main`: `launch.Server(launch.Build{…}, content.Autoparts(), launch.WithExtensions(extensions.Register))` из `pkg/sdk/launch`. Тест конфигурации — `sdktest.Check(t, cfg)`.
 
 **Где.** `internal/configuration/autoparts/content/configuration.go` (минимальная), `internal/configuration/crypto/content` (полная), `internal/configuration/none`.
 

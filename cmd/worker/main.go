@@ -5,6 +5,7 @@ package main
 
 import (
 	"github.com/alex-bogatiuk/metapus/extensions"
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/launch"
 	"github.com/alex-bogatiuk/metapus/internal/bootstrap/worker"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
 )
@@ -18,5 +19,5 @@ var (
 )
 
 func main() {
-	worker.Main(worker.Build{Version: Version, BuildTime: BuildTime}, none.New(), extensions.Register)
+	worker.Main(worker.Build{Version: Version, BuildTime: BuildTime}, none.New(), launch.WithExtensions(extensions.Register))
 }
