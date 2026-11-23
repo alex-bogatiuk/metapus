@@ -3,6 +3,7 @@ package crypto_repo
 import (
 	"context"
 	"metapus/pkg/sdk/apperror"
+	"metapus/pkg/sdk/eventlog"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/postgres"
 	"strings"
@@ -30,8 +31,12 @@ func (r *AMLRepository) AuthorizeExactSweepRenewal(ctx context.Context, authoriz
 		if err != nil {
 			return err
 		}
-		_, err = q.Exec(ctx, `INSERT INTO sys_event_log(category,severity,event_type,source,user_id,entity_type,entity_id,message,details) VALUES('system','info','crypto.aml.exact_authorization_renewal','aml-control',$4,'SigningAuthorization',$1,$3,jsonb_build_object('renewalId',$2::text,'nonceChanged',FALSE,'envelopeChanged',FALSE))`, authorization, renewal, reason, actor)
-		return err
+		return postgres.NewEventLogRepo().Write(ctx, eventlog.Event{
+			Category: eventlog.CategorySystem, Severity: eventlog.SeverityInfo,
+			EventType: "crypto.aml.exact_authorization_renewal", Source: "aml-control", UserID: actor,
+			EntityType: "SigningAuthorization", EntityID: &authorization, Message: reason,
+			Details: map[string]any{"renewalId": renewal.String(), "nonceChanged": false, "envelopeChanged": false},
+		})
 	})
 	return renewal, err
 }

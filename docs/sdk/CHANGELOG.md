@@ -16,6 +16,7 @@
 - `postgres/catalog_repo`: `PoolProvider`, `AccountPoolIDs`, `PoolsSharingAccounts`, `AccountProvider`, `ProviderAccountIDs`, `UsableAccountIDs`, `RequireUsableAccount`, `LockUsableAccount`, `CreateKeylessAccount` — конфигурация читает пулы и аккаунты интеграций через платформу, а не SQL по её таблицам.
 - Новый пакет `demoseed`: `Currency`, `EnsureCurrency`, `RateMapping`, `MapRate`, `Notification`, `TelegramNotification` — демо-валюты, привязки курсов и уведомление в Telegram для сида конфигурации.
 - `postgres`: `OutboxRecord`, `EnqueueOutbox`, `PendingOutboxPayloadValues` — запись в outbox и проверка ожидающих сообщений без SQL по `sys_outbox`; `OutboxStatusPending` не вынесен.
+- `eventlog`: `CategorySystem`; `notifications`: `SeverityWarning`; `NotificationRepo.UsersNotifiedWith` — получатели события по атрибуту уведомления. `NotificationRepo.CreateBatch` больше не теряет ошибку закрытия пакета, а пустой пакет ничего не отправляет.
 - `sdktest` (только для тестов): `Migrate`, `OpenPool`, `NewTxManager`, `TxManager`, `TxOptions`, `WithPool`, а с тегом `integration` — `NewTenantWithMigrations`, `Tenant.Context`, `NewExchangeRateDatabase`. Менеджер транзакций над сырым пулом, `ManagedPool` и `RunAll` в рабочие пакеты не вынесены.
 
 ## 3.0.0 — 2026-11-22

@@ -61,7 +61,12 @@ func (r *NotificationRepo) Create(ctx context.Context, n *notifications.Notifica
 	return q.QueryRow(ctx, query, args...).Scan(&n.CreatedAt, &n.UpdatedAt, &n.Version)
 }
 
-func (r *NotificationRepo) CreateBatch(ctx context.Context, notifs []*notifications.Notification) error {
+// CreateBatch inserts the notifications in one batch, through the current
+// transaction when ctx carries one.
+func (r *NotificationRepo) CreateBatch(ctx context.Context, notifs []*notifications.Notification) (retErr error) {
+	if len(notifs) == 0 {
+		return nil
+	}
 	q, err := r.getQuerier(ctx)
 	if err != nil {
 		return err
@@ -92,7 +97,9 @@ func (r *NotificationRepo) CreateBatch(ctx context.Context, notifs []*notificati
 
 	results := q.SendBatch(ctx, b)
 	defer func() {
-		_ = results.Close()
+		if err := results.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("close notification batch: %w", err)
+		}
 	}()
 
 	for i := range notifs {
@@ -103,6 +110,33 @@ func (r *NotificationRepo) CreateBatch(ctx context.Context, notifs []*notificati
 	}
 
 	return nil
+}
+
+// UsersNotifiedWith lists the users who have a notification whose attribute
+// key holds value, including notifications they read or deleted, so that a
+// caller delivering one event can skip the users a previous delivery reached.
+func (r *NotificationRepo) UsersNotifiedWith(ctx context.Context, key, value string) ([]id.ID, error) {
+	q, err := r.getQuerier(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.Query(ctx, `SELECT DISTINCT user_id FROM sys_notifications WHERE attributes->>$1 = $2`, key, value)
+	if err != nil {
+		return nil, fmt.Errorf("list notified users: %w", err)
+	}
+	defer rows.Close()
+	users := []id.ID{}
+	for rows.Next() {
+		var user id.ID
+		if err := rows.Scan(&user); err != nil {
+			return nil, fmt.Errorf("scan notified user: %w", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list notified users: %w", err)
+	}
+	return users, nil
 }
 
 func (r *NotificationRepo) GetByID(ctx context.Context, notifID id.ID) (*notifications.Notification, error) {

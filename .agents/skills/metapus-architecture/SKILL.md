@@ -77,6 +77,7 @@ frontend/{components,lib,hooks,stores,types}   платформа; frontend/conf
 | Рабочий код конфигурации не называет таблиц интеграций платформы (`cat_integration_*`, `sys_integration_*`): провайдеры, пулы и годные аккаунты даёт `catalog_repo`, свои таблицы соединяются с ID через `= ANY($n)` | `TestConfigurationsDoNotQueryIntegrationTables` |
 | Сид конфигурации не пишет в `sys_automation_*` и `reg_rate_source_mappings`: валюты, курсы и уведомления в Telegram заводит `pkg/sdk/demoseed` | `TestConfigurationSeedsUseThePlatformDemoSeed` |
 | Конфигурация не пишет в `sys_outbox` сама: `OutboxPublisher.Publish` или `postgres.EnqueueOutbox`, ожидающие сообщения — `PendingOutboxPayloadValues` | `TestConfigurationsUseThePlatformOutbox` |
+| Конфигурация не пишет в `sys_event_log` и `sys_notifications`: аудит — `NewEventLogRepo().Write`, уведомления — `NewNotificationRepo().CreateBatch`, уже уведомлённые — `UsersNotifiedWith` | `TestConfigurationsUseThePlatformEventLogAndNotifications` |
 | Код и миграции платформы не называют таблиц конфигурации; тесты платформы не импортируют конфигурацию | `configuration_storage_test.go` |
 | Каждая команда `cmd/` отнесена к платформе или конфигурации; платформенные не знают конфигураций | `configuration_commands_test.go` |
 | `encoding/json` — только в фасаде `internal/core/json` | `TestEncodingJSONV1IsIsolatedToCompatibilityFacades` |

@@ -19,6 +19,7 @@ const (
 	CategoryBackground  = core.CategoryBackground
 	CategoryData        = core.CategoryData
 	CategorySecurity    = core.CategorySecurity
+	CategorySystem      = core.CategorySystem
 	EventDocumentUpdate = core.EventDocumentUpdate
 	SeverityCritical    = core.SeverityCritical
 	SeverityError       = core.SeverityError

@@ -208,6 +208,12 @@ func TestConfigurationsUseThePlatformOutbox(t *testing.T) {
 		"enqueue outbox messages through pkg/sdk/postgres (OutboxPublisher, EnqueueOutbox)")
 }
 
+func TestConfigurationsUseThePlatformEventLogAndNotifications(t *testing.T) {
+	t.Parallel()
+	requireConfigurationsDoNotName(t, `sys_event_log[a-z_]*|sys_notifications`,
+		"write events and notifications through pkg/sdk/postgres (NewEventLogRepo, NewNotificationRepo)")
+}
+
 // requireConfigurationsDoNotName fails for every string literal in the
 // production code of an SDK configuration that names a table the platform's
 // migrations create and the pattern matches.

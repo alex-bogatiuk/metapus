@@ -3,6 +3,7 @@ package crypto_repo
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"metapus/internal/configuration/crypto/domain/crypto"
 	"metapus/pkg/sdk/id"
@@ -24,37 +25,36 @@ func DeliverIngestionAlert(ctx context.Context, event crypto.IngestionAlertTrans
 		if _, err := q.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "ingestion-alert/"+event.ID); err != nil {
 			return err
 		}
-		rows, err := q.Query(ctx, `SELECT u.id FROM auth_users u
-		 WHERE u.is_admin=TRUE AND u.is_active=TRUE AND u.deletion_mark=FALSE
-		 AND NOT EXISTS (SELECT 1 FROM sys_notifications n WHERE n.user_id=u.id AND n.attributes->>'ingestionEventId'=$1)
-		 ORDER BY u.id`, event.ID)
+		rows, err := q.Query(ctx, `SELECT id FROM auth_users
+		 WHERE is_admin=TRUE AND is_active=TRUE AND deletion_mark=FALSE ORDER BY id`)
 		if err != nil {
 			return err
 		}
-		var users []id.ID
+		var admins []id.ID
 		for rows.Next() {
 			var user id.ID
 			if err := rows.Scan(&user); err != nil {
 				rows.Close()
 				return err
 			}
-			users = append(users, user)
+			admins = append(admins, user)
 		}
 		err = rows.Err()
 		rows.Close()
 		if err != nil {
 			return err
 		}
-		// A successfully delivered replay has no new recipients. Distinguish this
-		// from a configuration without any enabled system administrator.
+		if len(admins) == 0 {
+			return fmt.Errorf("ingestion alert has no active system administrator")
+		}
+		repo := postgres.NewNotificationRepo()
+		notified, err := repo.UsersNotifiedWith(ctx, "ingestionEventId", event.ID)
+		if err != nil {
+			return err
+		}
+		users := slices.DeleteFunc(admins, func(user id.ID) bool { return slices.Contains(notified, user) })
+		// A successfully delivered replay has no new recipients.
 		if len(users) == 0 {
-			var admins int
-			if err := q.QueryRow(ctx, `SELECT count(*) FROM auth_users WHERE is_admin=TRUE AND is_active=TRUE AND deletion_mark=FALSE`).Scan(&admins); err != nil {
-				return err
-			}
-			if admins == 0 {
-				return fmt.Errorf("ingestion alert has no active system administrator")
-			}
 			return nil
 		}
 		title, message := ingestionAlertText(event)
@@ -80,7 +80,7 @@ func DeliverIngestionAlert(ctx context.Context, event crypto.IngestionAlertTrans
 			items = append(items, &notifications.Notification{UserID: user, Title: title, Message: message, Severity: severity,
 				Attributes: attributes})
 		}
-		return postgres.NewNotificationRepo().CreateBatch(ctx, items)
+		return repo.CreateBatch(ctx, items)
 	})
 }
 

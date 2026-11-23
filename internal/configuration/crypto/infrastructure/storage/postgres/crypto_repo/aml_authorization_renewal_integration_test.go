@@ -40,6 +40,9 @@ func TestAMLExactSweepRenewalPreservesOriginalPayloadAndIsSingleUse(t *testing.T
 	require.NoError(t, beginRecordDispatch(f, row, "authorize"))
 	_, err = f.repo.AuthorizeExactSweepRenewal(f.ctx, row, "cannot repeatedly extend permission", "operator")
 	require.Error(t, err)
+	var audits int
+	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT COUNT(*) FROM sys_event_log WHERE entity_id=$1 AND event_type='crypto.aml.exact_authorization_renewal' AND user_id='operator' AND details->>'renewalId'=$2`, row, renewal.String()).Scan(&audits))
+	require.Equal(t, 1, audits, "only the granted renewal is audited")
 	var after string
 	require.NoError(t, f.pool.QueryRow(f.ctx, `SELECT to_jsonb(a)::text FROM reg_crypto_signing_authorizations a WHERE id=$1`, row).Scan(&after))
 	require.Equal(t, original, after)

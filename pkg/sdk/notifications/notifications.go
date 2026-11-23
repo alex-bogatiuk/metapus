@@ -15,4 +15,5 @@ type (
 const (
 	SeverityInfo    = core.SeverityInfo
 	SeveritySuccess = core.SeveritySuccess
+	SeverityWarning = core.SeverityWarning
 )

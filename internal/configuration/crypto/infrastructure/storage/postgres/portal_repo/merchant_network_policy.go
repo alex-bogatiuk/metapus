@@ -12,6 +12,7 @@ import (
 	"metapus/pkg/sdk/apperror"
 	"metapus/pkg/sdk/id"
 	"metapus/pkg/sdk/json"
+	"metapus/pkg/sdk/notifications"
 	"metapus/pkg/sdk/postgres"
 )
 
@@ -199,21 +200,34 @@ func (r *MerchantNetworkPolicyRepo) auditChange(ctx context.Context, merchantID,
 	`, merchantID, policyID, actorID, action, string(oldJSON), string(newJSON), reason, actorType); err != nil {
 		return err
 	}
-	_, err := q.Exec(ctx, `
-		INSERT INTO sys_notifications(user_id,title,message,severity,link,attributes)
-		SELECT mu.user_id,
-		       'Изменена политика сетевого доступа',
-		       'Политика Portal или Merchant API была изменена другим владельцем.',
-		       'warning','/portal/settings',
-		       jsonb_build_object(
-		           'merchantId',mu.merchant_id::text,
-		           'policyId',$2::uuid::text,
-		           'action',$4::text
-		       )
-		FROM sys_merchant_users mu
-		WHERE mu.merchant_id=$1::uuid AND mu.role=1 AND mu.user_id<>$3::uuid
-	`, merchantID, policyID, actorID, action)
-	return err
+	rows, err := q.Query(ctx, `
+		SELECT user_id FROM sys_merchant_users
+		WHERE merchant_id=$1 AND role=1 AND user_id<>$2 ORDER BY user_id
+	`, merchantID, actorID)
+	if err != nil {
+		return err
+	}
+	var items []*notifications.Notification
+	link := "/portal/settings"
+	for rows.Next() {
+		var owner id.ID
+		if err := rows.Scan(&owner); err != nil {
+			rows.Close()
+			return err
+		}
+		items = append(items, &notifications.Notification{
+			UserID: owner, Title: "Изменена политика сетевого доступа",
+			Message:  "Политика Portal или Merchant API была изменена другим владельцем.",
+			Severity: notifications.SeverityWarning, Link: &link,
+			Attributes: map[string]any{"merchantId": merchantID.String(), "policyId": policyID.String(), "action": action},
+		})
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	return postgres.NewNotificationRepo().CreateBatch(ctx, items)
 }
 
 var _ merchant.NetworkPolicyRepository = (*MerchantNetworkPolicyRepo)(nil)
