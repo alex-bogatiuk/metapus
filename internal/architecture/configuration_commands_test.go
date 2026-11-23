@@ -163,3 +163,100 @@ func isConfigurationCommandPackage(importPath string) bool {
 	}
 	return false
 }
+
+// knownConfigurationCommandPlatformImports lists the platform packages
+// outside pkg/sdk that configuration commands still import: utilities that
+// open pools, bind tenants and read secrets themselves, and the contracts
+// generator that walks every configuration of the repository. Each entry
+// goes away once the platform offers it through pkg/sdk (a tenant task
+// runner, a public contracts generator). Only remove entries: a new import
+// fails the test.
+var knownConfigurationCommandPlatformImports = map[string][]string{
+	"github.com/alex-bogatiuk/metapus/cmd/aml-pool-controller": {
+		"github.com/alex-bogatiuk/metapus/internal/core/id", "github.com/alex-bogatiuk/metapus/internal/core/json",
+		"github.com/alex-bogatiuk/metapus/internal/core/tenant", "github.com/alex-bogatiuk/metapus/internal/core/types",
+		"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres", "github.com/alex-bogatiuk/metapus/internal/platform/secretfile",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/aml-testnet-bootstrap": {
+		"github.com/alex-bogatiuk/metapus/internal/core/id", "github.com/alex-bogatiuk/metapus/internal/core/json",
+		"github.com/alex-bogatiuk/metapus/internal/core/tenant", "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres",
+		"github.com/alex-bogatiuk/metapus/internal/platform/secretfile",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/aml-testnet-config": {
+		"github.com/alex-bogatiuk/metapus/internal/core/id", "github.com/alex-bogatiuk/metapus/internal/core/json",
+		"github.com/alex-bogatiuk/metapus/internal/core/tenant", "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres",
+		"github.com/alex-bogatiuk/metapus/internal/platform/secretfile",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/aml-wallet-provision": {
+		"github.com/alex-bogatiuk/metapus/internal/core/id", "github.com/alex-bogatiuk/metapus/internal/core/tenant",
+		"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/crypto-ingestion-monitor": {
+		"github.com/alex-bogatiuk/metapus/internal/core/id", "github.com/alex-bogatiuk/metapus/internal/core/tenant",
+		"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres", "github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb",
+		"github.com/alex-bogatiuk/metapus/internal/platform/secretfile", "github.com/alex-bogatiuk/metapus/internal/platform/telemetry",
+		"github.com/alex-bogatiuk/metapus/pkg/logger",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/crypto-preflight": {
+		"github.com/alex-bogatiuk/metapus/internal/core/json", "github.com/alex-bogatiuk/metapus/internal/core/tenant",
+		"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres", "github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb",
+		"github.com/alex-bogatiuk/metapus/internal/platform/secretfile", "github.com/alex-bogatiuk/metapus/pkg/logger",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/crypto-record-wallet-funding": {
+		"github.com/alex-bogatiuk/metapus/internal/core/json", "github.com/alex-bogatiuk/metapus/internal/core/tenant",
+		"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres", "github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb",
+		"github.com/alex-bogatiuk/metapus/internal/platform/secretfile",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/http-contracts": {
+		"github.com/alex-bogatiuk/metapus/internal/configuration", "github.com/alex-bogatiuk/metapus/internal/configuration/none",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/integration-config": {
+		"github.com/alex-bogatiuk/metapus/internal/core/json", "github.com/alex-bogatiuk/metapus/internal/core/tenant",
+		"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres", "github.com/alex-bogatiuk/metapus/internal/platform/secretfile",
+	},
+	"github.com/alex-bogatiuk/metapus/cmd/public-test-bootstrap": {
+		"github.com/alex-bogatiuk/metapus/internal/core/id", "github.com/alex-bogatiuk/metapus/internal/core/json",
+		"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres",
+	},
+}
+
+// TestConfigurationCommandsUseThePublicLauncher keeps a configuration's
+// commands buildable from its own module: besides its configuration's
+// packages and the client extensions they take the platform only from
+// pkg/sdk, so cmd/<name>-server is launch.Server(…), not internal/bootstrap.
+func TestConfigurationCommandsUseThePublicLauncher(t *testing.T) {
+	t.Parallel()
+	const module = "github.com/alex-bogatiuk/metapus/"
+	allowed := func(value string) bool {
+		if !strings.HasPrefix(value, module) || value == module+"extensions" ||
+			value == module+"pkg/sdk" || strings.HasPrefix(value, module+"pkg/sdk/") {
+			return true
+		}
+		for _, name := range sdkConfigurations {
+			own := module + "internal/configuration/" + name
+			if value == own || strings.HasPrefix(value, own+"/") {
+				return true
+			}
+		}
+		return false
+	}
+	actual := map[string]map[string]bool{}
+	notConfigurationCommand := func(pkg string) bool { return !isConfigurationCommandPackage(pkg) }
+	walkGo(t, repositoryRoot(t), []string{"cmd"}, false, notConfigurationCommand, func(rel string, file *ast.File) {
+		pkg := module + filepath.ToSlash(filepath.Dir(rel))
+		for _, imported := range file.Imports {
+			value, err := strconv.Unquote(imported.Path.Value)
+			require.NoError(t, err)
+			if allowed(value) {
+				continue
+			}
+			if actual[pkg] == nil {
+				actual[pkg] = map[string]bool{}
+			}
+			actual[pkg][value] = true
+		}
+	})
+	compareKnownLeaks(t, actual, knownConfigurationCommandPlatformImports,
+		"configuration command %s imports platform package %s; take it from pkg/sdk (launch.Server, launch.Worker, launch.Tenant, launch.Seed for the mains)",
+		"import %s -> %s is gone; remove it from knownConfigurationCommandPlatformImports")
+}

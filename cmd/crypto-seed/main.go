@@ -4,8 +4,8 @@
 package main
 
 import (
-	"github.com/alex-bogatiuk/metapus/internal/bootstrap/seed"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/launch"
 )
 
-func main() { seed.Main(content.Crypto(content.Services{})) }
+func main() { launch.Seed(content.Crypto(content.Services{})) }

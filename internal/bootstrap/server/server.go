@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/launch"
 	"github.com/alex-bogatiuk/metapus/internal/configuration"
 	"github.com/alex-bogatiuk/metapus/internal/core/security"
 	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
@@ -34,17 +35,14 @@ import (
 	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
-// Build identifies the running binary; mains set it from ldflags:
-//
-//	go build -ldflags="-X main.Version=v1.3.0 -X main.BuildTime=2026-03-31T00:00:00Z" ./cmd/server
-type Build struct {
-	Version   string
-	BuildTime string
-}
+// Build identifies the running binary; mains set it from ldflags.
+type Build = launch.Build
 
-// Main runs the API server for cfg and the client extensions until
-// SIGINT/SIGTERM, and exits the process on a configuration or startup error.
-func Main(build Build, cfg configuration.Configuration, extensions ...func(*v1.FactoryRegistry)) {
+// Main runs the API server for cfg and the client extensions the options
+// add until SIGINT/SIGTERM, and exits the process on a configuration or
+// startup error.
+func Main(build Build, cfg configuration.Configuration, opts ...launch.Option) {
+	extensions := launch.Apply(opts).Extensions
 	if err := configuration.CheckAPIVersion(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

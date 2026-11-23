@@ -23,6 +23,7 @@ import (
 
 	"github.com/alex-bogatiuk/metapus/internal/application/automation"
 	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/launch"
 	"github.com/alex-bogatiuk/metapus/internal/configuration"
 	"github.com/alex-bogatiuk/metapus/internal/core/id"
 	"github.com/alex-bogatiuk/metapus/internal/core/json"
@@ -48,14 +49,13 @@ import (
 )
 
 // Build identifies the running binary; mains set it from ldflags.
-type Build struct {
-	Version   string
-	BuildTime string
-}
+type Build = launch.Build
 
-// Main runs the worker for app and the client extensions until
-// SIGINT/SIGTERM, and exits the process on a configuration or startup error.
-func Main(build Build, app configuration.Configuration, extensions ...func(*v1.FactoryRegistry)) {
+// Main runs the worker for app and the client extensions the options add
+// until SIGINT/SIGTERM, and exits the process on a configuration or startup
+// error.
+func Main(build Build, app configuration.Configuration, opts ...launch.Option) {
+	extensions := launch.Apply(opts).Extensions
 	if err := configuration.CheckAPIVersion(app); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

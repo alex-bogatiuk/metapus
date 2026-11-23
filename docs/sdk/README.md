@@ -35,6 +35,7 @@
 | Демо-данные | `demoseed` | `infrastructure/demoseed` — валюты, привязки к источникам курсов, уведомление в демо-чат Telegram |
 | Хранилище | `postgres`, `postgres/catalog_repo`, `postgres/document_repo`, `postgres/integration_repo`, `postgres/filter`, `postgres/keyset`, `postgres/numerator`, `registers`, `migration` | менеджер транзакций, базовые репозитории, блокировки документов, outbox, миграции и версии схемы |
 | Метаданные и процесс | `metadata`, `telemetry`, `envconfig`, `secretfile` | описание сущностей для UI, трассировка, окружение, секреты из файлов |
+| Запуск | `launch` | `bootstrap/{server,worker,tenant,seed}` — `main` команд конфигурации: `launch.Server`, `launch.Worker`, `launch.Tenant`, `launch.Seed`, опция `WithExtensions` |
 
 Расширенный слой широк (всего в фасаде 62 пакета и около 570 объявлений) и повторяет устройство платформы. Поэтому он стабилен слабее ядра: изменение внутреннего типа видно через алиас. Его сужают так: то, что конфигурация собирала из платформенных деталей сама, платформа делает одной функцией, а детали уходят из фасада.
 
@@ -81,7 +82,7 @@
    - свой `go.mod` с `require` платформы;
    - код на `pkg/sdk`;
    - миграции, встроенные своим `embed`: `Migrations()` возвращает их, `sdktest.Check` проверяет формат и версии;
-   - свои `cmd/<имя>-server|worker|tenant|seed` — однострочные вызовы платформенных `Main` из `internal/bootstrap`. Для внешнего модуля их надо вынести в `pkg/`: сейчас они в `internal/` и снаружи недоступны.
+   - свои `cmd/<имя>-server|worker|tenant|seed` — однострочные вызовы `pkg/sdk/launch`, например `launch.Server(launch.Build{Version: Version, BuildTime: BuildTime}, content.Autoparts(), launch.WithExtensions(extensions.Register))`. Каждая функция проверяет `APIVersion`, читает окружение платформы и завершает процесс при ошибке. Новые параметры запуска добавляются опциями, без смены сигнатур. Команды конфигураций в этом репозитории тоже идут через `launch`: `TestConfigurationCommandsUseThePublicLauncher` разрешает им из платформы только `pkg/sdk` и `extensions`. Служебные утилиты крипто (`crypto-preflight`, `aml-*` и другие) пока открывают пулы и секреты сами и записаны в список исключений; для них нужен запуск разовой задачи над тенантом в `pkg/sdk`.
 3. **Обновление платформы:** поднять версию в `go.mod` → собрать (несовместимый `APIVersion` остановит запуск) → `tenant migrate`: сначала миграции платформы, затем конфигурации, у каждой своя история → перегенерировать контракты.
 4. **Фронтенд — самая трудная часть.**
    - Платформенный UI (`components`, `lib`, `hooks`, `stores`, `types`) нужно выпустить npm-пакетом, а `app/` и `configuration/<имя>` останутся у конфигурации.

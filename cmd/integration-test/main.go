@@ -137,7 +137,9 @@ func run(ctx context.Context) error {
 			return err
 		}
 	}
-	args := []string{"-tags=integration", "-race", "-count=1", "-p=1", "./..."}
+	// crypto_repo alone runs about eight minutes on a developer machine and
+	// several times that on a CI runner, past go test's 10-minute default.
+	args := []string{"-tags=integration", "-race", "-count=1", "-p=1", "-timeout=60m", "./..."}
 	cmd := exec.CommandContext(ctx, "go", append([]string{"test"}, args...)...)
 	if junit := os.Getenv("METAPUS_TEST_JUNIT_FILE"); junit != "" {
 		cmd = exec.CommandContext(ctx, "gotestsum", append([]string{"--junitfile", junit, "--format", "standard-verbose", "--"}, args...)...)

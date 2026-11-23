@@ -21,6 +21,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/alex-bogatiuk/metapus/internal/bootstrap/launch"
 	"github.com/alex-bogatiuk/metapus/internal/configuration"
 	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
@@ -37,8 +38,10 @@ type application struct {
 	extensions []func(*v1.FactoryRegistry)
 }
 
-// Main runs the tenant CLI for cfg composed with the client extensions.
-func Main(cfg configuration.Configuration, extensions ...func(*v1.FactoryRegistry)) {
+// Main runs the tenant CLI for cfg composed with the client extensions the
+// options add.
+func Main(cfg configuration.Configuration, opts ...launch.Option) {
+	extensions := launch.Apply(opts).Extensions
 	if err := configuration.CheckAPIVersion(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

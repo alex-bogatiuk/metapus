@@ -5,8 +5,8 @@ package main
 
 import (
 	"github.com/alex-bogatiuk/metapus/extensions"
-	"github.com/alex-bogatiuk/metapus/internal/bootstrap/tenant"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/launch"
 )
 
-func main() { tenant.Main(content.Autoparts(), extensions.Register) }
+func main() { launch.Tenant(content.Autoparts(), launch.WithExtensions(extensions.Register)) }
