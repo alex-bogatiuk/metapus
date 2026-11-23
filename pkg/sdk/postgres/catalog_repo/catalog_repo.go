@@ -20,6 +20,9 @@ type (
 	BaseCatalogRepo[T any] = core.BaseCatalogRepo[T]
 	IntegrationAccountRepo = core.IntegrationAccountRepo
 	IntegrationPoolRepo    = core.IntegrationPoolRepo
+	// RateSourceKey is a rate source that still keeps its provider key on
+	// the source itself instead of an integration pool.
+	RateSourceKey = core.RateSourceKey
 )
 
 // AccountKeyNames reads the key names, never values, of accounts in the given order.
@@ -115,4 +118,16 @@ func LockUsableAccount(ctx context.Context, accountID id.ID, provider integratio
 // provider the configuration serves itself, such as an emulator.
 func CreateKeylessAccount(ctx context.Context, accountID id.ID, code, name string, provider integrations.Provider) error {
 	return core.CreateKeylessAccount(ctx, accountID, code, name, provider)
+}
+
+// RateSourcesWithOwnKey lists, in code order, the rate sources of the type
+// that are not marked for deletion and keep a key of their own.
+func RateSourcesWithOwnKey(ctx context.Context, sourceType string) ([]RateSourceKey, error) {
+	return core.RateSourcesWithOwnKey(ctx, sourceType)
+}
+
+// MoveRateSourceKeyToPool makes a CoinGecko rate source take its key from a
+// CoinGecko Demo pool and drops the key it kept itself.
+func MoveRateSourceKeyToPool(ctx context.Context, sourceID, poolID id.ID) error {
+	return core.MoveRateSourceKeyToPool(ctx, sourceID, poolID)
 }

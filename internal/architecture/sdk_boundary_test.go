@@ -226,6 +226,12 @@ func TestConfigurationsReadCurrenciesThroughThePlatform(t *testing.T) {
 		"read currency codes through pkg/sdk/postgres (CurrencyCodes) and fill them in Go")
 }
 
+func TestConfigurationsUseThePlatformRateSources(t *testing.T) {
+	t.Parallel()
+	requireConfigurationsDoNotName(t, `cat_rate_sources`,
+		"read and move rate source keys through pkg/sdk/postgres/catalog_repo (RateSourcesWithOwnKey, MoveRateSourceKeyToPool)")
+}
+
 // requireConfigurationsDoNotName fails for every string literal in the
 // production code of an SDK configuration that names a table the platform's
 // migrations create and the pattern matches.

@@ -174,21 +174,12 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		code, key, poolCode string
 	}
 	var sources []source
-	rows, err := q.Query(ctx, `SELECT id,code,api_key FROM cat_rate_sources WHERE source_type='coingecko' AND api_key IS NOT NULL AND api_key<>'' AND NOT deletion_mark AND _deleted_at IS NULL ORDER BY code`)
+	ownKeys, err := catalog_repo.RateSourcesWithOwnKey(ctx, "coingecko")
 	if err != nil {
 		return report, err
 	}
-	for rows.Next() {
-		var s source
-		if err = rows.Scan(&s.uid, &s.code, &s.key); err != nil {
-			rows.Close()
-			return report, err
-		}
-		sources = append(sources, s)
-	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
-		return report, err
+	for _, own := range ownKeys {
+		sources = append(sources, source{uid: own.ID, code: own.Code, key: own.APIKey})
 	}
 	for i := range sources {
 		sources[i].poolCode, _, err = add("rateSource:"+sources[i].code, integrations.CoinGeckoDemo, sources[i].key, "")
@@ -341,7 +332,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 		}
 	}
 	for _, s := range sources {
-		if _, err = q.Exec(ctx, `UPDATE cat_rate_sources SET integration_pool_id=$2,api_key=NULL,version=version+1 WHERE id=$1`, s.uid, poolIDs[s.poolCode]); err != nil {
+		if err = catalog_repo.MoveRateSourceKeyToPool(ctx, s.uid, poolIDs[s.poolCode]); err != nil {
 			return report, err
 		}
 		report.RateSources++
