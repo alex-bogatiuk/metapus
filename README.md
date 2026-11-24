@@ -21,13 +21,25 @@
 
 Metapus — open-source ERP-платформа для построения корпоративных систем. Базируется на принципах Clean Architecture, строгой типизации и физической изоляции данных.
 
-## Архитектурные решения
+## Платформа и конфигурации
+
+Репозиторий содержит платформу и отраслевые конфигурации поверх неё. Конфигурация добавляет свои справочники, документы, регистры, миграции и страницы фронтенда. У каждой есть свои команды `cmd/<имя>-server`, `-worker`, `-tenant` и `-seed`.
+
+| Конфигурация | Что это | Код | Документация |
+|---|---|---|---|
+| `none` | Платформа без отраслевой конфигурации, плюс клиентские расширения | [`internal/configuration/none`](internal/configuration/none), `cmd/server` | — |
+| `crypto` | Криптопроцессинг: приём платежей, учёт, свипы, вывод, AML, подписание через Vault | [`internal/configuration/crypto`](internal/configuration/crypto), `cmd/crypto-*` | [docs/crypto](docs/crypto), [обзор подсистемы](docs/systems/crypto-processing.md) |
+| `autoparts` | Каркас магазина автозапчастей: номенклатура, склады, приходная накладная, запасы | [`internal/configuration/autoparts`](internal/configuration/autoparts), `cmd/autoparts-*` | [docs/autoparts](docs/autoparts/README.md) |
+
+Конфигурации не зависят друг от друга и видят платформу только через публичный API [`pkg/sdk`](docs/sdk/README.md). Эти границы проверяют тесты в [`internal/architecture`](internal/architecture).
+
+## Архитектура
 
 | Подход | Реализация в Metapus |
 |---|---|
 | Метаданные | **Code is Metadata**: Go-структуры выступают единым источником истины. |
 | Типизация | **Go Generics**: Типизированные CRUD-компоненты; рефлексия используется для метаданных и маппинга `db`-тегов. |
-| Транзакции | **Resource ordering**: Advisory locks предотвращают взаимные блокировки. |
+| Транзакции | **Блокировки**: проведение берёт advisory lock на документ; репозитории блокируют строки в детерминированном порядке, чтобы избежать взаимных блокировок. |
 | Регистры | **Immutable Ledger**: Обновление остатков через триггеры БД. Финансовые crypto movements запрещают `UPDATE`/`DELETE`; исправления добавляют компенсирующие записи. |
 | Изоляция | **Database-per-Tenant**: Раздельные базы данных для клиентов. Фильтрация по `tenant_id` отсутствует. |
 
@@ -35,54 +47,79 @@ Metapus — open-source ERP-платформа для построения ко�
 
 ### Backend
 - **Стек**: Go 1.27, pgx, squirrel, Gin.
-- **Изоляция слоёв**: Core → Domain → Infrastructure. Внутренние слои не импортируют внешние.
+- **Слои**: `core` → `domain` → `application` → `infrastructure`; `bootstrap` собирает их в процессы. Внутренние слои не импортируют внешние.
 - **Проведение документов**: Паттерн Visitor, детерминированный сбор движений, batch-запись.
-- **Безопасность**: JWT, RBAC, RLS (строки), FLS (поля), CEL-политики.
-- **Расширяемость**: Регистрация справочников, документов и регистров через API расширений без форков ядра.
+- **Безопасность**: JWT, MFA, RBAC, RLS (строки), FLS (поля), CEL-политики.
+- **Расширяемость**: Конфигурации и клиентские расширения регистрируют справочники, документы и регистры через `pkg/sdk` без форков ядра.
 
 ### Frontend
 - **Стек**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui.
+- **Конфигурации**: `npm run configure -- <имя>` собирает `app/` из платформы и страниц выбранной конфигурации (`frontend/configuration/<имя>`).
 - **UI-генерация**: Списки, формы и фильтры строятся на основе метаданных API бэкенда.
 - **Состояние**: URL-driven (навигация, фильтры), Zustand (авторизация, метаданные).
 
 ### Инфраструктура
-- **Развёртывание**: Docker, docker-compose, GHCR.
+- **Развёртывание**: Docker, docker-compose, GHCR ([`deployments/`](deployments), [`single-tenant-deployment/`](single-tenant-deployment)).
 - **База данных**: PostgreSQL 17, UUIDv7, goose.
+- **Секреты и подписание**: HashiCorp Vault с плагинами подписи TRON и EVM ([`vault-sign-plugins/`](vault-sign-plugins)).
 - **Мониторинг**: Zap (структурированное логирование), X-Request-ID.
 
 ---
 
 ## Быстрый старт
 
+Ниже — локальный запуск конфигурации `crypto`: на неё настроены bootstrap-скрипты и цели `make server`/`make frontend`.
+
 ### Требования
 - Go 1.27+
 - Node.js 20.9+ и npm
-- PowerShell 7 (`pwsh`) для локальных bootstrap-скриптов
-- Docker Compose для PostgreSQL и Vault
-- PostgreSQL 17+ (или Docker)
+- PowerShell 7 (`pwsh`) — скрипты `scripts/dev` описаны для Windows
+- Docker: PostgreSQL поднимается из `docker-compose.yml`, Vault — отдельным контейнером `metapus-vault`
+- Свободные порты 5432, 8080, 8200 и 3000
+- Тестовые данные сети TRON Nile: отдельная mnemonic, внешний адрес получателя, желательно API key TronGrid. Не используйте mainnet mnemonic.
 
 ### Инициализация и запуск
 
 ```bash
-# Клонирование репозитория
 git clone https://github.com/alex-bogatiuk/metapus.git
 cd metapus
+```
 
-# Локальный backend bootstrap:
-# PostgreSQL, Vault, tenant, migrations, seed, approval keys/policy bundle.
+Mnemonic передайте параметром `-Mnemonic` или положите в `.env.crypto.local` (файл игнорируется git):
+
+```dotenv
+TRON_DEV_MNEMONIC=<NILE TEST MNEMONIC>
+TRON_TEST_API_KEY=<OPTIONAL>
+TRON_WITHDRAWAL_TEST_ADDRESS=<EXTERNAL NILE ADDRESS>
+```
+
+```bash
+# PostgreSQL, Vault с плагином, tenant, миграции, seed, ключи и политики подписания.
+# Пишет .env.crypto.local и frontend/.env.local.
 pwsh ./scripts/dev/crypto-setup.ps1
 
-# Запуск API-сервера
+# API-сервер
 pwsh ./scripts/dev/crypto-run-server.ps1
 
-# Запуск фронтенда (в отдельном терминале)
+# Воркер: watchers, свипы, вывод (в отдельном терминале)
+pwsh ./scripts/dev/crypto-run-worker.ps1
+
+# Фронтенд (в отдельном терминале)
 cd frontend
 npm install
+npm run configure -- crypto
 npm run dev
 ```
 
 - API: `http://localhost:8080`
 - Интерфейс: `http://localhost:3000`
+- Vault: `http://127.0.0.1:8200`
+
+Полная инструкция — финансирование hot wallet, первая авторизация и MFA, активация пула — в [docs/crypto/crypto-environment-setup.md](docs/crypto/crypto-environment-setup.md).
+
+### Другие конфигурации
+
+Платформа без конфигурации (`cmd/server`, `cmd/tenant`, `cmd/seed`) и `autoparts` (`cmd/autoparts-*`) запускаются напрямую через `go run`. Им нужны переменные `META_DATABASE_URL`, `TENANT_DB_USER`, `TENANT_DB_PASSWORD` и `JWT_SECRET`. Порядок команд для `autoparts` — в [docs/autoparts/README.md](docs/autoparts/README.md#запуск).
 
 ---
 
@@ -90,16 +127,33 @@ npm run dev
 
 ```text
 metapus/
-├── cmd/               # Точки входа (server, worker, tenant, seed)
+├── cmd/                    # Точки входа: server/worker/tenant/seed платформы и каждой конфигурации,
+│                           # а также служебные (integration-test, http-contracts, pdf-renderer, scaffold, AML…)
 ├── internal/
-│   ├── core/          # Базовые типы, ошибки, политики
-│   ├── domain/        # Бизнес-логика, сервисы, модели
-│   └── infrastructure/# Адаптеры (HTTP, Postgres)
-├── pkg/               # Logger и публичный фасад расширений
-├── db/                # Миграции баз данных
-├── extensions/        # Пользовательские модули
-├── frontend/          # Next.js приложение
-└── docs/              # Техническая документация
+│   ├── core/               # Базовые типы, ошибки, политики безопасности (CEL)
+│   ├── domain/             # Бизнес-логика платформы, движок проведения
+│   ├── application/        # Сценарии: автоматизация, команды, интеграции
+│   ├── infrastructure/     # Адаптеры (HTTP, Postgres)
+│   ├── platform/           # Контракты платформы для конфигураций
+│   ├── metadata/           # Реестр и инспектор метаданных
+│   ├── bootstrap/          # Сборка server, worker и tenant-команд
+│   ├── configuration/      # Отраслевые конфигурации: none, crypto, autoparts
+│   └── architecture/       # Тесты архитектурных границ
+├── pkg/
+│   ├── sdk/                # Публичный API платформы для конфигураций и расширений
+│   └── logger/
+├── db/
+│   ├── migrations/         # Миграции платформы
+│   ├── configuration/      # Миграции конфигураций
+│   └── extensions/         # Миграции клиентских расширений
+├── extensions/             # Точка регистрации клиентских модулей (пока пустая)
+├── sdk/                    # Клиентские SDK мерчантов: Go, Python, TypeScript
+├── api/                    # OpenAPI публичного API мерчантов и фикстуры webhooks
+├── frontend/               # Next.js приложение; frontend/configuration — страницы конфигураций
+├── vault-sign-plugins/     # Исходники плагинов подписи Vault (TRON, EVM); сборка — в vault-plugins/
+├── deployments/, single-tenant-deployment/  # Compose-развёртывания и тестовые стенды
+├── scripts/                # dev-скрипты и CI
+└── docs/                   # Техническая документация
 ```
 
 ## Документация
@@ -109,14 +163,21 @@ metapus/
 
 ## Разработка
 
-Основные команды сборки и проверки (`Makefile`):
+Основные команды (`Makefile`):
 
-- `make build` — Сборка бинарных файлов server и worker в `bin/`.
-- `make server` — Запуск бэкенда.
-- `make frontend` — Запуск фронтенда.
-- `make test` — Запуск юнит-тестов.
-- `make lint` — Проверка кода (Go, TypeScript).
-- `make check` — build, lint, typecheck, unit-тесты и проверка сгенерированных HTTP-контрактов.
+| Команда | Что делает |
+|---|---|
+| `make build` | Собирает в `bin/` server, worker, tenant и seed платформы, `crypto` и `autoparts` |
+| `make server` | Запускает API-сервер `crypto` (`go run ./cmd/crypto-server`) |
+| `make frontend` | Собирает фронтенд для `crypto` и запускает dev-сервер |
+| `make migrate` / `make seed` | Миграции всех тенантов `crypto` / seed `crypto` |
+| `make test` | Юнит-тесты (`go test -short -race ./...`) |
+| `make test-integration` | Интеграционные тесты в новой базе явно заданного тестового кластера PostgreSQL |
+| `make lint` | golangci-lint и ESLint |
+| `make check` | build, lint, typecheck, юнит-тесты и проверка сгенерированных HTTP-контрактов |
+| `make check-configurations` | Сборка Go-команд и фронтенда для каждой конфигурации (`none`, `crypto`, `autoparts`) |
+| `make check-all` | `check`, проверка расширений и `check-configurations` |
+| `make generate-http-contracts` | Перегенерирует HTTP-контракты |
 
 ## 🤝 Участие в разработке
 
