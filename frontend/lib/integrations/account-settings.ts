@@ -51,11 +51,18 @@ export function normalizeCredentialKey(raw: string, role: string, profile?: Inte
   return invalid
 }
 
+/** Whether the profile lets an account leave this key out. */
+export function optionalCredentialField(profile: IntegrationCredentialProfileResponse | undefined, name: string): boolean {
+  return !!profile?.fields.find(field => field.name === name)?.optional
+}
+
 export function prepareCredentialKeys(provider: string, input: readonly CredentialKey[], providers: readonly IntegrationProviderResponse[]) {
   const profile = providers.find(item => item.id === provider)?.credentials
   const errors: Record<string, string> = {}
   const names = new Set<string>()
-  const keys = input.map((key, index) => {
+  // An optional key left empty is not sent; the indexes keep pointing at the inputs.
+  const sent = input.map((key, index) => ({ key, index })).filter(({ key }) => key.value.trim() || !optionalCredentialField(profile, key.name))
+  const keys = sent.map(({ key, index }) => {
     if (!key.name || key.name.length > 64 || /\s/.test(key.name)) errors[`key-name-${index}`] = "Укажите имя до 64 символов без пробелов."
     else if (names.has(key.name)) errors[`key-name-${index}`] = "Это имя уже используется. Укажите другое."
     names.add(key.name)
@@ -63,7 +70,9 @@ export function prepareCredentialKeys(provider: string, input: readonly Credenti
     if (!result.ok) errors[`key-value-${index}`] = result.error
     return { name: key.name, value: result.ok ? result.value : key.value }
   })
-  if (!input.length || input.length > 32 || (profile?.singleKey && input.length !== 1) || profile?.fields.some(field => !names.has(field.name))) {
+  if (!sent.length && profile?.fields.length && profile.fields.every(field => field.optional)) {
+    errors.credentials = "Укажите хотя бы один ключ."
+  } else if (!sent.length || sent.length > 32 || (profile?.singleKey && sent.length !== 1) || profile?.fields.some(field => !field.optional && !names.has(field.name))) {
     errors.credentials = "Укажите полный набор ключей, предусмотренный профилем провайдера."
   }
   return { keys, errors }

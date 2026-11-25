@@ -42,6 +42,13 @@ func AccountCredentials(ctx context.Context, accountID id.ID) (integrations.Cred
 	return core.AccountCredentials(ctx, accountID)
 }
 
+// RenameAccountKey gives a stored key of an integration account another name
+// without the value leaving the platform. The caller holds
+// LockIntegrationConfiguration and keeps the account's consumers consistent.
+func RenameAccountKey(ctx context.Context, accountID id.ID, from, to string) (bool, error) {
+	return core.RenameAccountKey(ctx, accountID, from, to)
+}
+
 // Catalog mutations share a short tenant-local lock to validate cross-catalog profiles.
 // Runtime selection uses its own pool-local row locks and never holds this lock over HTTP.
 func LockIntegrationConfiguration(ctx context.Context) error {

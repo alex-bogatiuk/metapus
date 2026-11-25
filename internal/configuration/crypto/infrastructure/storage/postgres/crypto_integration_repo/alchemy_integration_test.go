@@ -24,7 +24,7 @@ func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {
 	ar, pr, er := NewIntegrationAccountRepo(), NewIntegrationPoolRepo(), NewCryptoRPCEndpointRepo()
 	a := integrations.NewAccount("ALCH-NILE", "Alchemy Nile")
 	a.Provider = cryptointegrations.Alchemy
-	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "nile", Value: "nile-key"}}}
+	a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "default", Value: "nile-key"}}}
 	require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 	require.NoError(t, ar.Create(ctx, a))
 	pool := integrations.NewPool("ALCH-NILE", "Alchemy Nile")
@@ -37,8 +37,8 @@ func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {
 	current := "nile-key"
 	for _, role := range []string{"fullnode", "solidity"} {
 		e := rpcconfig.NewRPCEndpoint("ALCH-"+role, "Alchemy "+role)
-		e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = nile, role, "alchemy-nile", "alchemy"
-		e.URL, e.PoolID, e.Slot = "https://tron-testnet.g.alchemy.com/v2/", &pool.ID, "nile"
+		e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = nile, rpcconfig.Role(role), "alchemy-nile", "alchemy"
+		e.URL, e.PoolID, e.Slot = "https://tron-testnet.g.alchemy.com/v2/", &pool.ID, "default"
 		require.NoError(t, er.Create(ctx, e))
 		copy := *e
 		copy.NetworkID, copy.Role = sepolia, "rpc"
@@ -82,7 +82,7 @@ func TestAlchemyTRONBindingsReloadKeysAndPreserveRoleMethods(t *testing.T) {
 		read()
 		require.Equal(t, "/v2/"+current+method, observed)
 		current = "replacement-" + role
-		a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "nile", Value: current}}}
+		a.PendingCredentials = &integrations.Credentials{Keys: []integrations.NamedKey{{Name: "default", Value: current}}}
 		require.NoError(t, ar.Prepare(ctx, a, appDefinition(a.Provider)))
 		require.NoError(t, ar.Update(ctx, a))
 		clock = clock.Add(11 * time.Second)

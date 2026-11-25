@@ -67,12 +67,18 @@
       ],
       "canCreate": true,
       "credentials": {
-        "fields": [],
-        "replaceLabel": "",
-        "description": "",
+        "fields": [
+          {
+            "name": "default",
+            "label": "Ключ API Alchemy",
+            "description": "API key приложения Alchemy. Сети, к которым он даёт доступ, включаются в настройках приложения."
+          }
+        ],
+        "replaceLabel": "Заменить ключ…",
+        "description": "Один ключ приложения Alchemy подходит для всех его сетей.",
         "inputFormat": "",
-        "requireFields": false,
-        "singleKey": false
+        "requireFields": true,
+        "singleKey": true
       },
       "quotaPolicy": "monthly"
     },
@@ -243,12 +249,25 @@
       ],
       "canCreate": true,
       "credentials": {
-        "fields": [],
-        "replaceLabel": "",
-        "description": "Введите только токен, без полного URL и суффикса API. Имя nile — для TRON Nile, sepolia — для Ethereum Sepolia.",
+        "fields": [
+          {
+            "name": "nile",
+            "label": "Токен TRON Nile",
+            "description": "Из адреса узла TRON Nile в Chainstack. Одним токеном пользуются FullNode и Solidity.",
+            "optional": true
+          },
+          {
+            "name": "sepolia",
+            "label": "Токен Ethereum Sepolia",
+            "description": "Из адреса узла Ethereum Sepolia в Chainstack.",
+            "optional": true
+          }
+        ],
+        "replaceLabel": "Заменить токены…",
+        "description": "Введите только токен, без полного URL и суффикса API. Укажите токены тех сетей, к которым есть доступ.",
         "inputFormat": "",
         "keyFormat": "url_safe",
-        "requireFields": false,
+        "requireFields": true,
         "singleKey": false
       },
       "quotaPolicy": "monthly"

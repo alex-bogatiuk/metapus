@@ -39,7 +39,7 @@ test("Infura extracts only a Sepolia key and rejects other origins and URL param
 test("GetBlock provides fixed role slots and preserves generic provider slots", () => {
   expect(emptyCredentialKeys("getblock")).toEqual([{ name: "fullnode", value: "" }, { name: "solidity", value: "" }])
   expect(credentialProfile("getblock")?.fields.map(field => field.label)).toEqual(["Токен FullNode REST", "Токен Solidity REST"])
-  expect(emptyCredentialKeys("chainstack")).toEqual([{ name: "default", value: "" }])
+  expect(emptyCredentialKeys("tron_api")).toEqual([{ name: "default", value: "" }])
 })
 
 test("GetBlock extracts only tokens from supported REST URLs and rejects ambiguous addresses", () => {
@@ -70,6 +70,21 @@ test("credential validation requires both GetBlock roles and normalizes only Get
   expect(prepareCredentialKeys("getblock", values)).toEqual({ keys: [{ name: "fullnode", value: "full-token" }, { name: "solidity", value: "solid-token" }], errors: {} })
   expect(prepareCredentialKeys("alchemy", [{ name: "default", value: "opaque/value" }]).keys[0].value).toBe("opaque/value")
   expect(prepareCredentialKeys("chainstack", [{ name: "nile", value: "https://host/token" }]).errors).toHaveProperty("key-value-0")
+})
+
+test("Alchemy asks for its single app key without a key name", () => {
+  expect(credentialProfile("alchemy")?.fields.map(field => field.label)).toEqual(["Ключ API Alchemy"])
+  expect(emptyCredentialKeys("alchemy")).toEqual([{ name: "default", value: "" }])
+  expect(prepareCredentialKeys("alchemy", [{ name: "nile", value: "app-key" }]).errors).toHaveProperty("credentials")
+})
+
+test("Chainstack offers a token per network and sends only the filled ones", () => {
+  expect(emptyCredentialKeys("chainstack").map(key => key.name)).toEqual(["nile", "sepolia"])
+  expect(prepareCredentialKeys("chainstack", [{ name: "nile", value: "nile-token" }, { name: "sepolia", value: "" }]))
+    .toEqual({ keys: [{ name: "nile", value: "nile-token" }], errors: {} })
+  expect(prepareCredentialKeys("chainstack", [{ name: "nile", value: "a" }, { name: "sepolia", value: "b" }]).keys).toHaveLength(2)
+  expect(prepareCredentialKeys("chainstack", emptyCredentialKeys("chainstack")).errors).toEqual({ credentials: "Укажите хотя бы один ключ." })
+  expect(prepareCredentialKeys("chainstack", [{ name: "nile", value: "" }, { name: "sepolia", value: "https://host/token" }]).errors).toHaveProperty("key-value-1")
 })
 
 for (const [now, day, zone, expected] of [

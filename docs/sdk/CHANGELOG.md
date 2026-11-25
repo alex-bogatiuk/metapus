@@ -21,6 +21,8 @@
 - `postgres`: `CurrencyCodes` — ISO-коды валют по ID без SQL по `cat_currencies`.
 - Новый пакет `launch`: `Build`, `Option`, `WithExtensions`, `Server`, `Worker`, `Tenant`, `Seed` — `main` команд конфигурации без `internal/bootstrap`.
 - `postgres/catalog_repo`: `RateSourceKey`, `RateSourcesWithOwnKey`, `MoveRateSourceKeyToPool` — перенос собственного ключа источника курсов в пул интеграций без SQL по `cat_rate_sources`.
+- `postgres/catalog_repo`: `RenameAccountKey` — переименование сохранённого ключа аккаунта интеграции без выдачи значения конфигурации.
+- `integrations`: `CredentialField.Optional` — ключ, который аккаунт может не указывать (например, токен сети, не входящей в подписку); аккаунту по-прежнему нужен хотя бы один ключ.
 - `sdktest` (только для тестов): `Migrate`, `OpenPool`, `NewTxManager`, `TxManager`, `TxOptions`, `WithPool`, а с тегом `integration` — `NewTenantWithMigrations`, `Tenant.Context`, `NewExchangeRateDatabase`. Менеджер транзакций над сырым пулом, `ManagedPool` и `RunAll` в рабочие пакеты не вынесены.
 
 ## 3.0.0 — 2026-11-22

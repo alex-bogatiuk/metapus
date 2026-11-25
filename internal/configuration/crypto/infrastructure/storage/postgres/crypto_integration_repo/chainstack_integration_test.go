@@ -40,7 +40,7 @@ func TestChainstackPoolExhaustionRecoveryAndRPCBindings(t *testing.T) {
 	for _, role := range []string{"fullnode", "solidity"} {
 		e := rpcconfig.NewRPCEndpoint("CHAINSTACK-"+role, role)
 		e.NetworkID = networkID
-		e.Role = role
+		e.Role = rpcconfig.Role(role)
 		e.ProviderID = "chainstack-nile"
 		e.TrustGroup = "chainstack"
 		e.URL = "https://tron-nile.core.chainstack.com"
@@ -139,7 +139,8 @@ func TestChainstackSepoliaBindingIsNetworkScopedAndReloadsKeys(t *testing.T) {
 	require.Error(t, er.ValidateBinding(ctx, &copy))
 	copy = *e
 	copy.TrustGroup = "chainstack-second-account"
-	require.Error(t, er.ValidateBinding(ctx, &copy))
+	require.NoError(t, er.ValidateBinding(ctx, &copy))
+	require.Equal(t, "chainstack", copy.TrustGroup, "a second account of the operator is never an independent source")
 	copy = *e
 	copy.URL = "https://tron-nile.core.chainstack.com"
 	require.Error(t, er.ValidateBinding(ctx, &copy))

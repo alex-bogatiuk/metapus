@@ -224,7 +224,7 @@ func TestRPCManagementTronValidatesEachRoleIndependently(t *testing.T) {
 	for _, role := range []string{"fullnode", "solidity"} {
 		for _, provider := range []string{"node-one", "node-two"} {
 			e := rpcconfig.NewRPCEndpoint(role+"-"+provider, role+" "+provider)
-			e.NetworkID, e.Role, e.ProviderID, e.TrustGroup, e.URL = network, role, provider, provider, "https://"+provider+".example.test/"
+			e.NetworkID, e.Role, e.ProviderID, e.TrustGroup, e.URL = network, rpcconfig.Role(role), provider, provider, "https://"+provider+".example.test/"
 			require.NoError(t, catalog.Create(ctx, e))
 			victim = e
 		}

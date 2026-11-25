@@ -41,7 +41,7 @@ func TestGetBlockEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
 	require.NoError(t, db.QueryRow(ctx, `INSERT INTO cat_blockchain_networks(code,name,chain_family,network_identifier,native_token_symbol,native_decimals) VALUES('GETBLOCK-TEST-NILE','GetBlock test Nile','tron','nile','TRX',6) RETURNING id`).Scan(&networkID))
 	for _, role := range []string{"fullnode", "solidity"} {
 		e := rpcconfig.NewRPCEndpoint("GETBLOCK-"+role, role)
-		e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = networkID, role, "getblock-nile", "getblock"
+		e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = networkID, rpcconfig.Role(role), "getblock-nile", "getblock"
 		e.URL, e.PoolID, e.Slot = "https://shared.eu-central-1.getblock.io", &pool.ID, role
 		require.NoError(t, er.Create(ctx, e))
 		prefix := "/wallet/"
@@ -61,7 +61,8 @@ func TestGetBlockEncryptedRoleSlotsAndTrustBoundary(t *testing.T) {
 			closer.CloseIdleConnections()
 		}
 		e.TrustGroup = "getblock-second-token"
-		require.Error(t, er.ValidateBinding(ctx, e), "role tokens must never become independent trust groups")
+		require.NoError(t, er.ValidateBinding(ctx, e))
+		require.Equal(t, "getblock", e.TrustGroup, "role tokens must never become independent trust groups")
 		other := map[string]string{"fullnode": "solidity", "solidity": "fullnode"}[role]
 		e.TrustGroup, e.Slot = "getblock", other
 		require.Error(t, er.ValidateBinding(ctx, e), "role must select its own token slot")

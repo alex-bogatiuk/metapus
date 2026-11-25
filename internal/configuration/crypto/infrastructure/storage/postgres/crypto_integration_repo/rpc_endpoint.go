@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/cryptointegrations"
 	"net/url"
+	"slices"
 
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
@@ -25,13 +26,17 @@ func (r *CryptoRPCEndpointRepo) ValidateBinding(ctx context.Context, e *rpcconfi
 		return err
 	}
 	q := postgres.MustGetTxManager(ctx).GetQuerier(ctx)
-	binding, err := rpcBindingFor(ctx, e.NetworkID, e.Role, e.URL, e.TrustGroup, e.Slot)
+	e.AssignSource()
+	if e.ProviderID == "" || e.TrustGroup == "" {
+		return apperror.NewValidation("Укажите, кто обслуживает этот RPC: адрес не принадлежит известному провайдеру").WithDetail("field", "trustGroup")
+	}
+	binding, err := rpcBindingFor(ctx, e.NetworkID, string(e.Role), e.URL, e.TrustGroup, e.Slot)
 	if err != nil {
 		return err
 	}
-	family := binding.Family
-	if family == "evm" && e.Role != "rpc" || family == "tron" && e.Role == "rpc" {
-		return apperror.NewValidation("Роль RPC не соответствует семейству сети")
+	// A family without a declared role set keeps accepting every role.
+	if roles := rpcconfig.RolesForFamily(binding.Family); len(roles) > 0 && !slices.Contains(roles, e.Role) {
+		return apperror.NewValidation("Это назначение недоступно для выбранной сети").WithDetail("field", "role")
 	}
 	if e.PoolID == nil {
 		// Anonymous endpoints carry no account key.
@@ -108,6 +113,8 @@ func (r *CryptoRPCEndpointRepo) Update(ctx context.Context, e *rpcconfig.RPCEndp
 		if err != nil {
 			return err
 		}
+		// Stored evidence names the endpoint by this identifier.
+		e.ProviderID = old.ProviderID
 		return r.mutate(ctx, old.NetworkID, func(ctx context.Context) error {
 			apply := func(ctx context.Context) error {
 				if err := r.ValidateBinding(ctx, e); err != nil {

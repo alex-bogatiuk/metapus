@@ -55,7 +55,7 @@ func (p CredentialProfile) Validate(c Credentials) error {
 	}
 	if p.RequireFields {
 		for _, field := range p.Fields {
-			if _, ok := c.Key(field.Name); !ok {
+			if _, ok := c.Key(field.Name); !ok && !field.Optional {
 				return apperror.NewValidation("Укажите все обязательные ключи провайдера").WithDetail("field", field.Name)
 			}
 		}

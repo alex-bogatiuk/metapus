@@ -45,13 +45,13 @@ func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 	repo := NewIntegrationAccountRepo()
 	service := integrations.NewAccountService(repo, nil, cryptointegrations.Catalog())
 	const shared = "private-shared-secondary-key"
-	owner := accountWithKeys("OWNER", cryptointegrations.Alchemy,
+	owner := accountWithKeys("OWNER", cryptointegrations.TronAPI,
 		integrations.NamedKey{Name: "default", Value: "private-primary-key"},
 		integrations.NamedKey{Name: "secondary", Value: shared})
 	owner.IsActive = false // Disabling an account must not free its credentials.
 	require.NoError(t, service.Create(ctx, owner))
 
-	duplicate := accountWithKeys("DUPLICATE", cryptointegrations.Alchemy,
+	duplicate := accountWithKeys("DUPLICATE", cryptointegrations.TronAPI,
 		integrations.NamedKey{Name: "new", Value: "private-new-key"},
 		integrations.NamedKey{Name: "renamed", Value: shared})
 	duplicate.ExternalAccountRef = "different-external-account"
@@ -73,7 +73,7 @@ func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 	require.NoError(t, service.Update(ctx, loaded))
 	owner = loaded
 
-	other := accountWithKeys("OTHER", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: "private-other-key"})
+	other := accountWithKeys("OTHER", cryptointegrations.TronAPI, integrations.NamedKey{Name: "default", Value: "private-other-key"})
 	require.NoError(t, service.Create(ctx, other))
 	before, err := repo.GetByID(ctx, other.ID)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestIntegrationAccountUniqueKeysAcrossSlotsAndUpdates(t *testing.T) {
 	// Providers own independent key namespaces; changing provider rechecks them.
 	crossProvider := accountWithKeys("CROSS-PROVIDER", cryptointegrations.Chainstack, integrations.NamedKey{Name: "default", Value: shared})
 	require.NoError(t, service.Create(ctx, crossProvider))
-	crossProvider.Provider = cryptointegrations.Alchemy
+	crossProvider.Provider = cryptointegrations.TronAPI
 	requireCredentialConflict(t, service.Update(ctx, crossProvider), owner, shared)
 }
 
@@ -98,10 +98,10 @@ func TestIntegrationAccountUniqueKeysOnRestoreAndRemoval(t *testing.T) {
 	repo := NewIntegrationAccountRepo()
 	service := integrations.NewAccountService(repo, nil, cryptointegrations.Catalog())
 	const shared = "private-restored-key"
-	original := accountWithKeys("ORIGINAL", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared})
+	original := accountWithKeys("ORIGINAL", cryptointegrations.TronAPI, integrations.NamedKey{Name: "default", Value: shared})
 	require.NoError(t, service.Create(ctx, original))
 	require.NoError(t, service.SetDeletionMark(ctx, original.ID, true))
-	replacement := accountWithKeys("REPLACEMENT", cryptointegrations.Alchemy, integrations.NamedKey{Name: "another-slot", Value: shared})
+	replacement := accountWithKeys("REPLACEMENT", cryptointegrations.TronAPI, integrations.NamedKey{Name: "another-slot", Value: shared})
 	require.NoError(t, service.Create(ctx, replacement))
 	requireCredentialConflict(t, service.SetDeletionMark(ctx, original.ID, false), replacement, shared)
 	stored, err := repo.GetByID(ctx, original.ID)
@@ -129,8 +129,8 @@ func TestIntegrationAccountConcurrentDuplicateKeys(t *testing.T) {
 	repo := NewIntegrationAccountRepo()
 	const shared = "private-concurrent-key"
 	accounts := []*integrations.Account{
-		accountWithKeys("FIRST", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: shared}),
-		accountWithKeys("SECOND", cryptointegrations.Alchemy, integrations.NamedKey{Name: "different-slot", Value: shared}),
+		accountWithKeys("FIRST", cryptointegrations.TronAPI, integrations.NamedKey{Name: "default", Value: shared}),
+		accountWithKeys("SECOND", cryptointegrations.TronAPI, integrations.NamedKey{Name: "different-slot", Value: shared}),
 	}
 	for _, account := range accounts {
 		require.NoError(t, repo.Prepare(ctx, account, appDefinition(account.Provider)))
@@ -176,7 +176,7 @@ func TestIntegrationAccountUniqueKeysAreTenantLocal(t *testing.T) {
 	t.Setenv("AUTOMATION_ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")
 	for range 2 {
 		ctx, _ := fixtureDB(t)
-		a := accountWithKeys("SAME", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: "same-key-in-isolated-tenants"})
+		a := accountWithKeys("SAME", cryptointegrations.TronAPI, integrations.NamedKey{Name: "default", Value: "same-key-in-isolated-tenants"})
 		require.NoError(t, integrations.NewAccountService(NewIntegrationAccountRepo(), nil, cryptointegrations.Catalog()).Create(ctx, a))
 	}
 }

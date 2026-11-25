@@ -31,7 +31,7 @@ func (r CryptoRPCEndpointFields) ApplyTo(e *rpcconfig.RPCEndpoint) {
 	e.Code = r.Code
 	e.Name = r.Name
 	e.NetworkID, _ = id.Parse(r.NetworkID)
-	e.Role = r.Role
+	e.Role = rpcconfig.Role(r.Role)
 	e.ProviderID = r.ProviderID
 	e.TrustGroup = r.TrustGroup
 	e.URL = r.URL

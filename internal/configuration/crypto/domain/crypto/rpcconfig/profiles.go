@@ -135,12 +135,21 @@ func RPCProfileForURL(p integrations.Provider, raw string) (RPCProfile, bool) {
 	return best, !exactHost && best.HostSuffix != "" && best.ValidBase(raw)
 }
 
-// RPCKeyName returns the account key name that the provider profile requires
-// for a binding. An empty result means the profile leaves the choice open.
-func RPCKeyName(p integrations.Provider, b RPCBinding) string {
+// AccountKeyName is the one key name every account of the provider holds, or
+// empty when the provider's accounts may hold several.
+func AccountKeyName(p integrations.Provider) string {
 	definition, _ := cryptointegrations.Catalog().Definition(p)
 	if definition.Credentials.RequireFields && definition.Credentials.SingleKey && len(definition.Credentials.Fields) == 1 {
 		return definition.Credentials.Fields[0].Name
+	}
+	return ""
+}
+
+// RPCKeyName returns the account key name that the provider profile requires
+// for a binding. An empty result means the profile leaves the choice open.
+func RPCKeyName(p integrations.Provider, b RPCBinding) string {
+	if name := AccountKeyName(p); name != "" {
+		return name
 	}
 	profile, ok := RPCProfileForURL(p, b.URL)
 	if !ok || !profile.Supports(b) {
@@ -176,29 +185,44 @@ func RPCProviderForHost(host string) (integrations.Provider, bool) {
 	return "", false
 }
 
-func RPCTrustIdentity(raw, configured, endpointName string) string {
-	u, _ := url.Parse(raw)
-	if u != nil {
-		if provider, ok := RPCProviderForHost(u.Hostname()); ok {
-			for _, profile := range rpcProfiles[provider] {
-				if profile.OwnsHost(u.Hostname()) {
-					return profile.TrustGroup
-				}
-			}
-		}
-		// Public/file-only services have no managed account profile.
-		host := strings.ToLower(u.Hostname())
-		for _, operator := range []struct{ suffix, group string }{
-			{".g.alchemy.com", "alchemy"}, {".infura.io", "infura"}, {".tenderly.co", "tenderly"}, {".publicnode.com", "publicnode"},
-			{".uniblock.dev", "uniblock"}, {".onfinality.io", "onfinality"}, {".trongrid.io", "trongrid"}, {".nileex.io", "nileex"}, {".core.chainstack.com", "chainstack"},
-		} {
-			if host == strings.TrimPrefix(operator.suffix, ".") || strings.HasSuffix(host, operator.suffix) {
-				return operator.group
+// KnownRPCTrustGroup returns the operator that serves a known RPC host.
+func KnownRPCTrustGroup(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" {
+		return "", false
+	}
+	if provider, ok := RPCProviderForHost(u.Hostname()); ok {
+		for _, profile := range rpcProfiles[provider] {
+			if profile.OwnsHost(u.Hostname()) {
+				return profile.TrustGroup, true
 			}
 		}
 	}
-	if configured != "" {
-		return configured
+	// Public/file-only services have no managed account profile.
+	host := strings.ToLower(u.Hostname())
+	for _, operator := range []struct{ suffix, group string }{
+		{".g.alchemy.com", "alchemy"}, {".infura.io", "infura"}, {".tenderly.co", "tenderly"}, {".publicnode.com", "publicnode"},
+		{".uniblock.dev", "uniblock"}, {".onfinality.io", "onfinality"}, {".trongrid.io", "trongrid"}, {".nileex.io", "nileex"}, {".core.chainstack.com", "chainstack"},
+	} {
+		if host == strings.TrimPrefix(operator.suffix, ".") || strings.HasSuffix(host, operator.suffix) {
+			return operator.group, true
+		}
+	}
+	return "", false
+}
+
+// ResolveRPCTrustGroup is the operator stored for an endpoint: a known host
+// decides it, and only another host keeps the operator the administrator named.
+func ResolveRPCTrustGroup(raw, configured string) string {
+	if group, ok := KnownRPCTrustGroup(raw); ok {
+		return group
+	}
+	return strings.TrimSpace(configured)
+}
+
+func RPCTrustIdentity(raw, configured, endpointName string) string {
+	if group := ResolveRPCTrustGroup(raw, configured); group != "" {
+		return group
 	}
 	return endpointName
 }

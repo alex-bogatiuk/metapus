@@ -12,6 +12,7 @@ type IntegrationCredentialFieldResponse struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
+	Optional    bool   `json:"optional,omitzero"`
 }
 
 type IntegrationCredentialProfileResponse struct {
@@ -59,7 +60,7 @@ func IntegrationProviders(catalog *integrations.Catalog) IntegrationProvidersRes
 			profile.URLImports = append(profile.URLImports, IntegrationCredentialURLImportResponse{Host: rule.Host, PathPrefix: rule.PathPrefix, RolePaths: rule.RolePaths})
 		}
 		for _, field := range provider.Credentials.Fields {
-			profile.Fields = append(profile.Fields, IntegrationCredentialFieldResponse{Name: field.Name, Label: field.Label, Description: field.Description})
+			profile.Fields = append(profile.Fields, IntegrationCredentialFieldResponse{Name: field.Name, Label: field.Label, Description: field.Description, Optional: field.Optional})
 		}
 		out.Providers = append(out.Providers, IntegrationProviderResponse{ID: provider.ID, Label: provider.Label, Description: provider.Description, Kinds: provider.Kinds, CanCreate: provider.CanCreate, Credentials: profile, QuotaPolicy: provider.QuotaPolicy})
 	}

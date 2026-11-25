@@ -1175,6 +1175,7 @@ export const IntegrationCredentialFieldResponseSchema: z.ZodType<Wire.Integratio
   "name": z.string(),
   "label": z.string(),
   "description": z.string(),
+  "optional": z.boolean().optional(),
 }))
 
 export const IntegrationCredentialProfileResponseSchema: z.ZodType<Wire.IntegrationCredentialProfileResponse> = z.lazy(() => z.object({

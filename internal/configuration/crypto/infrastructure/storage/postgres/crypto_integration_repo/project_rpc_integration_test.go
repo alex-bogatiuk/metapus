@@ -54,7 +54,7 @@ func TestProjectRPCPoolProbes(t *testing.T) {
 				poolID, pools[tt.provider] = p.ID, p.ID
 			}
 			e := rpcconfig.NewRPCEndpoint(code+"-"+tt.role, code+" "+tt.role)
-			e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = tt.networkID, tt.role, string(tt.provider), string(tt.provider)
+			e.NetworkID, e.Role, e.ProviderID, e.TrustGroup = tt.networkID, rpcconfig.Role(tt.role), string(tt.provider), string(tt.provider)
 			e.URL, e.PoolID = tt.base, &poolID
 			require.NoError(t, NewCryptoRPCEndpointRepo().Create(ctx, e))
 			require.Equal(t, tt.slot, e.Slot)

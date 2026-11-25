@@ -1,6 +1,7 @@
 // integration-config imports the integration configuration of exactly one tenant
 // database. Secrets are read from secret files and the chains file;
-// output contains counts.
+// output contains counts. With -adopt-key-names it instead brings stored
+// accounts and RPC endpoints to the key names provider profiles fix.
 package main
 
 import (
@@ -28,6 +29,7 @@ func run() error {
 	chains := flag.String("chains", "", "chains.json with networks and RPC endpoints (optional)")
 	mapping := flag.String("mapping", "", "Non-secret JSON endpoint/account mapping")
 	activate := flag.Bool("activate", false, "Select database RPC configuration after import")
+	adopt := flag.Bool("adopt-key-names", false, "Rename stored account keys and RPC endpoint key names to the names provider profiles fix, instead of importing")
 	flag.Parse()
 	dsn, err := secretfile.Get("DATABASE_URL", "")
 	if err != nil || dsn == "" {
@@ -62,6 +64,29 @@ func run() error {
 		if e != nil || json.Unmarshal(raw, &bindings) != nil {
 			return errors.New("invalid non-secret account mapping")
 		}
+	}
+	if *adopt {
+		if *chains != "" || *mapping != "" || *activate {
+			return errors.New("-adopt-key-names does not import: omit -chains, -mapping and -activate")
+		}
+		var adoption crypto_integration_repo.RPCKeyAdoption
+		err = tm.RunInTransaction(ctx, func(ctx context.Context) error {
+			var e error
+			if adoption, e = crypto_integration_repo.AdoptRPCKeyNames(ctx); e != nil {
+				return e
+			}
+			if !*apply {
+				return errDryRun
+			}
+			return nil
+		})
+		if err != nil && !errors.Is(err, errDryRun) {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(struct {
+			Apply  bool                                   `json:"apply"`
+			Report crypto_integration_repo.RPCKeyAdoption `json:"report"`
+		}{*apply, adoption})
 	}
 	var report crypto_integration_repo.ImportReport
 	err = tm.RunInTransaction(ctx, func(ctx context.Context) error {

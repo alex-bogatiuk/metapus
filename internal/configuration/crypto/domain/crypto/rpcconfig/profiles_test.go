@@ -60,9 +60,9 @@ func TestRPCKeyNameFollowsProviderProfile(t *testing.T) {
 		{cryptointegrations.Chainstack, sepolia("https://ethereum-sepolia.core.chainstack.com/"), "sepolia"},
 		{cryptointegrations.Chainstack, nile("https://tron-nile.core.chainstack.com/", "fullnode"), "nile"},
 		{cryptointegrations.GetBlock, nile("https://shared.eu-central-1.getblock.io/", "solidity"), "solidity"},
-		// cryptointegrations.Alchemy accounts may hold several keys; the operator picks one.
-		{cryptointegrations.Alchemy, sepolia("https://eth-sepolia.g.alchemy.com/v2/"), ""},
-		{cryptointegrations.Alchemy, nile("https://tron-testnet.g.alchemy.com/v2/", "fullnode"), ""},
+		// One Alchemy app key serves every network of the app.
+		{cryptointegrations.Alchemy, sepolia("https://eth-sepolia.g.alchemy.com/v2/"), "default"},
+		{cryptointegrations.Alchemy, nile("https://tron-testnet.g.alchemy.com/v2/", "fullnode"), "default"},
 		// An unsupported binding has no profile and therefore no fixed name.
 		{cryptointegrations.Infura, nile("https://sepolia.infura.io/v3/", "fullnode"), ""},
 	} {

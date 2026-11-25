@@ -84,22 +84,23 @@ func TestRPCKeyNameFollowsProfileAndPoolAccounts(t *testing.T) {
 	require.NoError(t, ar.Prepare(ctx, current, appDefinition(current.Provider)))
 	requireKeyError(t, ar.Update(ctx, current), "rpc_key_missing")
 
-	// Alchemy accounts may hold several keys; the operator chooses a common one.
-	first := account("ALCHEMY-KEYS-1", cryptointegrations.Alchemy, integrations.NamedKey{Name: "nile", Value: "alchemy-nile-1"}, integrations.NamedKey{Name: "sepolia", Value: "alchemy-sepolia-1"})
-	second := account("ALCHEMY-KEYS-2", cryptointegrations.Alchemy, integrations.NamedKey{Name: "nile", Value: "alchemy-nile-2"})
+	// Alchemy: one app key serves every network, so the name is fixed too.
+	first := account("ALCHEMY-KEYS-1", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: "alchemy-app-1"})
+	second := account("ALCHEMY-KEYS-2", cryptointegrations.Alchemy, integrations.NamedKey{Name: "default", Value: "alchemy-app-2"})
 	alchemyPool := integrations.NewPool("ALCHEMY-KEYS", "Alchemy")
 	alchemyPool.Provider, alchemyPool.AccountIDs = cryptointegrations.Alchemy, []id.ID{first.ID, second.ID}
 	require.NoError(t, pr.Create(ctx, alchemyPool))
 	options, err = RPCPoolConsumer{}.RPCKeyOptions(ctx, rpcconfig.RPCKeyQuery{PoolID: alchemyPool.ID, NetworkID: nile, Role: "fullnode", URL: "https://tron-testnet.g.alchemy.com/v2/"})
 	require.NoError(t, err)
-	require.Empty(t, options.Required)
-	require.Equal(t, []string{"nile"}, options.Names)
+	require.Equal(t, "default", options.Required)
 	a := rpcconfig.NewRPCEndpoint("ALCHEMY-KEYS-RPC", "TRON-NILE/fullnode/alchemy-nile")
 	a.NetworkID, a.Role, a.ProviderID, a.TrustGroup = nile, "fullnode", "alchemy-nile", "alchemy"
-	a.URL, a.PoolID, a.Slot = "https://tron-testnet.g.alchemy.com/v2/", &alchemyPool.ID, "sepolia"
-	requireKeyError(t, er.Create(ctx, a), "rpc_key_missing")
-	a.Slot = "nile"
+	a.URL, a.PoolID, a.Slot = "https://tron-testnet.g.alchemy.com/v2/", &alchemyPool.ID, "nile"
+	requireKeyError(t, er.Create(ctx, a), "rpc_binding_invalid")
+	a.Slot = ""
 	require.NoError(t, er.Create(ctx, a))
+	require.NoError(t, db.QueryRow(ctx, `SELECT credential_slot FROM sys_crypto_rpc_endpoints WHERE id=$1`, a.ID).Scan(&stored))
+	require.Equal(t, "default", stored)
 
 	// Anonymous endpoints carry no account key.
 	public := rpcconfig.NewRPCEndpoint("PUBLIC-KEYS-RPC", "ETHEREUM-SEPOLIA/rpc/public")

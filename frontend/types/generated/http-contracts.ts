@@ -1171,6 +1171,7 @@ export type IntegrationCredentialFieldResponse = {
   "name": string
   "label": string
   "description": string
+  "optional"?: boolean
 }
 
 export type IntegrationCredentialProfileResponse = {

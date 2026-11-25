@@ -144,7 +144,7 @@ func ImportConfiguration(ctx context.Context, cfg *chainconfig.File, bindings ma
 				}
 				e := rpcconfig.NewRPCEndpoint(importedCode("RPC", target), target)
 				e.NetworkID = networkID
-				e.Role = role
+				e.Role = rpcconfig.Role(role)
 				e.ProviderID = entry.ProviderID
 				e.TrustGroup = entry.TrustIdentity()
 				e.URL = baseURL

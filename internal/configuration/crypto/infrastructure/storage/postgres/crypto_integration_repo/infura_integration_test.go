@@ -57,7 +57,8 @@ func TestInfuraEncryptedKeyBindingAndDailyStatus(t *testing.T) {
 	require.Len(t, state.Accounts, 1)
 	require.Equal(t, time.Now().UTC().Truncate(24*time.Hour).Add(24*time.Hour), *state.Accounts[0].NextResetAt)
 	e.TrustGroup = "infura-another-key"
-	require.Error(t, er.ValidateBinding(ctx, e))
+	require.NoError(t, er.ValidateBinding(ctx, e))
+	require.Equal(t, "infura", e.TrustGroup, "another key of the operator is not an independent source")
 	e.TrustGroup, e.URL = "infura", e.URL+secret
 	require.Error(t, er.ValidateBinding(ctx, e))
 	e.URL, e.PoolID = "https://sepolia.infura.io/v3/", nil

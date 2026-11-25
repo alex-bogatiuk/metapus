@@ -59,7 +59,14 @@ func Providers() []integrations.ProviderDefinition {
 		{ID: DRPC, Label: "dRPC", Description: "Ethereum Sepolia с ручным сроком ключа.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaManual,
 			Credentials:                 integrations.CredentialProfile{Fields: []integrations.CredentialField{{Name: "sepolia", Label: "Ключ dRPC", Description: "Ключ или HTTPS-ссылка Sepolia из dRPC."}}, ReplaceLabel: "Продлить ключ…", Description: "Новый ключ и новая дата сохраняются вместе. После срока доступ не возобновляется автоматически.", KeyFormat: integrations.CredentialURLSafe, RequireFields: true, SingleKey: true, KeyOnly: true, URLImports: []integrations.CredentialURLImport{{Host: "lb.drpc.live", PathPrefix: "/sepolia"}}},
 			AccountMinRequestIntervalMS: 200},
-		{ID: Alchemy, Label: "Alchemy", Description: "Доступ к EVM и TRON через RPC.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly},
+		// One Alchemy app key serves every network the app enables, so an
+		// account holds that key alone and endpoints never name it.
+		{ID: Alchemy, Label: "Alchemy", Description: "Доступ к EVM и TRON через RPC.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly,
+			Credentials: integrations.CredentialProfile{
+				Fields:       []integrations.CredentialField{{Name: "default", Label: "Ключ API Alchemy", Description: "API key приложения Alchemy. Сети, к которым он даёт доступ, включаются в настройках приложения."}},
+				ReplaceLabel: "Заменить ключ…", Description: "Один ключ приложения Alchemy подходит для всех его сетей.",
+				RequireFields: true, SingleKey: true, KeyOnly: true,
+			}},
 		monthlyRPC(ValidationCloud, "Validation Cloud", "Ethereum Sepolia.", "sepolia",
 			"Ключ или HTTPS-ссылка Ethereum Sepolia из Validation Cloud.",
 			integrations.CredentialURLImport{Host: "sepolia.ethereum.validationcloud.io", PathPrefix: "/v1"}),
@@ -83,7 +90,16 @@ func Providers() []integrations.ProviderDefinition {
 		}, AccountMinRequestIntervalMS: 1000},
 		{ID: TronAPI, Label: "TRON API / TronGrid", Description: "Доступ к сети TRON через API TronGrid.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly},
 		{ID: Chainstack, Label: "Chainstack", Description: "Доступ к TRON Nile и Ethereum Sepolia.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly,
-			Credentials: integrations.CredentialProfile{KeyFormat: integrations.CredentialURLSafe, Description: "Введите только токен, без полного URL и суффикса API. Имя nile — для TRON Nile, sepolia — для Ethereum Sepolia."}, AccountMinRequestIntervalMS: 200},
+			// Each Chainstack node has its own token; the RPC profile reads the
+			// one of the endpoint's network, so the operator never names keys.
+			Credentials: integrations.CredentialProfile{
+				Fields: []integrations.CredentialField{
+					{Name: "nile", Label: "Токен TRON Nile", Description: "Из адреса узла TRON Nile в Chainstack. Одним токеном пользуются FullNode и Solidity.", Optional: true},
+					{Name: "sepolia", Label: "Токен Ethereum Sepolia", Description: "Из адреса узла Ethereum Sepolia в Chainstack.", Optional: true},
+				},
+				ReplaceLabel: "Заменить токены…", Description: "Введите только токен, без полного URL и суффикса API. Укажите токены тех сетей, к которым есть доступ.",
+				KeyFormat: integrations.CredentialURLSafe, RequireFields: true,
+			}, AccountMinRequestIntervalMS: 200},
 		{ID: GetBlock, Label: "Getblock.io", Description: "Доступ к TRON Nile через FullNode и Solidity REST.", Kinds: []integrations.Kind{KindRPC}, CanCreate: true, QuotaPolicy: integrations.QuotaMonthly, Credentials: integrations.CredentialProfile{
 			Fields: []integrations.CredentialField{
 				{Name: "fullnode", Label: "Токен FullNode REST", Description: "Из эндпоинта REST (Fullnode) нужной сети TRON."},

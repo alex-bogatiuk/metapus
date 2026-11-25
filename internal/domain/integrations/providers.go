@@ -32,6 +32,9 @@ type CredentialField struct {
 	Name        string
 	Label       string
 	Description string
+	// Optional lets an account omit the key, for example a token for a network
+	// the subscription does not include. An account still needs one key.
+	Optional bool
 }
 
 type CredentialProfile struct {

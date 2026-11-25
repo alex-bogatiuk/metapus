@@ -22,13 +22,14 @@ const maxSecretBytes = 1 << 20
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
-type Role string
+// Role is the domain purpose of an RPC endpoint.
+type Role = rpcconfig.Role
 
 const (
-	RoleIndexer  Role = "indexer"
-	RoleFullNode Role = "fullnode"
-	RoleSolidity Role = "solidity"
-	RoleRPC      Role = "rpc"
+	RoleIndexer  = rpcconfig.RoleIndexer
+	RoleFullNode = rpcconfig.RoleFullNode
+	RoleSolidity = rpcconfig.RoleSolidity
+	RoleRPC      = rpcconfig.RoleRPC
 )
 
 type File struct {

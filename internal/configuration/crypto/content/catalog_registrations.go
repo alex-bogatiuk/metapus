@@ -19,6 +19,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/token"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/catalogs/wallet"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/domain/crypto/rpcconfig"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/http/cryptohttp/cryptodto"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/storage/postgres/crypto_catalog_repo"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
@@ -85,6 +86,14 @@ func init() {
 		{Value: string(crypto.ChainFamilyEVM), Label: "EVM (Ethereum, Polygon, Arbitrum, BSC)"},
 		{Value: string(crypto.ChainFamilyTON), Label: "TON"},
 		{Value: string(crypto.ChainFamilySolana), Label: "Solana"},
+	})
+
+	// RPC endpoint purposes; the server rejects a purpose the network lacks.
+	metadata.RegisterEnum[rpcconfig.Role]([]metadata.EnumValue{
+		{Value: string(rpcconfig.RoleRPC), Label: "RPC — чтение и отправка операций (EVM)"},
+		{Value: string(rpcconfig.RoleFullNode), Label: "FullNode — операции и свежие данные (TRON)"},
+		{Value: string(rpcconfig.RoleSolidity), Label: "Solidity — подтверждённые данные (TRON)"},
+		{Value: string(rpcconfig.RoleIndexer), Label: "Indexer — TronGrid API (обработкой не используется)"},
 	})
 
 	// Blockchain Network Finality Modes
