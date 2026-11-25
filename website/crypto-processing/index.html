@@ -184,21 +184,153 @@ body,.nav,.card,.shot,.side,.chrome{transition:background-color .25s,border-colo
 .chart-sum{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
 .chart-sum b{color:var(--fg);font-variant-numeric:tabular-nums}
 
-.pay{position:absolute;right:-20px;bottom:-72px;width:300px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;display:grid;gap:14px}
-.pay-h{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
-.pay-amt{font-size:28px;font-weight:600;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.main-head .mh{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.mh-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kpi b span.num{font-size:inherit;color:inherit;font-weight:inherit;margin:0;letter-spacing:inherit}
+.vh{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* interactive demo */
+.demo{position:relative;margin-top:clamp(40px,5vw,64px)}
+.demo::before{content:"";position:absolute;inset:-6% 6% 30%;background:radial-gradient(50% 60% at 50% 30%,var(--accent-soft),transparent 70%);z-index:-1}
+.demo-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.dtabs{display:flex;gap:2px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.dtabs::-webkit-scrollbar{display:none}
+.dtab{position:relative;display:inline-flex;align-items:center;gap:8px;border:0;background:none;color:var(--muted);font:500 14px/1 var(--f-sans);padding:10px 15px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.dtab:hover{color:var(--fg)}
+.dtab[aria-selected="true"]{background:var(--fg);color:var(--bg)}
+.dtab .dot{display:none;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.dtab.ping .dot{display:block;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+.dctl{display:flex;align-items:center;gap:8px;min-width:0}
+.dstatus{font-size:13px;color:var(--muted);width:min(380px,32vw);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.dbtn{flex:none;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:500 13px/1 var(--f-sans);cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.dbtn:hover{border-color:var(--dim)}
+.dbtn svg{width:14px;height:14px}
+@media (max-width:700px){.demo-bar{flex-direction:column;align-items:stretch}.dctl{justify-content:space-between}.dstatus{flex:1;max-width:none}}
+
+.dpanel{min-height:560px}
+.dpanel > .app{min-height:560px}
+.abtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:9px;border:1px solid transparent;background:var(--accent);color:#fff;font:600 13px/1 var(--f-sans);cursor:pointer;white-space:nowrap;transition:opacity .15s,background .15s}
+.abtn:hover{background:#1D4ED8}
+.abtn--ghost{background:var(--surface);color:var(--fg);border-color:var(--line)}
+.abtn--ghost:hover{background:var(--chip)}
+.abtn--warn{background:var(--surface);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.abtn--warn:hover{background:var(--warn-soft)}
+.abtn:disabled{opacity:.45;cursor:not-allowed}
+.abtn.pulse:not(:disabled){animation:ring 1.4s ease-out infinite}
+@keyframes ring{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--warn) 45%,transparent)}100%{box-shadow:0 0 0 10px transparent}}
+.flash td{animation:flash 1.6s ease-out}
+@keyframes flash{0%,30%{background:var(--accent-soft)}100%{background:transparent}}
+.st--bad{background:rgba(180,35,24,.1);color:var(--bad)}
+.neg{color:var(--bad)}
+.simnote{font-size:12.5px;color:var(--muted);text-align:center;max-width:44ch}
+.colh{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13.5px}
+.colh b{font-weight:600}
+.colh small{display:block;color:var(--muted);font-size:12.5px;font-weight:400}
+.colh .muted{color:var(--muted);font:12px var(--f-mono)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.term{margin:0;background:#111113;color:#EDEDEF;border-radius:var(--r-s);font:12.5px/1.65 var(--f-mono);padding:14px 16px;overflow-x:auto;white-space:pre;border:1px solid #2C2C30}
+
+/* payment page tab */
+.payview{display:grid;place-items:center;align-content:center;gap:16px;padding:36px 16px;background:var(--sunken);min-height:560px}
+.paycard{width:min(380px,100%);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:22px;display:grid;gap:16px}
+.pay-h{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.pay-amt{font-size:30px;font-weight:600;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
 .pay-amt span{font-size:14px;color:var(--muted);font-weight:500;margin-left:4px;letter-spacing:0}
-.pay-body{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:center}
-.qr{width:96px;height:96px;padding:6px;border-radius:10px;background:#fff;border:1px solid var(--line)}
+.pay-body{display:grid;grid-template-columns:104px minmax(0,1fr);gap:14px;align-items:center}
+.qr{width:104px;height:104px;padding:6px;border-radius:10px;background:#fff;border:1px solid var(--line)}
 .qr svg{display:block;width:100%;height:100%}
 .pay-rows{display:grid;gap:8px;font-size:12px;color:var(--muted);min-width:0}
 .pay-rows b{display:block;color:var(--fg);font-weight:500;font-family:var(--f-mono);font-size:12px;overflow-wrap:anywhere}
 .pay-t{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);background:var(--sunken);border-radius:10px;padding:10px 12px}
 .pay-t b{font-family:var(--f-mono);color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
-.shot-note{margin-top:14px;font-size:13px;color:var(--muted)}
-@media (max-width:1100px){.pay{display:none}}
-@media (max-width:860px){.app{grid-template-columns:1fr;min-height:0}.side{display:none}.panels{grid-template-columns:1fr}.chart{display:none}}
-@media (max-width:640px){.kpis{grid-template-columns:1fr}.main{padding:16px}.tbl .hide-s{display:none}}
+.cf{display:grid;gap:8px;background:var(--sunken);border-radius:10px;padding:12px}
+.cf-h{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.cf-h b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.prog{height:6px;background:var(--line);border-radius:99px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);border-radius:inherit;transition:width .14s linear}
+.tx{font:11.5px var(--f-mono);color:var(--dim)}
+.note-warn{font-size:13px;color:var(--warn);background:var(--warn-soft);border-radius:10px;padding:12px}
+.pay-empty{display:grid;justify-items:center;gap:8px;text-align:center;padding:24px 8px;font-size:14px;color:var(--muted)}
+.pay-empty b{color:var(--fg);font-size:16px}
+.pay-empty .abtn{margin-top:8px}
+.paid{display:grid;justify-items:center;gap:6px;text-align:center;padding:10px 0 4px;color:var(--muted);font-size:13.5px}
+.paid b{color:var(--fg);font-size:20px;font-weight:600;letter-spacing:-.02em}
+.check{width:56px;height:56px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;margin-bottom:6px;animation:pop .4s cubic-bezier(.2,.9,.3,1.4)}
+.check svg{width:26px;height:26px}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+.back{justify-self:center;font-size:13px;font-weight:500;color:var(--accent-text)}
+
+/* api tab */
+.apiv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:560px}
+.apicol{padding:20px 22px;display:grid;gap:12px;align-content:start;min-width:0}
+.apicol + .apicol{border-left:1px solid var(--line)}
+.hooks{border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden;display:grid}
+.hook{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:none;color:inherit;font:13px var(--f-sans);text-align:left;cursor:pointer;width:100%}
+.hook:last-child{border-bottom:0}
+.hook:hover{background:var(--sunken)}
+.hook[aria-pressed="true"]{background:var(--accent-soft)}
+.hook code{background:none;padding:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
+.hook .hm,.hook .ht{color:var(--muted);font:12px var(--f-mono);font-variant-numeric:tabular-nums}
+.hooks .empty{padding:14px 12px;font-size:13px;color:var(--muted)}
+@media (max-width:860px){.apiv{grid-template-columns:1fr;min-height:0}.apicol + .apicol{border-left:0;border-top:1px solid var(--line)}.hook .ht{display:none}}
+
+/* ledger tab */
+.ledv{padding:20px 22px;display:grid;gap:16px;align-content:start;min-height:560px}
+.tots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:640px){.tots{grid-template-columns:1fr}}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-s)}
+.ltbl{min-width:520px}
+.ltbl td small.rc{display:block;color:var(--dim);font:11.5px var(--f-mono);margin-top:2px}
+.ltbl td{vertical-align:top}
+.ltbl .empty td{white-space:normal;color:var(--muted);padding:22px 16px;text-align:center}
+.kind{font-size:11.5px;font-weight:500;padding:3px 8px;border-radius:999px;background:var(--ok-soft);color:var(--ok)}
+.kind--st{background:rgba(180,35,24,.1);color:var(--bad)}
+
+/* vault tab */
+.vltv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:560px}
+.vcol{padding:20px 22px;display:grid;gap:14px;align-content:start;min-width:0}
+.vcol + .vcol{border-left:1px solid var(--line)}
+@media (max-width:860px){.vltv{grid-template-columns:1fr;min-height:0}.vcol + .vcol{border-left:0;border-top:1px solid var(--line)}}
+.wd{border:1px solid var(--line);border-radius:var(--r-s);padding:16px;display:grid;gap:12px}
+.wd-h{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.wd-rows{display:grid;gap:8px;font-size:12.5px;color:var(--muted)}
+.wd-rows span{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.wd-rows b{font-weight:500;color:var(--fg);font-family:var(--f-mono);font-size:12px}
+.wd-rows b.pos{color:var(--ok)}.wd-rows b.neg{color:var(--bad)}
+.wd-res{font-size:13px;font-weight:500;border-radius:10px;padding:10px 12px}
+.wd-res.ok{background:var(--ok-soft);color:var(--ok)}
+.wd-res.bad{background:rgba(180,35,24,.1);color:var(--bad)}
+.vcol .simnote{text-align:left}
+.chk,.audit{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.chk li{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:14px;color:var(--muted);border-bottom:1px solid var(--line)}
+.chk li:last-child{border-bottom:0}
+.chk li::before{content:"";flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:11px;font-weight:700;box-sizing:border-box}
+.chk li.c-run{color:var(--fg)}
+.chk li.c-run::before{border-color:var(--accent);border-right-color:transparent;animation:spin .7s linear infinite}
+.chk li.c-ok{color:var(--fg)}
+.chk li.c-ok::before{content:"✓";border:0;background:var(--ok-soft);color:var(--ok)}
+.chk li.c-fail{color:var(--bad);font-weight:500}
+.chk li.c-fail::before{content:"✕";border:0;background:rgba(180,35,24,.1);color:var(--bad)}
+.chk li.c-skip{color:var(--dim);text-decoration:line-through}
+@keyframes spin{to{transform:rotate(360deg)}}
+.audit li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:10px;align-items:baseline;font-size:12.5px;padding:6px 0;color:var(--muted)}
+.audit li i{width:7px;height:7px;border-radius:50%;background:var(--ok);align-self:center}
+.audit li.bad i{background:var(--bad)}
+.audit li span:first-of-type{font-family:var(--f-mono)}
+.audit li.empty{display:block}
+
+/* scenario rail */
+.rail-row{display:flex;justify-content:space-between;align-items:center;gap:12px 24px;flex-wrap:wrap;margin-top:16px}
+.rail{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.rail li{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);padding:6px 11px;border-radius:999px;border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.rail li.done{color:var(--ok);background:var(--ok-soft);border-color:transparent}
+.rail li.done::before{content:"✓";font-weight:700}
+.rail li.cur{color:var(--accent-text);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.rail li.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+.shot-note{font-size:13px;color:var(--muted)}
+@media (max-width:860px){.app{grid-template-columns:1fr;min-height:0}.side{display:none}.panels{grid-template-columns:1fr}.chart{display:none}.dpanel,.dpanel > .app,.payview,.ledv{min-height:0}}
+@media (max-width:640px){.kpis{grid-template-columns:1fr}.main{padding:16px}.tbl .hide-s{display:none}.ledv,.apicol,.vcol{padding:16px}}
 
 /* stats */
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:clamp(72px,8vw,112px);border-top:1px solid var(--line)}
@@ -420,69 +552,148 @@ img{max-width:100%}
     <span class="net"><span class="coin" style="background:#627EEA"><svg viewBox="0 0 16 16" fill="#fff"><path d="M8 1 3.8 8.2 8 10.6l4.2-2.4z"/><path d="M8 11.6 3.8 9.2 8 15l4.2-5.8z" opacity=".75"/></svg></span>Ethereum · EVM</span>
   </div>
 
-  <div class="shot-wrap">
-    <div class="shot" role="img" aria-label="Кабинет мерчанта Metapus: обзор балансов, график поступлений и последние инвойсы">
-      <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">pay.mystore.com/portal</span><span class="dots" style="visibility:hidden"><i></i><i></i><i></i></span></div>
-      <div class="app">
-        <aside class="side" aria-hidden="true">
-          <div class="side-org"><svg><use href="#logo"/></svg><span>My Store<small>Кабинет мерчанта</small></span></div>
-          <a class="on"><i></i>Обзор</a>
-          <a><i></i>Инвойсы</a>
-          <a><i></i>Депозитные адреса</a>
-          <a><i></i>Платёжные ссылки</a>
-          <span class="grp">Выплаты</span>
-          <a><i></i>Выводы</a>
-          <a><i></i>Заявки на вывод</a>
-          <span class="grp">Интеграция</span>
-          <a><i></i>API-ключи</a>
-          <a><i></i>Вебхуки</a>
-          <a><i></i>Настройки</a>
-        </aside>
-        <div class="main" aria-hidden="true">
-          <div class="main-head"><h4>Обзор</h4><div class="seg"><span>24 часа</span><span class="on">Неделя</span><span>30 дней</span></div></div>
-          <div class="kpis">
-            <div class="kpi"><small>Доступно к выводу</small><b>98 412.50<span>USDT</span></b><em class="mut">TRON · TRC-20</em></div>
-            <div class="kpi"><small>Поступления за неделю</small><b>41 230.00<span>USDT</span></b><em>+12,4% к прошлой</em></div>
-            <div class="kpi"><small>Заявки на вывод</small><b>5 000.00<span>USDT</span></b><em class="mut">2 на одобрении</em></div>
-          </div>
-          <div class="panels">
-            <div class="panel">
-              <div class="panel-h">Последние инвойсы <span>Все →</span></div>
-              <table class="tbl">
-                <thead><tr><th>Номер</th><th class="hide-s">Дата</th><th class="r">Сумма</th><th>Статус</th></tr></thead>
-                <tbody>
-                  <tr><td class="mono">INV-000123</td><td class="hide-s">19.11, 14:02</td><td class="r">100.00</td><td><span class="st st--wait">Ожидает</span></td></tr>
-                  <tr><td class="mono">INV-000122</td><td class="hide-s">19.11, 13:47</td><td class="r">2 450.00</td><td><span class="st st--ok">Оплачен</span></td></tr>
-                  <tr><td class="mono">INV-000121</td><td class="hide-s">19.11, 12:15</td><td class="r">380.00</td><td><span class="st st--warn">Недоплата</span></td></tr>
-                  <tr><td class="mono">INV-000120</td><td class="hide-s">19.11, 11:30</td><td class="r">1 200.00</td><td><span class="st st--ok">Оплачен</span></td></tr>
-                  <tr><td class="mono">INV-000119</td><td class="hide-s">18.11, 22:04</td><td class="r">75.00</td><td><span class="st st--off">Отменён</span></td></tr>
-                </tbody>
-              </table>
+  <section class="demo" id="demo" aria-labelledby="demoTitle">
+    <h2 class="vh" id="demoTitle">Интерактивное демо: путь одного платежа</h2>
+    <div class="demo-bar">
+      <div class="dtabs" role="tablist" aria-label="Разделы демо">
+        <button class="dtab" role="tab" id="dt-cab" aria-controls="dp-cab" aria-selected="true" type="button">Кабинет<i class="dot" aria-hidden="true"></i></button>
+        <button class="dtab" role="tab" id="dt-pay" aria-controls="dp-pay" aria-selected="false" tabindex="-1" type="button">Страница оплаты<i class="dot" aria-hidden="true"></i></button>
+        <button class="dtab" role="tab" id="dt-api" aria-controls="dp-api" aria-selected="false" tabindex="-1" type="button">API и вебхуки<i class="dot" aria-hidden="true"></i></button>
+        <button class="dtab" role="tab" id="dt-led" aria-controls="dp-led" aria-selected="false" tabindex="-1" type="button">Учёт<i class="dot" aria-hidden="true"></i></button>
+        <button class="dtab" role="tab" id="dt-vlt" aria-controls="dp-vlt" aria-selected="false" tabindex="-1" type="button">Vault<i class="dot" aria-hidden="true"></i></button>
+      </div>
+      <div class="dctl">
+        <span class="dstatus" id="dStatus" role="status">Демо готово к запуску</span>
+        <button class="dbtn" id="dPlay" type="button"></button>
+        <button class="dbtn" id="dReset" type="button">Сначала</button>
+      </div>
+    </div>
+
+    <div class="shot">
+      <div class="chrome" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span><span class="url" id="dUrl">pay.mystore.com/portal</span><span class="dots" style="visibility:hidden"><i></i><i></i><i></i></span></div>
+
+      <div class="dpanel" role="tabpanel" id="dp-cab" aria-labelledby="dt-cab">
+        <div class="app">
+          <aside class="side" aria-hidden="true">
+            <div class="side-org"><svg><use href="#logo"/></svg><span>My Store<small>Кабинет мерчанта</small></span></div>
+            <a class="on"><i></i>Обзор</a>
+            <a><i></i>Инвойсы</a>
+            <a><i></i>Депозитные адреса</a>
+            <a><i></i>Платёжные ссылки</a>
+            <span class="grp">Выплаты</span>
+            <a><i></i>Выводы</a>
+            <a><i></i>Заявки на вывод</a>
+            <span class="grp">Интеграция</span>
+            <a><i></i>API-ключи</a>
+            <a><i></i>Вебхуки</a>
+            <a><i></i>Настройки</a>
+          </aside>
+          <div class="main">
+            <div class="main-head">
+              <h3 class="mh">Обзор</h3>
+              <div class="mh-r">
+                <div class="seg" aria-hidden="true"><span>24 часа</span><span class="on">Неделя</span><span>30 дней</span></div>
+                <button class="abtn" id="aCreate" type="button">+ Создать инвойс</button>
+              </div>
             </div>
-            <div class="panel">
-              <div class="panel-h">Поступления <span>USDT</span></div>
-              <div class="chart">
-                <div class="bars"><i style="height:46%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:71%"></i><i style="height:55%"></i><i style="height:83%"></i><i style="height:94%"></i></div>
-                <div class="bars-x"><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span></div>
-                <div class="chart-sum"><span>Сегодня</span><b>7 640.00</b></div>
+            <div class="kpis">
+              <div class="kpi"><small>Доступно к выводу</small><b><span class="num" id="kAvail">98 412.50</span><span>USDT</span></b><em class="mut">TRON · TRC-20</em></div>
+              <div class="kpi"><small>Поступления за неделю</small><b><span class="num" id="kWeek">41 230.00</span><span>USDT</span></b><em>+12,4% к прошлой</em></div>
+              <div class="kpi"><small>Заявки на вывод</small><b>5 000.00<span>USDT</span></b><em class="mut">2 на одобрении</em></div>
+            </div>
+            <div class="panels">
+              <div class="panel">
+                <div class="panel-h">Последние инвойсы <span>Все →</span></div>
+                <table class="tbl">
+                  <thead><tr><th scope="col">Номер</th><th scope="col" class="hide-s">Дата</th><th scope="col" class="r">Сумма</th><th scope="col">Статус</th></tr></thead>
+                  <tbody id="invBody"></tbody>
+                </table>
+              </div>
+              <div class="panel" aria-hidden="true">
+                <div class="panel-h">Поступления <span>USDT</span></div>
+                <div class="chart">
+                  <div class="bars"><i style="height:46%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:71%"></i><i style="height:55%"></i><i style="height:83%"></i><i id="barToday" style="height:88%;transition:height .6s cubic-bezier(.2,.8,.2,1)"></i></div>
+                  <div class="bars-x" id="barDays"></div>
+                  <div class="chart-sum"><span>Сегодня</span><b id="todaySum">7 640.00</b></div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <div class="dpanel" role="tabpanel" id="dp-pay" aria-labelledby="dt-pay" hidden>
+        <div class="payview">
+          <div class="paycard" id="payCard"></div>
+          <button class="abtn" id="aPay" type="button">Оплатить из кошелька</button>
+          <p class="simnote">Кнопка имитирует перевод покупателя. В сеть ничего не отправляется.</p>
+        </div>
+      </div>
+
+      <div class="dpanel" role="tabpanel" id="dp-api" aria-labelledby="dt-api" hidden>
+        <div class="apiv">
+          <div class="apicol">
+            <div class="colh"><b>Запрос</b><button class="abtn abtn--ghost" id="aSend" type="button">Отправить запрос</button></div>
+<pre class="term"><span class="c-k">curl</span> -X POST $METAPUS/merchant/v1/invoices \
+  -H <span class="c-s">"X-Api-Key: $KEY"</span> \
+  -H <span class="c-s">"Idempotency-Key: order-8812"</span> \
+  -d <span class="c-s">'{"amount":"100000000",
+       "currency":"USDT-TRC20",
+       "orderId":"8812"}'</span></pre>
+            <div class="colh"><b>Ответ</b><span id="respCode"></span></div>
+            <pre class="term" id="respBody"></pre>
+          </div>
+          <div class="apicol">
+            <div class="colh"><b>Вебхуки</b><span class="muted">POST mystore.com/hooks/metapus</span></div>
+            <div class="hooks" id="hookList"></div>
+            <pre class="term" id="hookBody"></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="dpanel" role="tabpanel" id="dp-led" aria-labelledby="dt-led" hidden>
+        <div class="ledv">
+          <div class="colh">
+            <div><b>Движения по регистрам</b><small>Документ: крипто-платёж по INV-000124</small></div>
+            <div class="btns"><button class="abtn abtn--warn" id="aReorg" type="button" disabled>Реорг блока</button><button class="abtn abtn--ghost" id="aReinc" type="button" hidden>Транзакция снова в блоке</button></div>
+          </div>
+          <div class="tots">
+            <div class="kpi"><small>Активы на кошельках</small><b><span class="num" id="lAssets"></span><span>USDT</span></b></div>
+            <div class="kpi"><small>Обязательства перед мерчантами</small><b><span class="num" id="lLiab"></span><span>USDT</span></b></div>
+            <div class="kpi"><small>Доход от комиссий</small><b><span class="num" id="lFee"></span><span>USDT</span></b></div>
+          </div>
+          <div class="tblwrap">
+            <table class="tbl ltbl">
+              <thead><tr><th scope="col">Время</th><th scope="col">Регистр</th><th scope="col">Вид</th><th scope="col" class="r">Сумма, USDT</th></tr></thead>
+              <tbody id="ledBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="dpanel" role="tabpanel" id="dp-vlt" aria-labelledby="dt-vlt" hidden>
+        <div class="vltv">
+          <div class="vcol">
+            <div class="colh"><b>Заявка на вывод</b></div>
+            <div class="wd" id="wdCard"></div>
+            <div class="btns"><button class="abtn" id="aApprove" type="button">Одобрить и подписать</button><button class="abtn abtn--ghost" id="aBad" type="button">Вывод на чужой адрес</button></div>
+            <p class="simnote">Ключ не покидает Vault: приложение получает только готовую подпись.</p>
+          </div>
+          <div class="vcol">
+            <div class="colh"><b>Проверки политики Vault</b></div>
+            <ul class="chk" id="chkList"></ul>
+            <div class="colh"><b>Журнал аудита</b></div>
+            <ul class="audit" id="auditList"></ul>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="pay" aria-hidden="true">
-      <div class="pay-h"><span>My Store · заказ №8812</span><span class="st st--wait">Ожидает</span></div>
-      <div class="pay-amt">100.00<span>USDT</span></div>
-      <div class="pay-body">
-        <div class="qr" id="qr"></div>
-        <div class="pay-rows"><span>Сеть<b>TRON · TRC-20</b></span><span>Адрес<b>TQ5Nf…3hJk8</b></span></div>
-      </div>
-      <div class="pay-t"><span>Адрес закреплён за счётом</span><b>21:37</b></div>
+    <div class="rail-row">
+      <ol class="rail" id="rail" aria-label="Этапы платежа"></ol>
+      <p class="shot-note">Демо: данные условные, в сеть ничего не отправляется.</p>
     </div>
-  </div>
-  <p class="shot-note">Кабинет мерчанта и страница оплаты. Данные на макете условные.</p>
+  </section>
 
   <div class="stats">
     <div class="stat"><b>0%</b><p>комиссии посреднику. Платите только сетевую комиссию.</p></div>
@@ -764,7 +975,7 @@ docker compose up -d</pre>
     for(var i=-1;i<8;i++){[[ox+i,oy-1],[ox+i,oy+7],[ox-1,oy+i],[ox+7,oy+i]].forEach(function(p){if(p[0]>=0&&p[1]>=0&&p[0]<n&&p[1]<n)m[p[1]][p[0]]=false})}}
   finder(0,0);finder(n-7,0);finder(0,n-7);
   var d='';for(var y=0;y<n;y++)for(var x=0;x<n;x++)if(m[y][x])d+='M'+x+' '+y+'h1v1h-1z';
-  document.getElementById('qr').innerHTML='<svg viewBox="0 0 '+n+' '+n+'" shape-rendering="crispEdges"><path d="'+d+'" fill="#0C0C0E"/></svg>';
+  var QR='<svg viewBox="0 0 '+n+' '+n+'" shape-rendering="crispEdges"><path d="'+d+'" fill="#0C0C0E"/></svg>';
 
   // theme toggle: explicit choice wins over the system setting and is remembered per viewer
   var root=document.documentElement,tb=document.getElementById('themeBtn'),mq=window.matchMedia('(prefers-color-scheme: dark)');
@@ -777,6 +988,223 @@ docker compose up -d</pre>
   if(mq.addEventListener)mq.addEventListener('change',paint);
   new MutationObserver(paint).observe(root,{attributes:true,attributeFilter:['data-theme']});
   paint();
+
+  // ---------- interactive demo: one payment through the whole system ----------
+  (function(){
+    var $=function(id){return document.getElementById(id)};
+    var RM=window.matchMedia('(prefers-reduced-motion: reduce)');
+    var demo=$('demo');
+    var TABS=['cab','pay','api','led','vlt'];
+    var URLS={cab:'pay.mystore.com/portal',pay:'pay.mystore.com/i/INV-000124',api:'api.mystore.com/merchant/v1',led:'pay.mystore.com/admin/registers',vlt:'pay.mystore.com/admin/withdrawals'};
+    var tabEls=TABS.map(function(k){return $('dt-'+k)});
+    var cur='cab';
+
+    function select(k,focus){
+      cur=k;
+      tabEls.forEach(function(t,i){var on=TABS[i]===k;t.setAttribute('aria-selected',String(on));t.tabIndex=on?0:-1;if(on)t.classList.remove('ping');$('dp-'+TABS[i]).hidden=!on});
+      $('dUrl').textContent=URLS[k];
+      var t=$('dt-'+k),bar=t.parentNode,br=bar.getBoundingClientRect(),tr=t.getBoundingClientRect();
+      if(tr.left<br.left||tr.right>br.right)bar.scrollBy({left:tr.left-br.left-16,behavior:RM.matches?'auto':'smooth'});
+      if(focus)t.focus();
+    }
+    function ping(k){if(k!==cur)$('dt-'+k).classList.add('ping')}
+    tabEls.forEach(function(t,i){
+      t.addEventListener('click',function(){touch();select(TABS[i])});
+      t.addEventListener('keydown',function(e){
+        var j=e.key==='ArrowRight'?i+1:e.key==='ArrowLeft'?i-1:e.key==='Home'?0:e.key==='End'?TABS.length-1:null;
+        if(j===null)return;e.preventDefault();touch();select(TABS[(j+TABS.length)%TABS.length],true);
+      });
+    });
+
+    // formatting and simulated clock
+    function money(n){var s=Math.abs(n).toFixed(2).split('.');return (n<0?'−':'')+s[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ')+'.'+s[1]}
+    function pad(x){return String(x).padStart(2,'0')}
+    var start=Date.now(),now0=new Date();
+    function clock(){var d=new Date(now0.getTime()+(Date.now()-start));return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())}
+    function day(off){var d=new Date(now0.getTime()-off*864e5);return pad(d.getDate())+'.'+pad(d.getMonth()+1)}
+    function tween(el,from,to){
+      if(RM.matches||from===to||from===undefined){el.textContent=money(to);return}
+      var t0=performance.now();
+      (function f(t){var p=Math.min(1,(t-t0)/700),e=1-Math.pow(1-p,3);el.textContent=money(from+(to-from)*e);if(p<1)requestAnimationFrame(f)})(t0);
+    }
+
+    var ROWS=[['INV-000123',day(0)+', 13:47','2 450.00','ok','Оплачен'],['INV-000122',day(0)+', 12:15','380.00','warn','Недоплата'],['INV-000121',day(0)+', 11:30','1 200.00','ok','Оплачен'],['INV-000120',day(1)+', 22:04','75.00','off','Отменён']]
+      .map(function(r){return '<tr><td class="mono">'+r[0]+'</td><td class="hide-s">'+r[1]+'</td><td class="r">'+r[2]+'</td><td><span class="st st--'+r[3]+'">'+r[4]+'</span></td></tr>'}).join('');
+    $('barDays').innerHTML=[6,5,4,3,2,1,0].map(function(o){return '<span>'+day(o).slice(0,2)+'</span>'}).join('');
+
+    var BASE={avail:98412.50,week:41230,today:7640,assets:104617.30,liab:98412.50,fee:1204.80};
+    var CHECKS=['Назначение операции','Лимит суммы','Адрес в allowlist','Одобрение оператора','Сверка с документом'];
+    var S,R,timers=[];
+    function later(fn,ms){timers.push(setTimeout(fn,ms))}
+    function fresh(){S={inv:0,conf:0,left:29*60+48,created:'',avail:BASE.avail,week:BASE.week,today:BASE.today,assets:BASE.assets,liab:BASE.liab,fee:BASE.fee,hooks:[],sel:-1,moves:[],wd:'idle',wdTo:'ok',checks:[],audit:[]};R=null}
+    function say(msg){$('dStatus').textContent=clock()+' · '+msg}
+    function hook(type){S.hooks.unshift({type:type,t:clock(),ms:48+Math.round(Math.random()*70)});S.sel=0;ping('api')}
+    function flashRow(){var r=$('invRow');if(r){r.classList.remove('flash');void r.offsetWidth;r.classList.add('flash')}}
+
+    // ---- payment engine: the same actions serve the autoplay tour and the visitor's clicks
+    function create(){
+      if(S.inv!==0)return;
+      S.inv=1;S.created=clock();
+      say('Инвойс INV-000124 на 100 USDT создан');ping('pay');ping('api');render();
+    }
+    function pay(){
+      if(S.inv!==1&&S.inv!==5)return;
+      var again=S.inv===5;S.inv=2;S.conf=0;hook('payment.detected');
+      say(again?'Транзакция снова попала в блок':'Платёж обнаружен в блоке');render();
+      later(function(){S.inv=3;hook('payment.confirming');render();step()},700);
+      function step(){later(function(){S.conf++;renderConf();if(S.conf<19)step();else post()},140)}
+    }
+    function post(){
+      var t=clock();S.inv=4;
+      S.avail+=99;S.week+=100;S.today+=100;S.assets+=100;S.liab+=99;S.fee+=1;
+      S.moves.push({t:t,reg:'Активы на кошельках',code:'crypto_balance',sum:100},{t:t,reg:'Обязательства перед мерчантом',code:'crypto_merchant_balance',sum:99},{t:t,reg:'Доход от комиссий',code:'crypto_fee',sum:1});
+      hook('invoice.paid');say('Инвойс оплачен: 3 движения проведены, вебхук доставлен');ping('led');ping('cab');render();flashRow();
+    }
+    function reorg(){
+      if(S.inv!==4)return;
+      var t=clock();S.inv=5;S.conf=0;
+      S.avail-=99;S.week-=100;S.today-=100;S.assets-=100;S.liab-=99;S.fee-=1;
+      S.moves.push({t:t,reg:'Активы на кошельках',code:'crypto_balance',sum:-100,st:1},{t:t,reg:'Обязательства перед мерчантом',code:'crypto_merchant_balance',sum:-99,st:1},{t:t,reg:'Доход от комиссий',code:'crypto_fee',sum:-1,st:1});
+      $('aReorg').classList.remove('pulse');
+      hook('payment.reorged');say('Реорг блока: движения сторнированы, инвойс снова ждёт оплату');ping('cab');ping('pay');render();flashRow();
+    }
+    function vault(bad){
+      if(S.wd==='run')return;
+      S.wd='run';S.wdTo=bad?'bad':'ok';S.checks=CHECKS.map(function(){return 'wait'});
+      say(bad?'Заявка WD-000046 на неизвестный адрес ушла в Vault':'Заявка WD-000045 ушла в Vault на подпись');renderVault();
+      var i=0;
+      (function next(){
+        if(i>=CHECKS.length){S.wd='signed';S.audit.unshift({t:clock(),ok:1,msg:'WD-000045 подписана · 50.00 USDT → TLa2f…9Kd1'});say('Vault подписал вывод WD-000045');renderVault();return}
+        S.checks[i]='run';renderVault();
+        later(function(){
+          if(bad&&i===2){
+            S.checks[i]='fail';for(var j=i+1;j<CHECKS.length;j++)S.checks[j]='skip';
+            S.wd='denied';S.audit.unshift({t:clock(),ok:0,msg:'WD-000046 отклонена · TXr9q…7mPw нет в allowlist'});
+            say('Vault отказал: адреса нет в allowlist');renderVault();return;
+          }
+          S.checks[i]='ok';i++;next();
+        },RM.matches?150:420);
+      })();
+    }
+
+    // ---- rendering
+    function stInfo(){switch(S.inv){case 1:return['wait','Ожидает'];case 2:return['wait','В блоке'];case 3:return['wait','Подтверждения '+S.conf+'/19'];case 4:return['ok','Оплачен'];case 5:return['warn','Реорг · ждёт']}return['off','']}
+    function pill(c,t){return '<span class="st st--'+c+'">'+t+'</span>'}
+    function num(id,key){var el=$(id);if(R)tween(el,R[key],S[key]);else el.textContent=money(S[key])}
+
+    function renderConf(){
+      var st=$('invSt');if(st){var i=stInfo();st.innerHTML=pill(i[0],i[1])}
+      var p=$('cProg');if(p){p.style.width=(S.conf/19*100)+'%';$('cTxt').textContent=S.conf+' из 19'}
+      renderRail();
+    }
+    function renderCab(){
+      var row=$('invRow');
+      if(S.inv>=1&&!row)$('invBody').insertAdjacentHTML('afterbegin','<tr id="invRow" class="flash"><td class="mono">INV-000124</td><td class="hide-s">'+day(0)+', '+S.created.slice(0,5)+'</td><td class="r">100.00</td><td id="invSt"></td></tr>');
+      num('kAvail','avail');num('kWeek','week');num('todaySum','today');
+      $('barToday').style.height=(88+(S.today-BASE.today)/10)+'%';
+      var c=$('aCreate');c.disabled=S.inv!==0;c.textContent=S.inv?'Инвойс создан':'+ Создать инвойс';
+    }
+    function renderPay(){
+      var i=stInfo(),h='';
+      if(S.inv===0){
+        h='<div class="pay-empty"><b>Инвойса пока нет</b><span>Создайте его в кабинете или через API.</span><button class="abtn" type="button" data-act="create">+ Создать инвойс</button></div>';
+      }else if(S.inv===4){
+        h='<div class="pay-h"><span>My Store · заказ №8812</span>'+pill('ok','Оплачен')+'</div><div class="paid"><span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><b>Оплачено</b><span>100.00 USDT · 19 подтверждений</span></div><span class="back">Вернуться в магазин →</span>';
+      }else{
+        h='<div class="pay-h"><span>My Store · заказ №8812</span>'+pill(i[0],S.inv===1?'Ожидает оплаты':S.inv===5?'Ждём повторно':'Подтверждается')+'</div>'+
+          '<div class="pay-amt">100.00<span>USDT</span></div>'+
+          '<div class="pay-body"><div class="qr">'+QR+'</div><div class="pay-rows"><span>Сеть<b>TRON · TRC-20</b></span><span>Адрес<b>TQ5Nf…3hJk8</b></span></div></div>';
+        if(S.inv===1)h+='<div class="pay-t"><span>Адрес закреплён за счётом</span><b id="payTimer">'+pad(Math.floor(S.left/60))+':'+pad(S.left%60)+'</b></div>';
+        else if(S.inv===5)h+='<div class="note-warn">Сеть отменила блок с платежом. Ждём, пока транзакция снова попадёт в блок.</div>';
+        else h+='<div class="cf"><div class="cf-h"><span>Подтверждения сети</span><b id="cTxt">'+S.conf+' из 19</b></div><div class="prog"><i id="cProg" style="width:'+(S.conf/19*100)+'%"></i></div><span class="tx">tx 9f3a…c21e</span></div>';
+      }
+      $('payCard').innerHTML=h;
+      var b=$('aPay');b.disabled=!(S.inv===1||S.inv===5);
+      b.textContent=S.inv===5?'Транзакция снова в блоке':S.inv===4?'Оплачено':S.inv>=2?'Платёж в сети…':'Оплатить из кошелька';
+    }
+    function renderApi(){
+      var s=$('aSend');s.disabled=S.inv!==0;s.textContent=S.inv?'Отправлен':'Отправить запрос';
+      if(S.inv===0){
+        $('respCode').innerHTML=pill('off','ещё не отправлен');
+        $('respBody').innerHTML='<span class="c-c"># Нажмите «Отправить запрос»</span>';
+      }else{
+        $('respCode').innerHTML=pill('ok','201 Created');
+        $('respBody').innerHTML='{\n  "object": <span class="c-s">"invoice"</span>,\n  "id": <span class="c-s">"0193b7e2-5c1a-7d4e-9a10-3f6b2c8e4d21"</span>,\n  "checkoutRef": <span class="c-s">"k7Qm2xLp"</span>,\n  "amount": <span class="c-s">"100000000"</span>,\n  "currency": <span class="c-s">"USDT-TRC20"</span>,\n  "orderId": <span class="c-s">"8812"</span>\n}';
+      }
+      $('hookList').innerHTML=S.hooks.length?S.hooks.map(function(x,i){
+        return '<button class="hook" type="button" data-i="'+i+'" aria-pressed="'+(i===S.sel)+'">'+pill('ok','200')+'<code>'+x.type+'</code><span class="hm">'+x.ms+' мс</span><span class="ht">'+x.t+'</span></button>';
+      }).join(''):'<div class="empty">Событий пока нет. Они придут, когда покупатель оплатит счёт.</div>';
+      var x=S.hooks[S.sel];
+      $('hookBody').innerHTML=x?
+        '<span class="c-c"># '+x.t+' · доставлено за '+x.ms+' мс</span>\nPOST /hooks/metapus\nMetapus-Event-Id: <span class="c-s">evt_'+(S.hooks.length-S.sel)+'f3c9</span>\nMetapus-Signature: <span class="c-s">HMAC-SHA256 …</span>\n\n{\n  "type": <span class="c-s">"'+x.type+'"</span>,\n  "data": {\n    "orderId": <span class="c-s">"8812"</span>,\n    "amount": <span class="c-s">"100000000"</span>,\n    "currency": <span class="c-s">"USDT-TRC20"</span>'+(x.type==='invoice.paid'?',\n    "confirmations": 19':'')+'\n  }\n}':
+        '<span class="c-c"># Здесь появится тело выбранного вебхука</span>';
+    }
+    function renderLed(){
+      num('lAssets','assets');num('lLiab','liab');num('lFee','fee');
+      var seen=R?R.moves:0;
+      $('ledBody').innerHTML=S.moves.length?S.moves.map(function(m,i){
+        return '<tr'+(i>=seen?' class="flash"':'')+'><td class="mono">'+m.t+'</td><td>'+m.reg+'<small class="rc">'+m.code+'</small></td><td><span class="kind'+(m.st?' kind--st':'')+'">'+(m.st?'сторно':'приход')+'</span></td><td class="r '+(m.sum<0?'neg':'pos')+'">'+(m.sum>0?'+':'')+money(m.sum)+'</td></tr>';
+      }).join(''):'<tr class="empty"><td colspan="4">Движений по INV-000124 пока нет. Они появятся, когда платёж наберёт 19 подтверждений.</td></tr>';
+      $('aReorg').disabled=S.inv!==4;
+      $('aReinc').hidden=S.inv!==5;
+    }
+    function renderVault(){
+      var bad=S.wdTo==='bad',p={idle:pill('wait','На одобрении'),run:pill('wait','Подписание…'),signed:pill('ok','Подписана'),denied:pill('bad','Отклонена')}[S.wd];
+      $('wdCard').innerHTML='<div class="wd-h"><span class="mono">'+(bad?'WD-000046':'WD-000045')+'</span>'+p+'</div><div class="pay-amt">50.00<span>USDT</span></div>'+
+        '<div class="wd-rows"><span>Получатель<b>'+(bad?'TXr9q…7mPw':'TLa2f…9Kd1')+'</b></span><span>Allowlist<b class="'+(bad?'neg':'pos')+'">'+(bad?'адреса нет':'адрес есть')+'</b></span><span>Списание с баланса<b>при создании заявки</b></span></div>'+
+        (S.wd==='signed'?'<div class="wd-res ok">Подписано в Vault · txid 7c1e…f02a</div>':S.wd==='denied'?'<div class="wd-res bad">Vault отказал в подписи. Ключ не использован.</div>':'');
+      $('chkList').innerHTML=CHECKS.map(function(c,i){return '<li class="c-'+(S.checks[i]||'wait')+'">'+c+'</li>'}).join('');
+      $('auditList').innerHTML=S.audit.length?S.audit.map(function(a){return '<li class="'+(a.ok?'':'bad')+'"><i></i><span>'+a.t+'</span><span>'+a.msg+'</span></li>'}).join(''):'<li class="empty">Записей пока нет</li>';
+      $('aApprove').disabled=$('aBad').disabled=S.wd==='run';
+    }
+    function renderRail(){
+      var steps=[['Инвойс создан',S.inv>=1],['Платёж в блоке',S.inv>=2&&S.inv<5],['19 подтверждений',S.inv===4],['Проведено в регистрах',S.inv===4],['Вебхук invoice.paid',S.inv===4]];
+      var ci=-1;if(S.inv>=1&&S.inv<4)steps.some(function(s,i){if(!s[1]){ci=i;return true}});
+      $('rail').innerHTML=steps.map(function(s,i){return '<li class="'+(s[1]?'done':i===ci?'cur':'')+'">'+s[0]+(i===2&&S.inv===3?' · '+S.conf:'')+'</li>'}).join('')+(S.inv===5?'<li class="warn">Реорг: движения сторнированы</li>':'');
+    }
+    function render(){
+      renderCab();renderConf();renderPay();renderApi();renderLed();renderVault();
+      R={avail:S.avail,week:S.week,today:S.today,assets:S.assets,liab:S.liab,fee:S.fee,moves:S.moves.length};
+    }
+
+    // ---- visitor controls
+    function on(id,fn){$(id).addEventListener('click',function(){touch();fn()})}
+    on('aCreate',create);on('aSend',create);on('aPay',pay);on('aReorg',reorg);on('aReinc',pay);
+    on('aApprove',function(){vault(false)});on('aBad',function(){vault(true)});
+    $('payCard').addEventListener('click',function(e){if(e.target.closest('[data-act="create"]')){touch();create()}});
+    $('hookList').addEventListener('click',function(e){var b=e.target.closest('.hook');if(b){touch();S.sel=+b.dataset.i;renderApi()}});
+    setInterval(function(){if(S.inv===1&&S.left>0){S.left--;var el=$('payTimer');if(el)el.textContent=pad(Math.floor(S.left/60))+':'+pad(S.left%60)}},1000);
+
+    // ---- autoplay tour, started when the demo scrolls into view
+    var TOUR=[
+      [700,function(){select('cab')}],[900,create],[1500,function(){select('pay')}],[1100,pay],
+      [1700,function(){select('api')}],[2400,function(){select('led')}],[1500,function(){$('aReorg').classList.add('pulse')}],
+      [2600,function(){select('vlt')}],[700,function(){vault(false)}],[3600,function(){select('cab');finish()}]
+    ];
+    var ti=0,tt=null,running=false,done=false,touched=false;
+    var ICON_PLAY='<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 2.8v10.4L13 8z"/></svg>',ICON_PAUSE='<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z"/></svg>';
+    function paintPlay(){$('dPlay').innerHTML=running?ICON_PAUSE+'Пауза':ICON_PLAY+(done?'Повторить':ti>0?'Продолжить':'Запустить демо')}
+    function tick(){if(ti>=TOUR.length)return;var st=TOUR[ti];tt=setTimeout(function(){ti++;st[1]();if(running)tick()},st[0])}
+    function play(){if(done)reset();running=true;paintPlay();tick()}
+    function pause(){running=false;clearTimeout(tt);paintPlay()}
+    function finish(){running=false;done=true;paintPlay();say('Сценарий пройден. Попробуйте сами: реорг блока или вывод на чужой адрес')}
+    function touch(){touched=true;if(running)pause()}
+    function reset(){
+      running=false;clearTimeout(tt);timers.forEach(clearTimeout);timers=[];
+      ti=0;done=false;fresh();$('invBody').innerHTML=ROWS;$('aReorg').classList.remove('pulse');
+      tabEls.forEach(function(t){t.classList.remove('ping')});select('cab');render();paintPlay();
+    }
+    $('dPlay').addEventListener('click',function(){if(running){touched=true;pause()}else{touched=false;play()}});
+    $('dReset').addEventListener('click',function(){touched=true;reset();say('Демо сброшено')});
+
+    reset();
+    if('IntersectionObserver' in window&&!RM.matches){
+      new IntersectionObserver(function(es){es.forEach(function(e){
+        if(e.isIntersecting){if(!touched&&!done&&!running)play()}
+        else if(running)pause();
+      })},{threshold:.35}).observe(demo);
+    }
+  })();
 
   // mobile menu
   var mb=document.getElementById('menuBtn'),menu=document.getElementById('menu');
