@@ -1100,6 +1100,52 @@ export type IDResponse = {
   "id": string
 }
 
+export type ImportCatalogRequest = {
+  "fileName": string
+  "content": string
+  "mapping": Record<string, string>
+  "matchByCode"?: boolean
+  "dryRun"?: boolean
+}
+
+export type ImportCatalogResponse = {
+  "created": number
+  "updated": number
+  "errors": Array<ImportRowError>
+  "dryRun": boolean
+  "applied": boolean
+}
+
+export type ImportColumn = {
+  "header": string
+  "field": string
+}
+
+export type ImportField = {
+  "name": string
+  "label": string
+  "required": boolean
+  "reference": boolean
+}
+
+export type ImportPreviewRequest = {
+  "fileName": string
+  "content": string
+}
+
+export type ImportPreviewResponse = {
+  "columns": Array<ImportColumn>
+  "fields": Array<ImportField>
+  "rows": Array<Array<string>>
+  "total": number
+}
+
+export type ImportRowError = {
+  "line": number
+  "column": string
+  "message": string
+}
+
 export type IntegrationAccountCursorResponse = {
   "items": Array<IntegrationAccountResponse>
   "nextCursor"?: string

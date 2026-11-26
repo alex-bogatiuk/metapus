@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { DataToolbar } from "@/components/shared/data-toolbar"
+import { CatalogImportDialog } from "@/components/shared/catalog-import-dialog"
+import { findHTTPContract } from "@/lib/http-contracts"
 import { DataTable, type Column } from "@/components/shared/data-table"
 import { ColumnChooserPopover } from "@/components/shared/column-chooser-popover"
 import { FilterSidebar } from "@/components/shared/filter-sidebar"
@@ -185,6 +187,9 @@ export function CatalogListPage<T extends { id: string }>({
   const canDocBatchAction = isDocumentMode && hasDocCapability("batchAction")
   const canDocBatchActionByFilter = isDocumentMode && hasDocCapability("batchActionByFilter")
   const canExportList = !isDocumentMode || hasDocCapability("exportList")
+  // Declared catalogs load items from a file (their import route exists).
+  const canImport = !isDocumentMode && !!config.basePath && !!findHTTPContract("api", "POST", `${config.basePath}/import`)
+  const [importOpen, setImportOpen] = useState(false)
 
   // Build a batch-capable API adapter from basePath (generic — works for any document entity)
   const fetchList = config.fetcher
@@ -633,11 +638,21 @@ export function CatalogListPage<T extends { id: string }>({
             checked: showDeleted,
             onClick: toggleShowDeleted,
           },
+          ...(canImport ? [{ label: "Загрузить из файла…", onClick: () => setImportOpen(true) }] : []),
         ]}
         onColumnChooserClick={hasColumnChooser ? () => setColumnChooserOpen(true) : undefined}
         onExportClick={config.basePath && canExportList ? handleExport : undefined}
         exporting={exporting}
       />
+      {canImport && (
+        <CatalogImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          basePath={config.basePath ?? ""}
+          title={title}
+          onImported={refresh}
+        />
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col min-w-0 overflow-hidden">

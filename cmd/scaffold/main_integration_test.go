@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -719,4 +720,130 @@ func TestPeriodLockRefusesChangesInTheClosedPeriod(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cleared.PeriodLock.Date)
 	require.NoError(t, svc.Create(clerk, document(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))))
+}
+
+var (
+	importUnitDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "import_unit", Name: "ImportUnit", Route: "import-units", Table: "cat_import_units"}
+	importItemDefinition = entity.Definition{Kind: entity.CatalogKind, Key: "import_item", Name: "ImportItem", Route: "import-items", Table: "cat_import_items",
+		Hierarchy: entity.CatalogMeta{Hierarchical: true}}
+)
+
+type importUnit struct{ entity.Catalog }
+
+func (importUnit) EntityDefinition() entity.Definition { return importUnitDefinition }
+
+type importItem struct {
+	entity.Catalog
+	Article string `db:"article" json:"article" meta:"label:Артикул"`
+	UnitID  id.ID  `db:"unit_id" json:"unitId" meta:"label:Единица,ref:import_unit" binding:"required"`
+	Weight  int    `db:"weight" json:"weight" meta:"label:Вес"`
+}
+
+func (importItem) EntityDefinition() entity.Definition { return importItemDefinition }
+
+// A declared catalog loads items from a file: the preview suggests the
+// fields of the columns, a dry run checks every row and stores nothing, a
+// file with bad rows stores nothing and names them, and loading again with
+// matchByCode updates the items it finds by code.
+func TestDeclaredCatalogLoadsItemsFromAFile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tenant := testsupport.NewSecurityTenants(t)[0]
+	ctx := context.Background()
+	db, err := sql.Open("pgx", tenant.Pool.Config().ConnConfig.ConnString())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	root := t.TempDir()
+	for _, args := range [][]string{{"--name", "import_unit"}, {"--name", "import_item", "--hierarchical"}} {
+		require.NoError(t, run(args, root, io.Discard))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", args[1])), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
+		require.NoError(t, err)
+		_, err = provider.Up(ctx)
+		require.NoError(t, err)
+	}
+	_, err = tenant.Pool.Exec(ctx, `ALTER TABLE cat_import_items ADD COLUMN article TEXT NOT NULL DEFAULT '',
+		ADD COLUMN unit_id UUID REFERENCES cat_import_units(id), ADD COLUMN weight INT NOT NULL DEFAULT 0`)
+	require.NoError(t, err)
+
+	reg := v1.NewFactoryRegistry()
+	reg.RegisterCatalog(v1.Catalog[importUnit](metadata.Presentation{Singular: "Единица", Plural: "Единицы"}))
+	reg.RegisterCatalog(v1.Catalog[importItem](metadata.Presentation{Singular: "Номенклатура", Plural: "Номенклатура"}))
+	call := serveDeclared(t, tenant, reg, []declaredModel{{importUnit{}, importUnitDefinition}, {importItem{}, importItemDefinition}})
+	status, unit := call("POST", "/catalog/import-units", `{"code":"PCS","name":"шт"}`)
+	require.Equal(t, 201, status, unit)
+	status, folder := call("POST", "/catalog/import-items", `{"code":"G-1","name":"Масла","isFolder":true,"unitId":"`+unit["id"].(string)+`"}`)
+	require.Equal(t, 201, status, folder)
+
+	file := func(text string) string { return base64.StdEncoding.EncodeToString([]byte(text)) }
+	body := func(v any) string {
+		data, err := json.Marshal(v)
+		require.NoError(t, err)
+		return string(data)
+	}
+	good := file("Код;Наименование;Артикул;Ед.;Вес;Группа\nIT-1;Масло 5W-30;152648;шт;5;Масла\nIT-2;Колодки;0986;PCS;2;\n")
+
+	status, preview := call("POST", "/catalog/import-items/import/preview", body(map[string]any{"fileName": "items.csv", "content": good}))
+	require.Equal(t, 200, status, preview)
+	require.Equal(t, float64(2), preview["total"])
+	suggested := map[string]any{}
+	for _, c := range preview["columns"].([]any) {
+		column := c.(map[string]any)
+		suggested[column["header"].(string)] = column["field"]
+	}
+	require.Equal(t, map[string]any{"Код": "code", "Наименование": "name", "Артикул": "article", "Ед.": "", "Вес": "weight", "Группа": "parentId"}, suggested)
+
+	mapping := map[string]string{"Код": "code", "Наименование": "name", "Артикул": "article", "Ед.": "unitId", "Вес": "weight", "Группа": "parentId"}
+	items := func() int {
+		var n int
+		require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT count(*) FROM cat_import_items WHERE NOT is_folder").Scan(&n))
+		return n
+	}
+	status, checked := call("POST", "/catalog/import-items/import", body(map[string]any{"fileName": "items.csv", "content": good, "mapping": mapping, "dryRun": true}))
+	require.Equal(t, 200, status, checked)
+	require.Equal(t, float64(2), checked["created"])
+	require.Equal(t, false, checked["applied"])
+	require.Zero(t, items(), "a dry run stores nothing")
+
+	bad := file("Код;Наименование;Артикул;Ед.;Вес;Группа\nIT-1;Масло;1;кг;5;\nIT-2;Колодки;2;шт;много;\nIT-3;;3;шт;1;\nIT-4;Фильтр;4;шт;1;Нет такой\n")
+	status, refused := call("POST", "/catalog/import-items/import", body(map[string]any{"fileName": "items.csv", "content": bad, "mapping": mapping}))
+	require.Equal(t, 200, status, refused)
+	require.Equal(t, false, refused["applied"])
+	var problems []string
+	for _, e := range refused["errors"].([]any) {
+		row := e.(map[string]any)
+		problems = append(problems, fmt.Sprintf("%v %v: %v", row["line"], row["column"], row["message"]))
+	}
+	require.Equal(t, []string{
+		"2 Ед.: не найдено «кг»",
+		"3 Вес: не целое число: «много»",
+		"4 Наименование: обязательное поле не заполнено",
+		"5 Группа: нет группы «Нет такой»",
+	}, problems)
+	require.Zero(t, items(), "a file with errors stores nothing")
+
+	status, loaded := call("POST", "/catalog/import-items/import", body(map[string]any{"fileName": "items.csv", "content": good, "mapping": mapping}))
+	require.Equal(t, 200, status, loaded)
+	require.Equal(t, true, loaded["applied"])
+	require.Equal(t, 2, items())
+	var parent, unitID, article string
+	var weight int
+	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT parent_id::text, unit_id::text, article, weight FROM cat_import_items WHERE code='IT-1'").Scan(&parent, &unitID, &article, &weight))
+	require.Equal(t, folder["id"], parent)
+	require.Equal(t, unit["id"], unitID)
+	require.Equal(t, "152648", article)
+	require.Equal(t, 5, weight)
+
+	// The supplier renamed the items: loading names by code updates them and
+	// keeps the columns the file does not have.
+	renamed := file("Код;Наименование\nIT-1;Масло 5W-30 (4 л)\nIT-3;Новинка\n")
+	status, updated := call("POST", "/catalog/import-items/import", body(map[string]any{"fileName": "items.csv", "content": renamed,
+		"mapping": map[string]string{"Код": "code", "Наименование": "name"}, "matchByCode": true}))
+	require.Equal(t, 200, status, updated)
+	require.Equal(t, false, updated["applied"], "a new item needs its unit")
+	require.Equal(t, float64(1), updated["updated"])
+	require.Equal(t, "обязательное поле не заполнено", updated["errors"].([]any)[0].(map[string]any)["message"])
+
+	status, missing := call("POST", "/catalog/import-items/import", body(map[string]any{"fileName": "items.csv", "content": renamed,
+		"mapping": map[string]string{"Код": "code", "Наименование": "name"}}))
+	require.Equal(t, 400, status, missing)
+	require.Contains(t, fmt.Sprint(missing), "Сопоставьте колонку с обязательным полем «Единица»")
 }

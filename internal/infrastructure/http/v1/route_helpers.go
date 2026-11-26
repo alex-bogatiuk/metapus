@@ -132,6 +132,13 @@ func RegisterCatalogRoutes(group *gin.RouterGroup, handler CatalogRouteHandler, 
 		group.POST("/export-list", middleware.RequirePermission(permission+":read"), exportHandler.ExportList)
 	}
 
+	// Loading items from a file creates and updates them.
+	if importHandler, ok := handler.(CatalogImportHandler); ok {
+		load := []gin.HandlerFunc{middleware.RequirePermission(permission + ":create"), middleware.RequirePermission(permission + ":update")}
+		group.POST("/import/preview", append(load, importHandler.ImportPreview)...)
+		group.POST("/import", append(load, importHandler.Import)...)
+	}
+
 }
 
 // InferDocumentCapabilities derives the default generic document surface from

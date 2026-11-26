@@ -115,7 +115,10 @@ func (r *AutoCatalog[T, PT]) searchFields() *platform.SearchFields { return r.se
 
 func (r *AutoCatalog[T, PT]) HTTPContracts() spec.Bundle {
 	shape := autoShapeFor[T]()
-	return spec.EntityOf(r.EntityDefinition(), metadata.DocumentCapabilities{}, shape.create, shape.update, shape.read, r.responseName)
+	bundle := spec.EntityOf(r.EntityDefinition(), metadata.DocumentCapabilities{}, shape.create, shape.update, shape.read, r.responseName)
+	bundle.AddRoute(r.EntityDefinition(), "POST", "/import/preview", "ImportPreviewRequest", "ImportPreviewResponse")
+	bundle.AddRoute(r.EntityDefinition(), "POST", "/import", "ImportCatalogRequest", "ImportCatalogResponse")
+	return bundle
 }
 
 func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
@@ -135,7 +138,7 @@ func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 	domain.NewEventLogCatalogService(service, def.Key, deps.EventWriter)
 	tables := r.referenceTables(shape)
 	resolveRefs, mapWithRefs := autoReferenceMappers[PT](shape, tables)
-	return handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[PT, AutoCreate[T], AutoUpdate[T]]{
+	handler := handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[PT, AutoCreate[T], AutoUpdate[T]]{
 		Service:          service,
 		EntityName:       def.Key,
 		ResolveRefs:      resolveRefs,
@@ -152,6 +155,8 @@ func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 		},
 		MapToDTO: func(model PT) any { return shape.response(model, tables, nil) },
 	})
+	im := newImporter[T, PT](def, shape, service, tables)
+	return importCatalogHandler[PT, AutoCreate[T], AutoUpdate[T]]{CatalogHandler: handler, preview: im.preview, run: im.run}
 }
 
 // autoDocumentCapabilities is the generic surface of a declared document.

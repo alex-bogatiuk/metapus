@@ -1104,6 +1104,52 @@ export const IDResponseSchema: z.ZodType<Wire.IDResponse> = z.lazy(() => z.objec
   "id": z.string(),
 }))
 
+export const ImportCatalogRequestSchema: z.ZodType<Wire.ImportCatalogRequest> = z.lazy(() => z.strictObject({
+  "fileName": z.string(),
+  "content": z.string(),
+  "mapping": z.record(z.string(), z.string()),
+  "matchByCode": z.boolean().optional(),
+  "dryRun": z.boolean().optional(),
+}))
+
+export const ImportCatalogResponseSchema: z.ZodType<Wire.ImportCatalogResponse> = z.lazy(() => z.object({
+  "created": z.number().int(),
+  "updated": z.number().int(),
+  "errors": z.array(ImportRowErrorSchema),
+  "dryRun": z.boolean(),
+  "applied": z.boolean(),
+}))
+
+export const ImportColumnSchema: z.ZodType<Wire.ImportColumn> = z.lazy(() => z.object({
+  "header": z.string(),
+  "field": z.string(),
+}))
+
+export const ImportFieldSchema: z.ZodType<Wire.ImportField> = z.lazy(() => z.object({
+  "name": z.string(),
+  "label": z.string(),
+  "required": z.boolean(),
+  "reference": z.boolean(),
+}))
+
+export const ImportPreviewRequestSchema: z.ZodType<Wire.ImportPreviewRequest> = z.lazy(() => z.strictObject({
+  "fileName": z.string(),
+  "content": z.string(),
+}))
+
+export const ImportPreviewResponseSchema: z.ZodType<Wire.ImportPreviewResponse> = z.lazy(() => z.object({
+  "columns": z.array(ImportColumnSchema),
+  "fields": z.array(ImportFieldSchema),
+  "rows": z.array(z.array(z.string())),
+  "total": z.number().int(),
+}))
+
+export const ImportRowErrorSchema: z.ZodType<Wire.ImportRowError> = z.lazy(() => z.object({
+  "line": z.number().int(),
+  "column": z.string(),
+  "message": z.string(),
+}))
+
 export const IntegrationAccountCursorResponseSchema: z.ZodType<Wire.IntegrationAccountCursorResponse> = z.lazy(() => z.object({
   "items": z.array(IntegrationAccountResponseSchema),
   "nextCursor": z.string().optional(),

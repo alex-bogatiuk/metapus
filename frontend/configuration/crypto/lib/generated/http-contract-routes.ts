@@ -28,6 +28,8 @@ export const httpRoutes = [
   { scope: "api", method: "DELETE", path: "/catalog/tokens/:id", request: null, requestFields: null, response: null, optionalRequest: false },
   { scope: "api", method: "POST", path: "/catalog/tokens/:id/deletion-mark", request: Platform.SetDeletionMarkRequestSchema, requestFields: ["marked"], response: Platform.SuccessResponseSchema, optionalRequest: false },
   { scope: "api", method: "POST", path: "/catalog/tokens/export-list", request: Platform.ExportListRequestSchema, requestFields: ["columns", "filter", "orderBy", "includeDeleted", "search"], requestParts: { "columns": ["type", "decimalPlaces", "key", "label"] }, response: null, optionalRequest: false },
+  { scope: "api", method: "POST", path: "/catalog/tokens/import/preview", request: Platform.ImportPreviewRequestSchema, requestFields: ["fileName", "content"], response: Platform.ImportPreviewResponseSchema, optionalRequest: false },
+  { scope: "api", method: "POST", path: "/catalog/tokens/import", request: Platform.ImportCatalogRequestSchema, requestFields: ["fileName", "content", "mapping", "matchByCode", "dryRun"], response: Platform.ImportCatalogResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/catalog/merchants/tree", request: null, requestFields: null, response: Wire.MerchantTreeResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/catalog/merchants", request: null, requestFields: null, response: Wire.MerchantCursorResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/catalog/merchants/:id", request: null, requestFields: null, response: Wire.MerchantResponseSchema, optionalRequest: false },
