@@ -113,7 +113,10 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 		if !embeds(model, reflect.TypeFor[entity.Document]()) {
 			return nil, fmt.Errorf("a document model must embed entity.Document")
 		}
-		base = []autoField{{"Number", "number", ""}, {"Date", "date", "required"}, {"Description", "description", ""}}
+		// The basis (документ-основание) is the document this one was filled
+		// from; the form keeps it from the draft to the save.
+		base = []autoField{{"Number", "number", ""}, {"Date", "date", "required"}, {"Description", "description", ""},
+			{"BasisType", "basisType", ""}, {"BasisID", "basisId", ""}}
 		serverRead = []autoField{{"Posted", "posted", ""}, {"PostedVersion", "postedVersion", ""}}
 	default:
 		return nil, fmt.Errorf("unsupported kind %q", def.Kind)

@@ -841,6 +841,7 @@ export type EntityMetadataResponse = {
   "tableParts"?: Array<MetadataTablePartDef>
   "capabilities"?: MetadataDocumentCapabilities
   "actions"?: Array<MetadataEntityActionDef>
+  "createBasedOn"?: Array<MetadataCreateBasedOnDef>
   "code"?: MetadataCodeAssignment
   "previewFields"?: Array<MetadataPreviewFieldDef>
 }
@@ -1356,6 +1357,13 @@ export type MarkedObjectsResponse = {
 export type MetadataCodeAssignment = {
   "source": string
   "prefix"?: string
+}
+
+export type MetadataCreateBasedOnDef = {
+  "target": string
+  "label": string
+  "routePrefix": string
+  "permission": string
 }
 
 export type MetadataDocumentCapabilities = {

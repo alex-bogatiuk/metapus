@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync/atomic"
 
 	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 	"github.com/alex-bogatiuk/metapus/internal/domain"
@@ -166,6 +167,7 @@ type AutoDocument[T entity.DefinitionProvider, PT documentModel[T]] struct {
 	autoRegistry
 	presentation metadata.Presentation
 	configure    []func(*domain.BaseHeaderDocumentService[PT])
+	reader       atomic.Pointer[basisReader]
 }
 
 // Document declares a document from its model T, which embeds entity.Document
@@ -194,6 +196,11 @@ func (r *AutoDocument[T, PT]) HTTPContracts() spec.Bundle {
 	def := r.EntityDefinition()
 	shape := autoShapeFor[T]()
 	bundle := spec.EntityOf(def, r.DocumentCapabilities(), shape.create, shape.update, shape.read, "")
+	if r.registry != nil {
+		for _, rule := range r.registry.basisRulesTo(def.Key) {
+			bundle.AddRoute(def, "GET", "/based-on/"+rule.SourceKey()+"/:id", "", def.Name+"Response")
+		}
+	}
 	for _, part := range shape.parts {
 		bundle.Contracts = append(bundle.Contracts,
 			spec.Contract{Name: def.Name + part.contract + "LineRequest", Type: part.create, Direction: spec.Input},
@@ -217,7 +224,8 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 	decorated := domain.WithEventLog[PT](def.Key, deps.EventWriter)(service)
 	tables := r.referenceTables(shape)
 	resolveRefs, mapWithRefs := autoReferenceMappers[PT](shape, tables)
-	return handlers.NewBaseDocumentHandler(deps.BaseHandler, handlers.BaseDocumentHandlerConfig[PT, AutoCreate[T], AutoUpdate[T]]{
+	r.storeBasisReader(service.GetByID)
+	handler := handlers.NewBaseDocumentHandler(deps.BaseHandler, handlers.BaseDocumentHandlerConfig[PT, AutoCreate[T], AutoUpdate[T]]{
 		Service:          decorated,
 		EntityName:       def.Key,
 		ResolveRefs:      resolveRefs,
@@ -244,6 +252,10 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 		MovementRefResolver: deps.MovementRefResolver,
 		SettingsRepo:        deps.SettingsRepo,
 	})
+	if routes := r.basisRoutes(handler, shape); len(routes) > 0 {
+		return basisDocumentHandler[PT, AutoCreate[T], AutoUpdate[T]]{BaseDocumentHandler: handler, routes: routes}
+	}
+	return handler
 }
 
 // autoDocumentParts is the store of the document's table parts, nil when the

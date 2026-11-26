@@ -371,11 +371,15 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const copyFromId = searchParams?.get("copyFrom")
+    // A document filled from another one (ввод на основании): the source's key and id.
+    const basisType = searchParams?.get("basisType")
+    const basisId = searchParams?.get("basisId")
+    const basisSource = basisType && basisId ? { type: basisType, id: basisId } : null
     const { closeOne, closeAndShowInList } = useCloseTab()
     const isNew = !id || id === "new"
     const hasCachedMeta = useHasTabCache(tabStateKeys["autoFormMeta"])
     const hasCachedFormData = useHasTabCache(AUTO_FORM_STATE_KEY)
-    const hasCachedContent = hasCachedMeta && ((isNew && !copyFromId) || hasCachedFormData)
+    const hasCachedContent = hasCachedMeta && ((isNew && !copyFromId && !basisSource) || hasCachedFormData)
     const [cachedMeta, setMeta] = useTabState(tabStateKeys["autoFormMeta"], null)
     const metaRef = useRef<EntityMetadata | null>(null)
     if (cachedMeta) {
@@ -426,8 +430,12 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                     const entity = await apiFetch<JsonObject>(`${basePath}/${id}`)
                     if (cancelled) return
                     finishRead(parseEntityValues(metaData, entity), ticket)
-                } else if (isNew && copyFromId && !hasCachedFormData) {
-                    const sourceEntity = await apiFetch<JsonObject>(`${basePath}/${copyFromId}`)
+                } else if (isNew && (copyFromId || basisSource) && !hasCachedFormData) {
+                    // A copy reads the source; a document on a basis asks the
+                    // server for the draft it fills from the source.
+                    const sourceEntity = basisSource
+                        ? await apiFetch<JsonObject>(`${basePath}/based-on/${encodeURIComponent(basisSource.type)}/${encodeURIComponent(basisSource.id)}`)
+                        : await apiFetch<JsonObject>(`${basePath}/${copyFromId}`)
                     if (cancelled) return
                     const parsed = parseEntityValues(metaData, sourceEntity)
                     const copiedData: JsonObject = { ...parsed }
@@ -458,7 +466,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         }
         load()
         return () => { cancelled = true }
-    }, [entityName, id, isNew, copyFromId, basePath, hasCachedContent, hasCachedFormData, setMeta, startRead, finishRead])
+    }, [entityName, id, isNew, copyFromId, basisSource?.type, basisSource?.id, basePath, hasCachedContent, hasCachedFormData, setMeta, startRead, finishRead])
 
     // Update tab title when entity data loads (e.g. "CP-001 (Крипто-платежи)")
     // entityName may be PascalCase (from registry) or snake_case (from metadata key) —
@@ -968,7 +976,19 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         })),
     ]
 
+    // «Создать на основании»: documents this one fills, opened as new forms.
+    const basedOnMenuItems = isDocument && !isNew && id
+        ? (meta.createBasedOn ?? []).map((option) => ({
+            label: `Создать на основании: ${option.label}`,
+            onClick: () => router.push(
+                `${buildEntityUrlByRoute(option.routePrefix, "document", undefined, "new")}?basisType=${encodeURIComponent(meta.key)}&basisId=${encodeURIComponent(id)}`,
+            ),
+            disabled: saving || refreshing,
+        }))
+        : []
+
     const toolbarExtraMenuItems = [
+        ...basedOnMenuItems,
         ...(supportsSetDeletionMark ? [{
             label: formData.deletionMark ? "Снять пометку удаления" : "Пометить на удаление",
             onClick: handleToggleDeletionMark,

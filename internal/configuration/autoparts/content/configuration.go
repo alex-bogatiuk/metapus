@@ -27,8 +27,8 @@ type autoparts struct{}
 
 func (autoparts) Name() string { return Name }
 
-// APIVersion: the configuration is built for the platform API 3.3.
-func (autoparts) APIVersion() string { return "3.3.0" }
+// APIVersion: the configuration is built for the platform API 3.4.
+func (autoparts) APIVersion() string { return "3.4.0" }
 
 func (autoparts) Register(reg *registry.Registry) { register(reg) }
 

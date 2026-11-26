@@ -31,6 +31,8 @@ func register(reg *registry.Registry) {
 	reg.RegisterDocument(goodsIssueRegistration{registry.Document[goods_issue.GoodsIssue](registry.Presentation{
 		Singular: "Расходная накладная", Plural: "Расходные накладные", NewLabel: "Новая расходная накладная", Genitive: "расходную накладную",
 	})})
+	reg.RegisterBasis(registry.Basis("Расходная накладная", goods_issue.FromCustomerOrder))
+	reg.RegisterBasis(registry.Basis("Приходная накладная под заказ", goods_receipt.ForCustomerOrder))
 }
 
 // goodsReceiptRegistration declares the fields behind the goods receipt's

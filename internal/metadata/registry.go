@@ -119,6 +119,16 @@ type EntityActionDef struct {
 	Input               *EntityActionInput        `json:"input,omitempty"`
 }
 
+// CreateBasedOnDef is a document that can be filled from this one: its key,
+// the action's label, its route and the permission creating it needs. The
+// draft is GET /document/<routePrefix>/based-on/<this key>/:id.
+type CreateBasedOnDef struct {
+	Target      string `json:"target"`
+	Label       string `json:"label"`
+	RoutePrefix string `json:"routePrefix"`
+	Permission  string `json:"permission"`
+}
+
 // PreviewFieldDef describes a field that should appear in document preview cards
 // (e.g. hover card in Related Documents). Auto-populated by Inspect() for all
 // reference fields in the document header. Can be overridden via meta:"preview:false".
@@ -146,6 +156,9 @@ type EntityDef struct {
 	// omit them because catalog CRUD is still a fixed generic contract.
 	Capabilities *DocumentCapabilities `json:"capabilities,omitempty"`
 	Actions      []EntityActionDef     `json:"actions,omitempty"`
+	// CreateBasedOn lists the documents a document of this type fills
+	// (ввод на основании); the form offers them.
+	CreateBasedOn []CreateBasedOnDef `json:"createBasedOn,omitempty"`
 
 	// Code is how the server fills a catalog's code (see BindCode); nil for
 	// documents.

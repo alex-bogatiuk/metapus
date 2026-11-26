@@ -295,3 +295,49 @@ func TestCustomerOrderReservesStockForTheCustomer(t *testing.T) {
 	require.Zero(t, f.stock(t, f.oil))
 	require.Zero(t, f.reserved(t, f.oil, stock.Free()))
 }
+
+// A goods issue filled from the order ships what the order still awaits,
+// from its reserve first; a goods receipt filled for the order buys what is
+// not reserved, under the order.
+func TestDocumentsFilledFromACustomerOrder(t *testing.T) {
+	f := newStockFixture(t)
+	require.NoError(t, f.post(f.receipt(goods_receipt.GoodsLine{ItemID: f.oil, Quantity: pieces(10)})))
+	order := f.order(customer_order.GoodsLine{ItemID: f.oil, Quantity: pieces(6), Reserve: pieces(4), Price: 120000, Amount: 720000})
+
+	// An unposted order awaits nothing.
+	require.ErrorContains(t, goods_issue.FromCustomerOrder(f.ctx, order, &goods_issue.GoodsIssue{}), "nothing left to ship")
+	require.NoError(t, f.post(order))
+
+	purchase := &goods_receipt.GoodsReceipt{}
+	require.NoError(t, goods_receipt.ForCustomerOrder(f.ctx, order, purchase))
+	require.Equal(t, f.warehouse, purchase.WarehouseID)
+	require.Len(t, purchase.Goods, 1)
+	require.Equal(t, pieces(2), purchase.Goods[0].Quantity, "6 ordered, 4 reserved: 2 to buy")
+	require.Equal(t, order.ID, *purchase.Goods[0].CustomerOrderID)
+
+	issue := &goods_issue.GoodsIssue{}
+	require.NoError(t, goods_issue.FromCustomerOrder(f.ctx, order, issue))
+	require.Equal(t, order.ID, *issue.CustomerOrderID)
+	require.Equal(t, f.supplier, issue.CustomerID)
+	require.Len(t, issue.Goods, 1)
+	require.Equal(t, pieces(6), issue.Goods[0].Quantity)
+	require.Equal(t, pieces(4), issue.Goods[0].Reserve)
+	require.Equal(t, order.Goods[0].Amount, issue.Goods[0].Amount)
+
+	// The purchase arrives: everything is reserved, nothing is left to buy.
+	purchase.Document, purchase.SupplierID = entity.NewDocument(), f.supplier
+	purchase.Date = time.Date(2026, 11, 21, 15, 0, 0, 0, time.UTC)
+	require.NoError(t, f.post(purchase))
+	require.ErrorContains(t, goods_receipt.ForCustomerOrder(f.ctx, order, &goods_receipt.GoodsReceipt{}), "everything the customer order awaits is reserved")
+
+	// Half is shipped; the next issue takes the other half, all from reserve.
+	half := f.issue(goods_issue.GoodsLine{ItemID: f.oil, Quantity: pieces(3), Reserve: pieces(3), Price: 120000, Amount: 360000})
+	half.CustomerOrderID = &order.ID
+	require.NoError(t, f.post(half))
+	rest := &goods_issue.GoodsIssue{}
+	require.NoError(t, goods_issue.FromCustomerOrder(f.ctx, order, rest))
+	require.Len(t, rest.Goods, 1)
+	require.Equal(t, pieces(3), rest.Goods[0].Quantity)
+	require.Equal(t, pieces(3), rest.Goods[0].Reserve)
+	require.Equal(t, types.MinorUnits(360000), rest.Goods[0].Amount, "the amount follows the quantity")
+}

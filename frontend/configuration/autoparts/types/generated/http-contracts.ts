@@ -8,6 +8,8 @@ export type CreateCustomerOrderRequest = {
   "number"?: string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
   "attributes"?: Record<string, JsonValue>
   "customerId": string
   "warehouseId": string
@@ -20,6 +22,8 @@ export type CreateGoodsIssueRequest = {
   "number"?: string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
   "attributes"?: Record<string, JsonValue>
   "customerId": string
   "warehouseId": string
@@ -33,6 +37,8 @@ export type CreateGoodsReceiptRequest = {
   "number"?: string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
   "attributes"?: Record<string, JsonValue>
   "supplierId": string
   "warehouseId": string
@@ -98,6 +104,8 @@ export type CustomerOrderResponse = {
   "number": string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string
   "attributes"?: Record<string, JsonValue>
   "customerId": string
   "warehouseId": string
@@ -147,6 +155,8 @@ export type GoodsIssueResponse = {
   "number": string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string
   "attributes"?: Record<string, JsonValue>
   "customerId": string
   "warehouseId": string
@@ -199,6 +209,8 @@ export type GoodsReceiptResponse = {
   "number": string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string
   "attributes"?: Record<string, JsonValue>
   "supplierId": string
   "warehouseId": string
@@ -239,6 +251,8 @@ export type UpdateCustomerOrderRequest = {
   "number"?: string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
   "attributes"?: Record<string, JsonValue>
   "customerId": string
   "warehouseId": string
@@ -251,6 +265,8 @@ export type UpdateGoodsIssueRequest = {
   "number"?: string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
   "attributes"?: Record<string, JsonValue>
   "customerId": string
   "warehouseId": string
@@ -264,6 +280,8 @@ export type UpdateGoodsReceiptRequest = {
   "number"?: string
   "date": string
   "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
   "attributes"?: Record<string, JsonValue>
   "supplierId": string
   "warehouseId": string

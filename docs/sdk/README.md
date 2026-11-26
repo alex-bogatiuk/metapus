@@ -13,7 +13,7 @@
 | `pkg/sdk` | `APIVersion` и `Compatible` — версия API и проверка совместимости |
 | `pkg/sdk/entity` | модель: `Catalog`, `Document`, `Definition`, `Part`, правила кодов и номеров, иерархия; движения регистров (`MovementBase`, `MovementProvider`, `DocumentMovement`, колонки) |
 | `pkg/sdk/id`, `types`, `apperror` | UUIDv7, `Quantity` (4 знака) и `MinorUnits` (деньги в минимальных единицах валюты документа), ошибки 400/403/404/409 |
-| `pkg/sdk/registry` | объявление справочников и документов: `registry.Catalog[T]`, `registry.Document[T]`, `Presentation`, `MovementSourceProvider` |
+| `pkg/sdk/registry` | объявление справочников и документов: `registry.Catalog[T]`, `registry.Document[T]`, `Presentation`, `MovementSourceProvider`; ввод на основании — `registry.Basis` и `Registry.RegisterBasis` |
 | `pkg/sdk/posting` | регистры в проведении: `Module`, `RegisterVisitor`, `RegisterRecorder`, `PostingValidator`, `MovementSet` |
 | `pkg/sdk/registers/accumulation` | декларативные регистры накопления: `New[M]` по структуре движения, `Source` документа, контроль отрицательных остатков (`NonNegative`, `Shortage`), запросы `Balances`, `BalancesAt`, `Turnovers` |
 | `pkg/sdk/registers` | хранение движений в PostgreSQL: `AccumulationStore` декларативных регистров, `BaseAccumulationRepo` для написанных вручную |

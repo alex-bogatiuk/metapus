@@ -845,6 +845,7 @@ export const EntityMetadataResponseSchema: z.ZodType<Wire.EntityMetadataResponse
   "tableParts": z.array(MetadataTablePartDefSchema).optional(),
   "capabilities": MetadataDocumentCapabilitiesSchema.optional(),
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
+  "createBasedOn": z.array(MetadataCreateBasedOnDefSchema).optional(),
   "code": MetadataCodeAssignmentSchema.optional(),
   "previewFields": z.array(MetadataPreviewFieldDefSchema).optional(),
 }))
@@ -1360,6 +1361,13 @@ export const MarkedObjectsResponseSchema: z.ZodType<Wire.MarkedObjectsResponse> 
 export const MetadataCodeAssignmentSchema: z.ZodType<Wire.MetadataCodeAssignment> = z.lazy(() => z.object({
   "source": z.string(),
   "prefix": z.string().optional(),
+}))
+
+export const MetadataCreateBasedOnDefSchema: z.ZodType<Wire.MetadataCreateBasedOnDef> = z.lazy(() => z.object({
+  "target": z.string(),
+  "label": z.string(),
+  "routePrefix": z.string(),
+  "permission": z.string(),
 }))
 
 export const MetadataDocumentCapabilitiesSchema: z.ZodType<Wire.MetadataDocumentCapabilities> = z.lazy(() => z.object({

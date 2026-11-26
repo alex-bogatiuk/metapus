@@ -244,6 +244,17 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 		group.GET("/:id/movements", middleware.RequirePermission(permission+":read"), movHandler.GetMovements)
 	}
 
+	// Drafts filled from other documents (ввод на основании): creating one
+	// needs the right to create this document and to read the source.
+	if basis, ok := handler.(DocumentBasisHandler); ok && caps.Create {
+		for _, route := range basis.BasisRoutes() {
+			group.GET("/based-on/"+route.SourceKey+"/:id",
+				middleware.RequirePermission(permission+":create"),
+				middleware.RequirePermission(route.SourcePermission+":read"),
+				route.Handler)
+		}
+	}
+
 	// Register BatchAction route if handler supports it (optional).
 	// Mounted on /batch-action (no :id) — permission checked per-action inside handler.
 	if batchHandler, ok := handler.(DocumentBatchHandler); ok && caps.BatchAction {

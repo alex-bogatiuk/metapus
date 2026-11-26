@@ -27,7 +27,7 @@ import (
 )
 
 // APIVersion is the semantic version of this API.
-const APIVersion = "3.3.0"
+const APIVersion = "3.4.0"
 
 // Compatible reports whether the platform's API serves a configuration built
 // for version required: the same major version and at least its minor one.

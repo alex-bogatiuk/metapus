@@ -531,3 +531,102 @@ func TestDeclaredDocumentStoresItsCalculatedFields(t *testing.T) {
 	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT total FROM doc_calc_invoices WHERE id=$1", docID).Scan(&total))
 	require.EqualValues(t, 5997, total, "the stored total follows the lines")
 }
+
+var returnDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "goods_return", Name: "GoodsReturn", Route: "goods-return", Table: "doc_goods_returns",
+	Parts: []entity.Part{{Key: "goods", Field: "items"}}}
+
+type returnItem struct {
+	LineID    id.ID `db:"line_id" json:"lineId"`
+	LineNo    int   `db:"line_no" json:"lineNo" meta:"label:№"`
+	ProductID id.ID `db:"product_id" json:"productId" meta:"label:Товар,ref:goods_product" binding:"required"`
+	Quantity  int   `db:"quantity" json:"quantity" meta:"label:Количество" binding:"min=1"`
+}
+
+type declaredReturn struct {
+	entity.Document
+	Warehouse string       `db:"warehouse" json:"warehouse"`
+	Items     []returnItem `db:"-" json:"items" meta:"label:Товары"`
+}
+
+func (declaredReturn) EntityDefinition() entity.Definition { return returnDefinition }
+func (*declaredReturn) GetDocumentType() string            { return returnDefinition.Name }
+
+// A basis rule serves a draft of one declared document filled from another:
+// the source read as its GET reads it, the draft's basis set, nothing stored.
+// The form saves the draft with its basis.
+func TestDeclaredBasisFillsADraftFromAnotherDocument(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tenant := testsupport.NewSecurityTenants(t)[0]
+	ctx := context.Background()
+	db, err := sql.Open("pgx", tenant.Pool.Config().ConnConfig.ConnString())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	root := t.TempDir()
+	for _, args := range [][]string{{"--name", "goods_product"}, {"--name", "goods_receipt", "--type", "document", "--parts", "goods,services"}, {"--name", "goods_return", "--type", "document", "--parts", "goods"}} {
+		require.NoError(t, run(args, root, io.Discard))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", args[1])), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
+		require.NoError(t, err)
+		_, err = provider.Up(ctx)
+		require.NoError(t, err)
+	}
+	_, err = tenant.Pool.Exec(ctx, `ALTER TABLE doc_goods_receipts ADD COLUMN warehouse TEXT NOT NULL DEFAULT '';
+		ALTER TABLE doc_goods_receipts__goods ADD COLUMN product_id UUID NOT NULL REFERENCES cat_goods_products(id), ADD COLUMN quantity INT NOT NULL, ADD COLUMN batch TEXT NOT NULL DEFAULT '';
+		ALTER TABLE doc_goods_receipts__services ADD COLUMN title TEXT NOT NULL;
+		ALTER TABLE doc_goods_returns ADD COLUMN warehouse TEXT NOT NULL DEFAULT '';
+		ALTER TABLE doc_goods_returns__goods ADD COLUMN product_id UUID NOT NULL REFERENCES cat_goods_products(id), ADD COLUMN quantity INT NOT NULL`)
+	require.NoError(t, err)
+
+	reg := v1.NewFactoryRegistry()
+	reg.RegisterCatalog(v1.Catalog[declaredProduct](metadata.Presentation{Singular: "Товар", Plural: "Товары"}))
+	reg.RegisterDocument(v1.Document[declaredReceipt](metadata.Presentation{Singular: "Поступление", Plural: "Поступления"}))
+	reg.RegisterDocument(v1.Document[declaredReturn](metadata.Presentation{Singular: "Возврат", Plural: "Возвраты"}))
+	reg.RegisterBasis(v1.Basis("Возврат поставщику", func(_ context.Context, receipt *declaredReceipt, ret *declaredReturn) error {
+		ret.Warehouse = receipt.Warehouse
+		for _, item := range receipt.Items {
+			ret.Items = append(ret.Items, returnItem{LineID: id.New(), LineNo: len(ret.Items) + 1, ProductID: item.ProductID, Quantity: item.Quantity})
+		}
+		return nil
+	}))
+	require.Panics(t, func() {
+		reg.RegisterBasis(v1.Basis("Ещё раз", func(context.Context, *declaredReceipt, *declaredReturn) error { return nil }))
+	})
+	call := serveDeclared(t, tenant, reg, []declaredModel{{declaredProduct{}, productDefinition}, {declaredReceipt{}, receiptDefinition}, {declaredReturn{}, returnDefinition}})
+
+	status, product := call("POST", "/catalog/goods-products", `{"code":"N","name":"Гвозди"}`)
+	require.Equal(t, 201, status, product)
+	status, receipt := call("POST", "/document/goods-receipt", `{"number":"GR-`+id.New().String()[:8]+`","date":"2026-11-17T09:00:00Z","warehouse":"Основной",
+		"items":[{"productId":"`+product["id"].(string)+`","quantity":10}]}`)
+	require.Equal(t, 201, status, receipt)
+	receiptID := receipt["id"].(string)
+
+	status, draft := call("GET", "/document/goods-return/based-on/goods_receipt/"+receiptID, "")
+	require.Equal(t, 200, status, draft)
+	require.Equal(t, "GoodsReceipt", draft["basisType"])
+	require.Equal(t, receiptID, draft["basisId"])
+	require.Equal(t, "Основной", draft["warehouse"])
+	require.Equal(t, "", draft["number"], "the draft is numbered when saved")
+	items := draft["items"].([]any)
+	require.Len(t, items, 1)
+	require.Equal(t, "Гвозди", items[0].(map[string]any)["product"].(map[string]any)["name"], "the draft's references resolve")
+	var returns int
+	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT count(*) FROM doc_goods_returns").Scan(&returns))
+	require.Zero(t, returns, "a draft is not stored")
+
+	status, _ = call("GET", "/document/goods-return/based-on/goods_receipt/"+id.New().String(), "")
+	require.Equal(t, 404, status, "a missing source is not found")
+	status, _ = call("GET", "/document/goods-return/based-on/goods_receipt/not-an-id", "")
+	require.Equal(t, 400, status)
+
+	// The form saves the draft as it came, basis included.
+	body, err := json.Marshal(map[string]any{
+		"number": "RT-" + id.New().String()[:8], "date": "2026-11-18T09:00:00Z", "warehouse": draft["warehouse"], "basisType": draft["basisType"], "basisId": draft["basisId"],
+		"items": []any{map[string]any{"productId": product["id"], "quantity": 10}},
+	})
+	require.NoError(t, err)
+	status, saved := call("POST", "/document/goods-return", string(body))
+	require.Equal(t, 201, status, saved)
+	var basisType, basisID string
+	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT basis_type, basis_id::text FROM doc_goods_returns WHERE id=$1", saved["id"]).Scan(&basisType, &basisID))
+	require.Equal(t, "GoodsReceipt", basisType)
+	require.Equal(t, receiptID, basisID)
+}

@@ -92,11 +92,18 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 	}
 
 	// Iterate over registered document factories
+	factoryReg.checkBasisRules()
 	for _, factory := range factoryReg.Documents() {
 		handler := factory.Build(deps)
 		caps := documentCapabilitiesForStandardRegistration(factory, handler)
 		RegisterDocumentRoutes(docsGroup.Group("/"+factory.RoutePrefix()), handler, factory.Permission(), caps)
 		registerDocumentMetadata(factory, reg, refEndpoints, caps)
+		if basedOn := factoryReg.basedOnMetadata(factory.EntityDefinition().Key); len(basedOn) > 0 {
+			if def, ok := reg.Get(factory.EntityName()); ok {
+				def.CreateBasedOn = basedOn
+				reg.Register(def)
+			}
+		}
 	}
 
 	for _, factory := range factoryReg.CustomDocuments() {

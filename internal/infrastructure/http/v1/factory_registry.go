@@ -44,6 +44,7 @@ type FactoryRegistry struct {
 	customDocuments  []CustomDocumentRegistration
 	registers        []RouteRegistration
 	accumulation     []accumulation.Declared
+	basis            []BasisRule
 	datasets         []*schema.Dataset
 }
 

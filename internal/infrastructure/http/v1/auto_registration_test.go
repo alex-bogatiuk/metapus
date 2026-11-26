@@ -66,8 +66,8 @@ func TestAutoShapeWritesOnlyDeclaredColumnsAndKeepsServerFieldsReadOnly(t *testi
 	require.Equal(t, `json:"plate" binding:"required"`, string(plate.Tag), "only json and binding tags reach the wire")
 
 	doc := autoShapeFor[autoWaybill]()
-	require.Equal(t, []string{"number", "date", "description", "attributes", "distance", "postImmediately"}, jsonNames(doc.create))
-	require.Equal(t, []string{"id", "version", "deletionMark", "posted", "postedVersion", "number", "date", "description", "attributes", "distance"}, jsonNames(doc.read))
+	require.Equal(t, []string{"number", "date", "description", "basisType", "basisId", "attributes", "distance", "postImmediately"}, jsonNames(doc.create))
+	require.Equal(t, []string{"id", "version", "deletionMark", "posted", "postedVersion", "number", "date", "description", "basisType", "basisId", "attributes", "distance"}, jsonNames(doc.read))
 }
 
 func TestAutoRequestsAreStrictValidatedAndMappedOntoTheModel(t *testing.T) {
@@ -262,8 +262,8 @@ func (*autoReceipt) GetDocumentType() string            { return autoReceiptDefi
 
 func TestAutoDocumentPartsAreOnTheWireWithTheirLineRules(t *testing.T) {
 	shape := autoShapeFor[autoReceipt]()
-	require.Equal(t, []string{"number", "date", "description", "attributes", "warehouse", "items", "services", "postImmediately"}, jsonNames(shape.create))
-	require.Equal(t, []string{"id", "version", "deletionMark", "posted", "postedVersion", "number", "date", "description", "attributes", "warehouse", "items", "services"}, jsonNames(shape.read))
+	require.Equal(t, []string{"number", "date", "description", "basisType", "basisId", "attributes", "warehouse", "items", "services", "postImmediately"}, jsonNames(shape.create))
+	require.Equal(t, []string{"id", "version", "deletionMark", "posted", "postedVersion", "number", "date", "description", "basisType", "basisId", "attributes", "warehouse", "items", "services"}, jsonNames(shape.read))
 	require.Len(t, shape.parts, 2)
 	items := shape.parts[0]
 	require.Equal(t, []string{"lineId", "productId", "quantity"}, jsonNames(items.create), "lineNo and read-only columns are not writable")
