@@ -1,12 +1,14 @@
 // Package goods_receipt is the goods receipt (Приходная накладная): parts
 // received from a supplier into a warehouse. Posting adds them to the
-// warehouse stock register.
+// warehouse stock and to the stock: free, or reserved for the customer order
+// a line was bought for.
 package goods_receipt
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
@@ -41,6 +43,9 @@ type GoodsLine struct {
 	Quantity types.Quantity   `db:"quantity" json:"quantity" meta:"label:Количество"`
 	Price    types.MinorUnits `db:"price" json:"price" meta:"label:Цена"`
 	Amount   types.MinorUnits `db:"amount" json:"amount" meta:"label:Сумма"`
+	// CustomerOrderID is the order the line was bought for; it arrives
+	// reserved for that order (авторезерв).
+	CustomerOrderID *id.ID `db:"customer_order_id" json:"customerOrderId,omitempty" meta:"label:Заказ покупателя,ref:customer_order"`
 }
 
 func (GoodsReceipt) EntityDefinition() entity.Definition { return Definition }
@@ -76,11 +81,15 @@ func (e *GoodsReceipt) CanPost(ctx context.Context) error {
 	return e.Validate(ctx)
 }
 
-// RegisterMovements adds every line's quantity to the warehouse's stock.
+// RegisterMovements adds every line's quantity to the warehouse's stock,
+// free or reserved for the line's customer order.
 func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Movements) error {
 	for _, line := range e.Goods {
 		warehouse_stock.Register.Receipt(out, warehouse_stock.Movement{
 			WarehouseID: e.WarehouseID, ItemID: line.ItemID, Quantity: line.Quantity,
+		})
+		stock.Register.Receipt(out, stock.Movement{
+			WarehouseID: e.WarehouseID, ItemID: line.ItemID, CustomerOrderID: stock.OrderOf(line.CustomerOrderID), Quantity: line.Quantity,
 		})
 	}
 	return nil

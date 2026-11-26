@@ -4,6 +4,18 @@ import type { JsonValue } from "@/lib/json-value"
 import type { MinorUnits } from "@/lib/money"
 import type * as Platform from "@/types/generated/http-contracts"
 
+export type CreateCustomerOrderRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "attributes"?: Record<string, JsonValue>
+  "customerId": string
+  "warehouseId": string
+  "currencyId": string
+  "goods"?: Array<CustomerOrderGoodsLineRequest>
+  "postImmediately"?: boolean
+}
+
 export type CreateGoodsIssueRequest = {
   "number"?: string
   "date": string
@@ -12,7 +24,8 @@ export type CreateGoodsIssueRequest = {
   "customerId": string
   "warehouseId": string
   "currencyId": string
-  "goods"?: Array<GoodsReceiptGoodsLineRequest>
+  "customerOrderId"?: string | null
+  "goods"?: Array<CustomerOrderGoodsLineRequest>
   "postImmediately"?: boolean
 }
 
@@ -46,6 +59,55 @@ export type CreateWarehouseRequest = {
   "address"?: string
 }
 
+export type CustomerOrderCursorResponse = {
+  "items": Array<CustomerOrderResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type CustomerOrderGoodsLineRequest = {
+  "lineId"?: string | null
+  "itemId": string
+  "quantity"?: number | string
+  "reserve"?: number | string
+  "price"?: MinorUnits
+  "amount"?: MinorUnits
+}
+
+export type CustomerOrderGoodsLineResponse = {
+  "lineId": string
+  "lineNo": number
+  "itemId": string
+  "quantity": number
+  "reserve": number
+  "price": MinorUnits
+  "amount": MinorUnits
+  "item"?: Platform.PostgresRefDisplay
+}
+
+export type CustomerOrderResponse = {
+  "id": string
+  "version": number
+  "deletionMark": boolean
+  "posted": boolean
+  "postedVersion": number
+  "number": string
+  "date": string
+  "description"?: string
+  "attributes"?: Record<string, JsonValue>
+  "customerId": string
+  "warehouseId": string
+  "currencyId": string
+  "customer"?: Platform.PostgresRefDisplay
+  "warehouse"?: Platform.PostgresRefDisplay
+  "currency"?: Platform.PostgresRefDisplay
+  "goods"?: Array<CustomerOrderGoodsLineResponse>
+}
+
 export type GoodsIssueCursorResponse = {
   "items": Array<GoodsIssueResponse>
   "nextCursor"?: string
@@ -60,6 +122,7 @@ export type GoodsIssueGoodsLineRequest = {
   "lineId"?: string | null
   "itemId": string
   "quantity"?: number | string
+  "reserve"?: number | string
   "price"?: MinorUnits
   "amount"?: MinorUnits
 }
@@ -69,6 +132,7 @@ export type GoodsIssueGoodsLineResponse = {
   "lineNo": number
   "itemId": string
   "quantity": number
+  "reserve": number
   "price": MinorUnits
   "amount": MinorUnits
   "item"?: Platform.PostgresRefDisplay
@@ -87,10 +151,12 @@ export type GoodsIssueResponse = {
   "customerId": string
   "warehouseId": string
   "currencyId": string
+  "customerOrderId"?: string
   "customer"?: Platform.PostgresRefDisplay
   "warehouse"?: Platform.PostgresRefDisplay
   "currency"?: Platform.PostgresRefDisplay
-  "goods"?: Array<GoodsReceiptGoodsLineResponse>
+  "customerOrder"?: Platform.PostgresRefDisplay
+  "goods"?: Array<CustomerOrderGoodsLineResponse>
 }
 
 export type GoodsReceiptCursorResponse = {
@@ -109,6 +175,7 @@ export type GoodsReceiptGoodsLineRequest = {
   "quantity"?: number | string
   "price"?: MinorUnits
   "amount"?: MinorUnits
+  "customerOrderId"?: string | null
 }
 
 export type GoodsReceiptGoodsLineResponse = {
@@ -118,7 +185,9 @@ export type GoodsReceiptGoodsLineResponse = {
   "quantity": number
   "price": MinorUnits
   "amount": MinorUnits
+  "customerOrderId"?: string
   "item"?: Platform.PostgresRefDisplay
+  "customerOrder"?: Platform.PostgresRefDisplay
 }
 
 export type GoodsReceiptResponse = {
@@ -166,6 +235,18 @@ export type ItemResponse = {
 
 export type ItemTreeResponse = Array<ItemResponse>
 
+export type UpdateCustomerOrderRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "attributes"?: Record<string, JsonValue>
+  "customerId": string
+  "warehouseId": string
+  "currencyId": string
+  "goods"?: Array<CustomerOrderGoodsLineRequest>
+  "version": number
+}
+
 export type UpdateGoodsIssueRequest = {
   "number"?: string
   "date": string
@@ -174,7 +255,8 @@ export type UpdateGoodsIssueRequest = {
   "customerId": string
   "warehouseId": string
   "currencyId": string
-  "goods"?: Array<GoodsReceiptGoodsLineRequest>
+  "customerOrderId"?: string | null
+  "goods"?: Array<CustomerOrderGoodsLineRequest>
   "version": number
 }
 

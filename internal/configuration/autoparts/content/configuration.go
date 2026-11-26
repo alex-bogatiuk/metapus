@@ -2,8 +2,8 @@
 // («Автозапчасти»): its catalogs, documents and registers, its migrations
 // (db/configuration/autoparts) and its part of the server. It is a skeleton
 // that checks the platform carries a second industry configuration: the item
-// and warehouse catalogs, the goods receipt and issue, and the warehouse stock
-// register.
+// and warehouse catalogs, customer orders with reserves, goods receipts and
+// issues, and the stock registers.
 package content
 
 import (

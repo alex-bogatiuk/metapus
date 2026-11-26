@@ -1,6 +1,7 @@
 -- Goods issues (Расходная накладная): parts sold to a customer from a
--- warehouse. Posting takes them from the warehouse stock register, which
--- refuses to go below zero.
+-- warehouse, under a customer order or not. Posting takes them from the
+-- warehouse stock, the stock (reserve is the part from the order's reserve)
+-- and the order; none of the registers goes below zero.
 
 -- +goose Up
 -- +goose StatementBegin
@@ -18,6 +19,7 @@ CREATE TABLE doc_goods_issues (
  customer_id UUID NOT NULL REFERENCES cat_counterparties(id),
  warehouse_id UUID NOT NULL REFERENCES cat_warehouses(id),
  currency_id UUID NOT NULL REFERENCES cat_currencies(id),
+ customer_order_id UUID REFERENCES doc_customer_orders(id),
  created_by UUID,
  updated_by UUID,
  deletion_mark BOOLEAN NOT NULL DEFAULT FALSE,
@@ -44,6 +46,7 @@ CREATE TABLE doc_goods_issues__goods (
  line_no INT NOT NULL,
  item_id UUID NOT NULL REFERENCES cat_items(id),
  quantity BIGINT NOT NULL CHECK (quantity > 0),
+ reserve BIGINT NOT NULL DEFAULT 0 CHECK (reserve >= 0 AND reserve <= quantity),
  price BIGINT NOT NULL DEFAULT 0 CHECK (price >= 0),
  amount BIGINT NOT NULL DEFAULT 0 CHECK (amount >= 0)
 );

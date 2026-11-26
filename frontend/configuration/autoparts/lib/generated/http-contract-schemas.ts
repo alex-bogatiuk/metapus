@@ -7,6 +7,18 @@ import { quantityInputSchema } from "@/lib/quantity"
 import type * as Wire from "@/configuration/autoparts/types/generated/http-contracts"
 import * as Platform from "@/lib/generated/http-contract-schemas"
 
+export const CreateCustomerOrderRequestSchema: z.ZodType<Wire.CreateCustomerOrderRequest> = z.lazy(() => z.strictObject({
+  "number": z.string().optional(),
+  "date": z.string(),
+  "description": z.string().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "customerId": z.string(),
+  "warehouseId": z.string(),
+  "currencyId": z.string(),
+  "goods": z.array(CustomerOrderGoodsLineRequestSchema).optional(),
+  "postImmediately": z.boolean().optional(),
+}))
+
 export const CreateGoodsIssueRequestSchema: z.ZodType<Wire.CreateGoodsIssueRequest> = z.lazy(() => z.strictObject({
   "number": z.string().optional(),
   "date": z.string(),
@@ -15,7 +27,8 @@ export const CreateGoodsIssueRequestSchema: z.ZodType<Wire.CreateGoodsIssueReque
   "customerId": z.string(),
   "warehouseId": z.string(),
   "currencyId": z.string(),
-  "goods": z.array(GoodsReceiptGoodsLineRequestSchema).optional(),
+  "customerOrderId": z.string().nullable().optional(),
+  "goods": z.array(CustomerOrderGoodsLineRequestSchema).optional(),
   "postImmediately": z.boolean().optional(),
 }))
 
@@ -49,6 +62,55 @@ export const CreateWarehouseRequestSchema: z.ZodType<Wire.CreateWarehouseRequest
   "address": z.string().optional(),
 }))
 
+export const CustomerOrderCursorResponseSchema: z.ZodType<Wire.CustomerOrderCursorResponse> = z.lazy(() => z.object({
+  "items": z.array(CustomerOrderResponseSchema),
+  "nextCursor": z.string().optional(),
+  "prevCursor": z.string().optional(),
+  "hasMore": z.boolean(),
+  "hasPrev": z.boolean(),
+  "targetIndex": z.number().int().optional(),
+  "totalCount": z.number().int().nullable(),
+}))
+
+export const CustomerOrderGoodsLineRequestSchema: z.ZodType<Wire.CustomerOrderGoodsLineRequest> = z.lazy(() => z.strictObject({
+  "lineId": z.string().nullable().optional(),
+  "itemId": z.string(),
+  "quantity": quantityInputSchema.optional(),
+  "reserve": quantityInputSchema.optional(),
+  "price": minorUnitsSchema.optional(),
+  "amount": minorUnitsSchema.optional(),
+}))
+
+export const CustomerOrderGoodsLineResponseSchema: z.ZodType<Wire.CustomerOrderGoodsLineResponse> = z.lazy(() => z.object({
+  "lineId": z.string(),
+  "lineNo": z.number().int(),
+  "itemId": z.string(),
+  "quantity": z.number().finite(),
+  "reserve": z.number().finite(),
+  "price": minorUnitsSchema,
+  "amount": minorUnitsSchema,
+  "item": Platform.PostgresRefDisplaySchema.optional(),
+}))
+
+export const CustomerOrderResponseSchema: z.ZodType<Wire.CustomerOrderResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "version": z.number().int(),
+  "deletionMark": z.boolean(),
+  "posted": z.boolean(),
+  "postedVersion": z.number().int(),
+  "number": z.string(),
+  "date": z.string(),
+  "description": z.string().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "customerId": z.string(),
+  "warehouseId": z.string(),
+  "currencyId": z.string(),
+  "customer": Platform.PostgresRefDisplaySchema.optional(),
+  "warehouse": Platform.PostgresRefDisplaySchema.optional(),
+  "currency": Platform.PostgresRefDisplaySchema.optional(),
+  "goods": z.array(CustomerOrderGoodsLineResponseSchema).optional(),
+}))
+
 export const GoodsIssueCursorResponseSchema: z.ZodType<Wire.GoodsIssueCursorResponse> = z.lazy(() => z.object({
   "items": z.array(GoodsIssueResponseSchema),
   "nextCursor": z.string().optional(),
@@ -63,6 +125,7 @@ export const GoodsIssueGoodsLineRequestSchema: z.ZodType<Wire.GoodsIssueGoodsLin
   "lineId": z.string().nullable().optional(),
   "itemId": z.string(),
   "quantity": quantityInputSchema.optional(),
+  "reserve": quantityInputSchema.optional(),
   "price": minorUnitsSchema.optional(),
   "amount": minorUnitsSchema.optional(),
 }))
@@ -72,6 +135,7 @@ export const GoodsIssueGoodsLineResponseSchema: z.ZodType<Wire.GoodsIssueGoodsLi
   "lineNo": z.number().int(),
   "itemId": z.string(),
   "quantity": z.number().finite(),
+  "reserve": z.number().finite(),
   "price": minorUnitsSchema,
   "amount": minorUnitsSchema,
   "item": Platform.PostgresRefDisplaySchema.optional(),
@@ -90,10 +154,12 @@ export const GoodsIssueResponseSchema: z.ZodType<Wire.GoodsIssueResponse> = z.la
   "customerId": z.string(),
   "warehouseId": z.string(),
   "currencyId": z.string(),
+  "customerOrderId": z.string().optional(),
   "customer": Platform.PostgresRefDisplaySchema.optional(),
   "warehouse": Platform.PostgresRefDisplaySchema.optional(),
   "currency": Platform.PostgresRefDisplaySchema.optional(),
-  "goods": z.array(GoodsReceiptGoodsLineResponseSchema).optional(),
+  "customerOrder": Platform.PostgresRefDisplaySchema.optional(),
+  "goods": z.array(CustomerOrderGoodsLineResponseSchema).optional(),
 }))
 
 export const GoodsReceiptCursorResponseSchema: z.ZodType<Wire.GoodsReceiptCursorResponse> = z.lazy(() => z.object({
@@ -112,6 +178,7 @@ export const GoodsReceiptGoodsLineRequestSchema: z.ZodType<Wire.GoodsReceiptGood
   "quantity": quantityInputSchema.optional(),
   "price": minorUnitsSchema.optional(),
   "amount": minorUnitsSchema.optional(),
+  "customerOrderId": z.string().nullable().optional(),
 }))
 
 export const GoodsReceiptGoodsLineResponseSchema: z.ZodType<Wire.GoodsReceiptGoodsLineResponse> = z.lazy(() => z.object({
@@ -121,7 +188,9 @@ export const GoodsReceiptGoodsLineResponseSchema: z.ZodType<Wire.GoodsReceiptGoo
   "quantity": z.number().finite(),
   "price": minorUnitsSchema,
   "amount": minorUnitsSchema,
+  "customerOrderId": z.string().optional(),
   "item": Platform.PostgresRefDisplaySchema.optional(),
+  "customerOrder": Platform.PostgresRefDisplaySchema.optional(),
 }))
 
 export const GoodsReceiptResponseSchema: z.ZodType<Wire.GoodsReceiptResponse> = z.lazy(() => z.object({
@@ -169,6 +238,18 @@ export const ItemResponseSchema: z.ZodType<Wire.ItemResponse> = z.lazy(() => z.o
 
 export const ItemTreeResponseSchema: z.ZodType<Wire.ItemTreeResponse> = z.lazy(() => z.array(ItemResponseSchema))
 
+export const UpdateCustomerOrderRequestSchema: z.ZodType<Wire.UpdateCustomerOrderRequest> = z.lazy(() => z.strictObject({
+  "number": z.string().optional(),
+  "date": z.string(),
+  "description": z.string().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "customerId": z.string(),
+  "warehouseId": z.string(),
+  "currencyId": z.string(),
+  "goods": z.array(CustomerOrderGoodsLineRequestSchema).optional(),
+  "version": z.number().int(),
+}))
+
 export const UpdateGoodsIssueRequestSchema: z.ZodType<Wire.UpdateGoodsIssueRequest> = z.lazy(() => z.strictObject({
   "number": z.string().optional(),
   "date": z.string(),
@@ -177,7 +258,8 @@ export const UpdateGoodsIssueRequestSchema: z.ZodType<Wire.UpdateGoodsIssueReque
   "customerId": z.string(),
   "warehouseId": z.string(),
   "currencyId": z.string(),
-  "goods": z.array(GoodsReceiptGoodsLineRequestSchema).optional(),
+  "customerOrderId": z.string().nullable().optional(),
+  "goods": z.array(CustomerOrderGoodsLineRequestSchema).optional(),
   "version": z.number().int(),
 }))
 

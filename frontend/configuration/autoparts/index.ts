@@ -1,6 +1,6 @@
 /**
  * The auto parts store configuration's frontend («Автозапчасти»). Its
- * catalogs, the goods receipt and the goods issue use the platform's generic lists and forms;
+ * catalogs and documents use the platform's generic lists and forms;
  * registerAutopartsConfiguration adds their contracts and navigation.
  */
 import { registerAutopartsContracts } from "./lib/api/contracts"

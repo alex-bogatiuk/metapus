@@ -1,12 +1,18 @@
 // Package goods_issue is the goods issue (Расходная накладная): parts sold
 // to a customer from a warehouse. Posting takes them from the warehouse stock
-// register, which refuses an issue of more than the warehouse holds.
+// and from the stock: each line's Reserve from the reserve of the issue's
+// customer order, the rest from the free stock. Under an order it also takes
+// the shipped quantity from the order. The registers refuse an issue of more
+// than the warehouse holds, than is free, than the order reserved or than it
+// ordered.
 package goods_issue
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
@@ -27,20 +33,24 @@ var Definition = entity.Definition{
 // GoodsIssue is one sale of parts to a customer.
 type GoodsIssue struct {
 	entity.Document
-	CustomerID  id.ID       `db:"customer_id" json:"customerId" meta:"label:Покупатель,ref:counterparty" binding:"required"`
-	WarehouseID id.ID       `db:"warehouse_id" json:"warehouseId" meta:"label:Склад,ref:warehouse" binding:"required"`
-	CurrencyID  id.ID       `db:"currency_id" json:"currencyId" meta:"label:Валюта,ref:currency" binding:"required"`
-	Goods       []GoodsLine `db:"-" json:"goods" meta:"label:Товары"`
+	CustomerID  id.ID `db:"customer_id" json:"customerId" meta:"label:Покупатель,ref:counterparty" binding:"required"`
+	WarehouseID id.ID `db:"warehouse_id" json:"warehouseId" meta:"label:Склад,ref:warehouse" binding:"required"`
+	CurrencyID  id.ID `db:"currency_id" json:"currencyId" meta:"label:Валюта,ref:currency" binding:"required"`
+	// CustomerOrderID is the order the issue ships, if any.
+	CustomerOrderID *id.ID      `db:"customer_order_id" json:"customerOrderId,omitempty" meta:"label:Заказ покупателя,ref:customer_order"`
+	Goods           []GoodsLine `db:"-" json:"goods" meta:"label:Товары"`
 }
 
 // GoodsLine is a row of the goods table part (doc_goods_issues__goods).
 type GoodsLine struct {
-	LineID   id.ID            `db:"line_id" json:"lineId"`
-	LineNo   int              `db:"line_no" json:"lineNo" meta:"label:№"`
-	ItemID   id.ID            `db:"item_id" json:"itemId" meta:"label:Номенклатура,ref:item" binding:"required"`
-	Quantity types.Quantity   `db:"quantity" json:"quantity" meta:"label:Количество"`
-	Price    types.MinorUnits `db:"price" json:"price" meta:"label:Цена"`
-	Amount   types.MinorUnits `db:"amount" json:"amount" meta:"label:Сумма"`
+	LineID   id.ID          `db:"line_id" json:"lineId"`
+	LineNo   int            `db:"line_no" json:"lineNo" meta:"label:№"`
+	ItemID   id.ID          `db:"item_id" json:"itemId" meta:"label:Номенклатура,ref:item" binding:"required"`
+	Quantity types.Quantity `db:"quantity" json:"quantity" meta:"label:Количество"`
+	// Reserve is how much of Quantity comes from the order's reserve.
+	Reserve types.Quantity   `db:"reserve" json:"reserve" meta:"label:Из резерва"`
+	Price   types.MinorUnits `db:"price" json:"price" meta:"label:Цена"`
+	Amount  types.MinorUnits `db:"amount" json:"amount" meta:"label:Сумма"`
 }
 
 func (GoodsIssue) EntityDefinition() entity.Definition { return Definition }
@@ -54,6 +64,12 @@ func (e *GoodsIssue) Validate(ctx context.Context) error {
 	for _, line := range e.Goods {
 		if !line.Quantity.IsPositive() {
 			return apperror.NewValidation(fmt.Sprintf("line %d: the quantity must be positive", line.LineNo))
+		}
+		if line.Reserve.IsNegative() || line.Reserve > line.Quantity {
+			return apperror.NewValidation(fmt.Sprintf("line %d: the reserve must be between zero and the quantity", line.LineNo))
+		}
+		if line.Reserve.IsPositive() && e.CustomerOrderID == nil {
+			return apperror.NewValidation(fmt.Sprintf("line %d: a reserve is taken under a customer order", line.LineNo))
 		}
 		if line.Price.IsNegative() || line.Amount.IsNegative() {
 			return apperror.NewValidation(fmt.Sprintf("line %d: the price and amount cannot be negative", line.LineNo))
@@ -77,12 +93,34 @@ func (e *GoodsIssue) CanPost(ctx context.Context) error {
 	return e.Validate(ctx)
 }
 
-// RegisterMovements takes every line's quantity from the warehouse's stock.
+// RegisterMovements takes every line's quantity from the warehouse's stock:
+// its reserve from the order's, the rest from the free stock; under an order
+// it also takes the quantity from the order.
 func (e *GoodsIssue) RegisterMovements(_ context.Context, out *accumulation.Movements) error {
+	order := stock.OrderOf(e.CustomerOrderID)
 	for _, line := range e.Goods {
 		warehouse_stock.Register.Expense(out, warehouse_stock.Movement{
 			WarehouseID: e.WarehouseID, ItemID: line.ItemID, Quantity: line.Quantity,
 		})
+		reserve := line.Reserve
+		if order == stock.Free() {
+			reserve = 0 // Validate refuses a reserve without an order
+		}
+		if reserve.IsPositive() {
+			stock.Register.Expense(out, stock.Movement{
+				WarehouseID: e.WarehouseID, ItemID: line.ItemID, CustomerOrderID: order, Quantity: reserve,
+			})
+		}
+		if free := line.Quantity - reserve; free.IsPositive() {
+			stock.Register.Expense(out, stock.Movement{
+				WarehouseID: e.WarehouseID, ItemID: line.ItemID, CustomerOrderID: stock.Free(), Quantity: free,
+			})
+		}
+		if order != stock.Free() {
+			customer_orders.Register.Expense(out, customer_orders.Movement{
+				CustomerOrderID: order, ItemID: line.ItemID, Quantity: line.Quantity,
+			})
+		}
 	}
 	return nil
 }
