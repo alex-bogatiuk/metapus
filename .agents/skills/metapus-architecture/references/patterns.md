@@ -128,6 +128,8 @@ func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Mo
 
 Дальше — `reg.RegisterAccumulation(warehouse_stock.Register)` в `content/register.go` и миграция таблиц по образцу `migration.AccumulationDDL(Register.Schema())`: таблица движений, таблица остатков, триггеры на общих функциях `sys_accumulation_balances` и `sys_accumulation_movements_immutable`. Миграция тенанта сверяет таблицы с объявлением и остановится при расхождении. Запросы — `Register.Balances`, `BalancesAt`, `Turnovers` с `accumulation.Filter` по колонкам измерений. Для FLS регистрация документа по-прежнему объявляет `MovementSources()`; ключи колонок движений — имена колонок (`warehouse_id`, `quantity`).
 
+Регистр сведений (цены, история состояний, настройки по измерениям) объявляется так же: структура записи с `information.RecordBase`, `information.New[R](Definition{Key, Label, Table, Periodicity, Mode})`, `reg.RegisterInformation`. Независимый пишет код (`Set`), подчинённый — документ в том же `RegisterMovements` (`Register.Record`); читают срезом последних `SliceLast`.
+
 Контроль отрицательных остатков — `NonNegative: true`, без своего валидатора: платформа блокирует затронутые комбинации в общем отсортированном порядке и отказывает с `INSUFFICIENT_BALANCE`, если документ увёл ресурс ниже нуля. Резерв — измерение «заказ» в том же регистре (`id.Nil` — свободный остаток): резервирование — расход со свободного и приход на заказ.
 
 **Как — вручную, когда декларативного не хватает** (append-only финансовые движения со сторно, проверки остатков между несколькими регистрами, nullable-измерения, регистр крипто). Три части:

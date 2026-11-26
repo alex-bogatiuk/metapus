@@ -35,6 +35,22 @@
 
 Ограничения: одна блокировка на комбинацию, поэтому документ на тысячи разных комбинаций занимает столько же записей в общей таблице блокировок PostgreSQL (`max_locks_per_transaction`). Формулы между регистрами («остаток склада минус резервы другого регистра») нет — свободный остаток держится в одном регистре.
 
+### Регистры сведений
+
+Регистр сведений объявляется так же, как регистр накопления ([`internal/domain/registers/information`](../../internal/domain/registers/information/schema.go)): структура записи встраивает `information.RecordBase` и помечает поля `register:"dimension"` (`id.ID` со ссылкой или строка) и `register:"resource"` (`id.ID`, строка, `bool`, `types.Quantity`, `types.MinorUnits` с `currency=<колонка>`). `information.New[R](Definition{Key, Label, Table, Periodicity, Mode})` проверяет описание при старте, `Registry.RegisterInformation` привязывает хранилище.
+
+| | |
+|---|---|
+| Периодичность | `NonPeriodic` (одна запись на комбинацию измерений), `Second`, `Day` (период приводится к дню UTC) |
+| `Independent` | пишет код: `Set` заменяет запись с тем же периодом и измерениями, `Delete` удаляет |
+| `Recorder` | пишет проведение: документ — тот же `accumulation.Source`, вызывает `Register.Record(out, rec)`; период — дата документа. Перепроведение заменяет записи, отмена удаляет, записи видны в «Движениях документа». Две записи с одним ключом от разных документов — ошибка `DUPLICATE_ENTRY` |
+| Запросы | `SliceLast(at, filter)` — срез последних на момент, `Records(filter, from, to)`, `RecordsOf(recorder)` |
+| Таблица | одна, `Table`: период, регистратор (для `Recorder`), измерения, ресурсы, первичный ключ — период и измерения. SQL печатает `migration.InformationDDL`, миграция тенанта сверяет таблицу с объявлением (`CheckInformationRegisters`) |
+
+Записи `Recorder`-регистров собирает тот же visitor, что и движения регистров накопления (`accumulation.Collect`), поэтому один `RegisterMovements` документа заполняет регистры обоих видов. Сервер подключает их сам, движок воркера или теста — через `information.Install`.
+
+Пока нет: экранов списка и правки записей независимого регистра (его пишет код), ресурсов-дат и чисел без единиц.
+
 ## 2. Транзакционная граница
 
 1. `CanPost` и before-post hooks выполняются перед локальным `RunInTransaction`; вызывающий service уже может держать внешнюю транзакцию. В before hooks нельзя помещать внешние side effects, которые невозможно откатить.
@@ -103,6 +119,8 @@ internal/domain/posting/engine.go   — Координатор транзакц�
 internal/domain/posting/visitor.go  — Сбор движений из документов
 internal/domain/posting/recorder.go — Запись движений в регистры
 internal/domain/registers/accumulation/ — Декларативные регистры: описание, visitor, recorder, контроль остатков, запросы
+internal/domain/registers/information/ — Регистры сведений: описание, запись, срез последних
+internal/infrastructure/storage/postgres/register_repo/information.go — Хранилище регистров сведений
 internal/infrastructure/storage/postgres/register_repo/accumulation.go — Хранилище декларативных регистров
 internal/infrastructure/storage/postgres/migration/accumulation.go — Сверка таблиц регистров при миграции тенанта
 internal/configuration/crypto/domain/registers/cryptoposting/ — Visitor/Recorder криптовых регистров (конфигурация, подключается при сборке движка)

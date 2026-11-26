@@ -2,6 +2,15 @@
 
 Каждое изменение `pkg/sdk` записывается здесь вместе с новой `sdk.APIVersion` ([правила](README.md#версионирование)).
 
+## 3.5.0 — 2026-11-26
+
+Регистры сведений. Только добавления: конфигурации для 3.0.0–3.4.0 совместимы.
+
+- Новый пакет `registers/information`: `New[R]`, `Register[R]`, `Definition`, `Periodicity` (`NonPeriodic`, `Second`, `Day`), `Mode` (`Independent`, `Recorder`), `RecordBase`, `Schema`, `Field`, `FieldType`, `Filter`, `Declared`, `Install`. Независимый регистр пишут `Set` и `Delete`, подчинённый — проведение документа (`Register.Record` в `RegisterMovements`). Запросы: `SliceLast`, `Records`, `RecordsOf`.
+- `registry.Registry.RegisterInformation`, `InformationRegisters`: сервер подключает подчинённые регистры к проведению, миграция тенанта сверяет таблицы с объявлением.
+- `registers`: `InformationStore`, `NewInformationStore`; `migration`: `InformationDDL`.
+- `registers/accumulation`: `Movements.Recorder`, `Movements.Fail`, `Collect` — общий сборщик записей документа для регистров разных видов.
+
 ## 3.4.0 — 2026-11-26
 
 Ввод на основании. Только добавления: конфигурации для 3.0.0–3.3.0 совместимы.

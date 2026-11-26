@@ -9,6 +9,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/information"
 )
 
 // AdminRoleCode is the system role that receives every newly created permission.
@@ -23,6 +24,7 @@ type options struct {
 	permissions         []auth.Permission
 	catalogs            []entity.Definition
 	registers           []*accumulation.Schema
+	information         []*information.Schema
 }
 
 // WithPermissions makes RunAll sync the given permissions into the tenant

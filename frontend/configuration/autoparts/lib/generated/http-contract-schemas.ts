@@ -69,6 +69,18 @@ export const CreateItemRequestSchema: z.ZodType<Wire.CreateItemRequest> = z.lazy
   "unit": z.string().optional(),
 }))
 
+export const CreatePriceSettingRequestSchema: z.ZodType<Wire.CreatePriceSettingRequest> = z.lazy(() => z.strictObject({
+  "number": z.string().optional(),
+  "date": z.string(),
+  "description": z.string().optional(),
+  "basisType": z.string().optional(),
+  "basisId": z.string().nullable().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "currencyId": z.string(),
+  "prices": z.array(PriceSettingPricesLineRequestSchema).optional(),
+  "postImmediately": z.boolean().optional(),
+}))
+
 export const CreateWarehouseRequestSchema: z.ZodType<Wire.CreateWarehouseRequest> = z.lazy(() => z.strictObject({
   "code": z.string().optional(),
   "name": z.string(),
@@ -285,6 +297,47 @@ export const ItemResponseSchema: z.ZodType<Wire.ItemResponse> = z.lazy(() => z.o
 
 export const ItemTreeResponseSchema: z.ZodType<Wire.ItemTreeResponse> = z.lazy(() => z.array(ItemResponseSchema))
 
+export const PriceSettingCursorResponseSchema: z.ZodType<Wire.PriceSettingCursorResponse> = z.lazy(() => z.object({
+  "items": z.array(PriceSettingResponseSchema),
+  "nextCursor": z.string().optional(),
+  "prevCursor": z.string().optional(),
+  "hasMore": z.boolean(),
+  "hasPrev": z.boolean(),
+  "targetIndex": z.number().int().optional(),
+  "totalCount": z.number().int().nullable(),
+}))
+
+export const PriceSettingPricesLineRequestSchema: z.ZodType<Wire.PriceSettingPricesLineRequest> = z.lazy(() => z.strictObject({
+  "lineId": z.string().nullable().optional(),
+  "itemId": z.string(),
+  "price": minorUnitsSchema.optional(),
+}))
+
+export const PriceSettingPricesLineResponseSchema: z.ZodType<Wire.PriceSettingPricesLineResponse> = z.lazy(() => z.object({
+  "lineId": z.string(),
+  "lineNo": z.number().int(),
+  "itemId": z.string(),
+  "price": minorUnitsSchema,
+  "item": Platform.PostgresRefDisplaySchema.optional(),
+}))
+
+export const PriceSettingResponseSchema: z.ZodType<Wire.PriceSettingResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "version": z.number().int(),
+  "deletionMark": z.boolean(),
+  "posted": z.boolean(),
+  "postedVersion": z.number().int(),
+  "number": z.string(),
+  "date": z.string(),
+  "description": z.string().optional(),
+  "basisType": z.string().optional(),
+  "basisId": z.string().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "currencyId": z.string(),
+  "currency": Platform.PostgresRefDisplaySchema.optional(),
+  "prices": z.array(PriceSettingPricesLineResponseSchema).optional(),
+}))
+
 export const UpdateCustomerOrderRequestSchema: z.ZodType<Wire.UpdateCustomerOrderRequest> = z.lazy(() => z.strictObject({
   "number": z.string().optional(),
   "date": z.string(),
@@ -346,6 +399,18 @@ export const UpdateItemRequestSchema: z.ZodType<Wire.UpdateItemRequest> = z.lazy
   "article": z.string().optional(),
   "manufacturer": z.string().optional(),
   "unit": z.string().optional(),
+  "version": z.number().int(),
+}))
+
+export const UpdatePriceSettingRequestSchema: z.ZodType<Wire.UpdatePriceSettingRequest> = z.lazy(() => z.strictObject({
+  "number": z.string().optional(),
+  "date": z.string(),
+  "description": z.string().optional(),
+  "basisType": z.string().optional(),
+  "basisId": z.string().nullable().optional(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "currencyId": z.string(),
+  "prices": z.array(PriceSettingPricesLineRequestSchema).optional(),
   "version": z.number().int(),
 }))
 

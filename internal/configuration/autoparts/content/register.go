@@ -7,7 +7,10 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/customer_order"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_issue"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/price_setting"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/item_prices"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/order_state_history"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/order_state_repo"
@@ -35,12 +38,14 @@ func register(reg *registry.Registry) {
 	reg.RegisterAccumulation(warehouse_stock.Register)
 	reg.RegisterAccumulation(stock.Register)
 	reg.RegisterAccumulation(customer_orders.Register)
+	reg.RegisterInformation(order_state_history.Register)
+	reg.RegisterInformation(item_prices.Register)
 	reg.RegisterDocument(customerOrderRegistration{registry.Document[customer_order.CustomerOrder](registry.Presentation{
 		Singular: "Заказ покупателя", Plural: "Заказы покупателей", NewLabel: "Новый заказ покупателя", Genitive: "заказ покупателя",
 	}).Configure(func(s *domain.BaseHeaderDocumentService[*customer_order.CustomerOrder]) {
 		// The state decides the order's movements: its status, and what a
 		// closed order cancels and releases, are set before every save.
-		hook := customer_order.StateHook(order_state_repo.New())
+		hook := customer_order.BeforeSave(order_state_repo.New())
 		s.GetHooks().OnBeforeCreate(hook)
 		s.GetHooks().OnBeforeUpdate(hook)
 	})})
@@ -50,6 +55,9 @@ func register(reg *registry.Registry) {
 	reg.RegisterDocument(goodsIssueRegistration{registry.Document[goods_issue.GoodsIssue](registry.Presentation{
 		Singular: "Расходная накладная", Plural: "Расходные накладные", NewLabel: "Новая расходная накладная", Genitive: "расходную накладную",
 	})})
+	reg.RegisterDocument(registry.Document[price_setting.PriceSetting](registry.Presentation{
+		Singular: "Установка цен", Plural: "Установки цен номенклатуры", NewLabel: "Новая установка цен", Genitive: "установку цен",
+	}))
 	reg.RegisterBasis(registry.Basis("Расходная накладная", goods_issue.FromCustomerOrder))
 	reg.RegisterBasis(registry.Basis("Приходная накладная под заказ", goods_receipt.ForCustomerOrder))
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 	"github.com/alex-bogatiuk/metapus/internal/core/version"
 	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/information"
 	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 )
@@ -22,6 +23,7 @@ func MigrationOptions(cfg Configuration, extensions ...func(*v1.FactoryRegistry)
 		migration.WithPermissions(Permissions(cfg, extensions...)),
 		migration.WithCatalogCodes(CatalogDefinitions(cfg, extensions...)),
 		migration.WithAccumulationRegisters(AccumulationSchemas(cfg, extensions...)),
+		migration.WithInformationRegisters(InformationSchemas(cfg, extensions...)),
 	}
 }
 
@@ -46,4 +48,16 @@ func ExpectedSchema(cfg Configuration) (tenant.Schema, error) {
 		return tenant.Schema{}, fmt.Errorf("configuration %s: %w", cfg.Name(), err)
 	}
 	return tenant.Schema{Configuration: cfg.Name(), Version: version.ExpectedSchemaVersion, ConfigurationVersion: configurationVersion}, nil
+}
+
+// InformationSchemas are the schemas of the declarative information
+// registers cfg and the extensions register, which the tenant migration
+// checks against the database.
+func InformationSchemas(cfg Configuration, extensions ...func(*v1.FactoryRegistry)) []*information.Schema {
+	registers := Compose(cfg, extensions...).InformationRegisters()
+	schemas := make([]*information.Schema, len(registers))
+	for i, r := range registers {
+		schemas[i] = r.Schema()
+	}
+	return schemas
 }

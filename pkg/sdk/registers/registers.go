@@ -15,6 +15,13 @@ type AccumulationStore = core.AccumulationStore
 // NewAccumulationStore creates the store of declarative registers.
 func NewAccumulationStore() *AccumulationStore { return core.NewAccumulationStore() }
 
+// InformationStore keeps the records of declarative information registers
+// in PostgreSQL; the registry binds registered registers to it.
+type InformationStore = core.InformationStore
+
+// NewInformationStore creates the store of information registers.
+func NewInformationStore() *InformationStore { return core.NewInformationStore() }
+
 type (
 	// BaseAccumulationRepo writes a register's movements (COPY inside the
 	// posting transaction) and deletes a document's earlier versions. Embed

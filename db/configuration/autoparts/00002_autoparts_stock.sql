@@ -60,6 +60,20 @@ CREATE TABLE doc_customer_orders__goods (
 );
 CREATE INDEX idx_doc_customer_orders__goods_document ON doc_customer_orders__goods (document_id, line_no);
 
+-- The order state history (ИсторияСостоянийЗаказов): an independent
+-- information register the order writes when its state changes, before the
+-- order's own row is written, so the order has no foreign key here.
+CREATE TABLE reg_order_state_history (
+ period            TIMESTAMPTZ NOT NULL,
+ customer_order_id UUID        NOT NULL,
+ state_id          UUID        NOT NULL REFERENCES cat_customer_order_states(id),
+ status            TEXT        NOT NULL,
+ author_id         UUID        NOT NULL,
+ PRIMARY KEY (period, customer_order_id)
+);
+COMMENT ON TABLE reg_order_state_history IS 'История состояний заказов: с какого момента заказ в каком состоянии и кто его поставил';
+CREATE INDEX idx_reg_order_state_history_order ON reg_order_state_history (customer_order_id, period);
+
 CREATE TABLE doc_goods_receipts (
  id UUID PRIMARY KEY,
  number TEXT NOT NULL DEFAULT '',
@@ -229,6 +243,7 @@ DROP TABLE reg_warehouse_stock_balances;
 DROP TABLE reg_warehouse_stock_movements;
 DROP TABLE doc_goods_receipts__goods;
 DROP TABLE doc_goods_receipts;
+DROP TABLE reg_order_state_history;
 DROP TABLE doc_customer_orders__goods;
 DROP TABLE doc_customer_orders;
 -- +goose StatementEnd

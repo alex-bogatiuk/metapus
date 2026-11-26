@@ -135,11 +135,7 @@ func (r *Register[M]) add(out *Movements, recordType entity.RecordType, m M) {
 		period = out.period
 	}
 	*h = entity.NewMovementBase(out.recorderID, out.recorderType, out.recorderVersion, period, recordType)
-	list, _ := out.byKey[r.schema.Key].([]M)
-	if list == nil {
-		out.keys = append(out.keys, r.schema.Key)
-	}
-	out.byKey[r.schema.Key] = append(list, m)
+	Collect(out, r.schema.Key, m)
 }
 
 // Name is the register's key: its place in a posting's movement set.

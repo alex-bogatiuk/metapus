@@ -167,6 +167,12 @@ func Run(dsn string, opts ...Option) (result Result, err error) {
 		}
 		fmt.Fprintf(&out, "[registers] %d accumulation registers match their tables\n", len(o.registers))
 	}
+	if len(o.information) > 0 {
+		if err := CheckInformationRegisters(ctx, db, o.information); err != nil {
+			return result, err
+		}
+		fmt.Fprintf(&out, "[registers] %d information registers match their tables\n", len(o.information))
+	}
 	if len(o.catalogs) > 0 {
 		assigned, berr := BackfillCatalogCodes(ctx, db, o.catalogs)
 		if berr != nil {

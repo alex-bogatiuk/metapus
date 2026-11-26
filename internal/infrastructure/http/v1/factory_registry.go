@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/information"
 	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/register_repo"
 )
@@ -44,6 +45,7 @@ type FactoryRegistry struct {
 	customDocuments  []CustomDocumentRegistration
 	registers        []RouteRegistration
 	accumulation     []accumulation.Declared
+	information      []information.Declared
 	basis            []BasisRule
 	datasets         []*schema.Dataset
 }
@@ -135,6 +137,30 @@ func (r *FactoryRegistry) RegisterAccumulation(reg accumulation.Declared) {
 	}
 	reg.Bind(register_repo.NewAccumulationStore())
 	r.accumulation = append(r.accumulation, reg)
+}
+
+// RegisterInformation adds a declarative information register and binds it
+// to the platform's PostgreSQL store. A Recorder register is posted by the
+// documents that record it; the tenant migration checks its table.
+func (r *FactoryRegistry) RegisterInformation(reg information.Declared) {
+	schema := reg.Schema()
+	for _, existing := range r.information {
+		if existing.Schema().Key == schema.Key || existing.Schema().Table == schema.Table {
+			panic("duplicate information register: " + schema.Key)
+		}
+	}
+	for _, existing := range r.accumulation {
+		if existing.Schema().Key == schema.Key {
+			panic("an information register takes the key of an accumulation register: " + schema.Key)
+		}
+	}
+	reg.Bind(register_repo.NewInformationStore())
+	r.information = append(r.information, reg)
+}
+
+// InformationRegisters returns the declarative information registers.
+func (r *FactoryRegistry) InformationRegisters() []information.Declared {
+	return r.information
 }
 
 // AccumulationRegisters returns the declarative accumulation registers.

@@ -9,6 +9,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
 	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/information"
 	"github.com/alex-bogatiuk/metapus/internal/domain/registers/settlement"
 	"github.com/alex-bogatiuk/metapus/internal/domain/reports/variants"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
@@ -43,6 +44,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		movementProviders = append(movementProviders, module.InstallPosting(postingEngine)...)
 	}
 	movementProviders = append(movementProviders, accumulation.Install(postingEngine, factoryReg.AccumulationRegisters()...)...)
+	movementProviders = append(movementProviders, information.Install(postingEngine, factoryReg.InformationRegisters()...)...)
 	// Shortage messages name warehouses and items as the user may read them.
 	for _, register := range factoryReg.AccumulationRegisters() {
 		register.BindNames(postgres.NewRefResolverRepo(reg))

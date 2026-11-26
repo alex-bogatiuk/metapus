@@ -2,20 +2,91 @@ package customer_order
 
 import (
 	"context"
+	"time"
 
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/order_state"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/item_prices"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/order_state_history"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/accumulation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/information"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
-// StateHook is ApplyState with the store of states, for the order service's
-// before-create and before-update hooks.
-func StateHook(statuses order_state.Statuses) func(context.Context, *CustomerOrder) error {
-	return func(ctx context.Context, order *CustomerOrder) error { return ApplyState(ctx, statuses, order) }
+// BeforeSave is the order service's before-create and before-update hook:
+// lines without a price take the item's price (FillPrices), the state sets
+// the status and what a closed order gives up (ApplyState), and a changed
+// state is written to the order state history (RecordState).
+func BeforeSave(statuses order_state.Statuses) func(context.Context, *CustomerOrder) error {
+	return func(ctx context.Context, order *CustomerOrder) error {
+		if err := FillPrices(ctx, order); err != nil {
+			return err
+		}
+		if err := ApplyState(ctx, statuses, order); err != nil {
+			return err
+		}
+		return RecordState(ctx, order, time.Now())
+	}
+}
+
+// RecordState writes the order's state to the history at the moment at,
+// unless the history already has it as the order's latest state.
+func RecordState(ctx context.Context, order *CustomerOrder, at time.Time) error {
+	if order.StateID == nil {
+		return nil
+	}
+	last, err := order_state_history.Register.SliceLast(ctx, at, information.Filter{"customer_order_id": order.ID})
+	if err != nil {
+		return err
+	}
+	if len(last) > 0 && last[0].StateID == *order.StateID {
+		return nil
+	}
+	author, err := id.Parse(appctx.GetUserID(ctx))
+	if err != nil {
+		author = id.Nil()
+	}
+	return order_state_history.Register.Set(ctx, order_state_history.Record{
+		RecordBase:      information.RecordBase{Period: at},
+		CustomerOrderID: order.ID, StateID: *order.StateID, Status: order.Status, AuthorID: author,
+	})
+}
+
+// FillPrices gives each line without a price the item's price on the
+// order's date, if it is set in the order's currency, and the line's amount
+// at that price.
+func FillPrices(ctx context.Context, order *CustomerOrder) error {
+	var items []id.ID
+	for _, line := range order.Goods {
+		if line.Price.IsZero() {
+			items = append(items, line.ItemID)
+		}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	prices, err := item_prices.Register.SliceLast(ctx, order.Date, information.Filter{"item_id": items})
+	if err != nil {
+		return err
+	}
+	byItem := map[id.ID]types.MinorUnits{}
+	for _, p := range prices {
+		if p.CurrencyID == order.CurrencyID {
+			byItem[p.ItemID] = p.Price
+		}
+	}
+	for i := range order.Goods {
+		line := &order.Goods[i]
+		if price, ok := byItem[line.ItemID]; ok && line.Price.IsZero() {
+			line.Price = price
+			line.Amount = types.MinorUnits(int64(price) * int64(line.Quantity) / types.QuantityScale)
+		}
+	}
+	return nil
 }
 
 // ApplyState runs before the order is saved, in its transaction: it gives a

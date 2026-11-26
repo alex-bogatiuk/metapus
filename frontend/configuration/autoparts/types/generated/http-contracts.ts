@@ -66,6 +66,18 @@ export type CreateItemRequest = {
   "unit"?: string
 }
 
+export type CreatePriceSettingRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
+  "attributes"?: Record<string, JsonValue>
+  "currencyId": string
+  "prices"?: Array<PriceSettingPricesLineRequest>
+  "postImmediately"?: boolean
+}
+
 export type CreateWarehouseRequest = {
   "code"?: string
   "name": string
@@ -282,6 +294,47 @@ export type ItemResponse = {
 
 export type ItemTreeResponse = Array<ItemResponse>
 
+export type PriceSettingCursorResponse = {
+  "items": Array<PriceSettingResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type PriceSettingPricesLineRequest = {
+  "lineId"?: string | null
+  "itemId": string
+  "price"?: MinorUnits
+}
+
+export type PriceSettingPricesLineResponse = {
+  "lineId": string
+  "lineNo": number
+  "itemId": string
+  "price": MinorUnits
+  "item"?: Platform.PostgresRefDisplay
+}
+
+export type PriceSettingResponse = {
+  "id": string
+  "version": number
+  "deletionMark": boolean
+  "posted": boolean
+  "postedVersion": number
+  "number": string
+  "date": string
+  "description"?: string
+  "basisType"?: string
+  "basisId"?: string
+  "attributes"?: Record<string, JsonValue>
+  "currencyId": string
+  "currency"?: Platform.PostgresRefDisplay
+  "prices"?: Array<PriceSettingPricesLineResponse>
+}
+
 export type UpdateCustomerOrderRequest = {
   "number"?: string
   "date": string
@@ -343,6 +396,18 @@ export type UpdateItemRequest = {
   "article"?: string
   "manufacturer"?: string
   "unit"?: string
+  "version": number
+}
+
+export type UpdatePriceSettingRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
+  "attributes"?: Record<string, JsonValue>
+  "currencyId": string
+  "prices"?: Array<PriceSettingPricesLineRequest>
   "version": number
 }
 

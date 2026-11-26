@@ -9,6 +9,7 @@ import (
 	dbassets "github.com/alex-bogatiuk/metapus/db"
 	"github.com/alex-bogatiuk/metapus/internal/core/version"
 	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/information"
 	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 )
 
@@ -52,3 +53,8 @@ func WithConfiguration(name string, source fs.FS) core.Option {
 // checks the tables against the same declaration and shows this text when
 // they differ.
 func AccumulationDDL(schema *accumulation.Schema) string { return core.AccumulationDDL(schema) }
+
+// InformationDDL is the SQL that creates an information register's table for
+// a configuration's migration; the tenant migration checks the table
+// against the same declaration.
+func InformationDDL(schema *information.Schema) string { return core.InformationDDL(schema) }

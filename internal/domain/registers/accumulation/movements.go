@@ -47,6 +47,28 @@ func NewMovements(recorderID id.ID, recorderType string, recorderVersion int, pe
 
 func (m *Movements) fail(err error) { m.errs = append(m.errs, err) }
 
+// Recorder is the document whose movements m collects: its ID and type, the
+// version this posting gives it and its date.
+func (m *Movements) Recorder() (recorderID id.ID, recorderType string, version int, period time.Time) {
+	return m.recorderID, m.recorderType, m.recorderVersion, m.period
+}
+
+// Fail notes a mistake made while adding records; Err reports it and the
+// posting stops.
+func (m *Movements) Fail(err error) { m.fail(err) }
+
+// Collect adds item to the list kept under key. Accumulation registers add
+// their movements through it, and other declarative registers (information
+// registers) their records, so one Source fills all of a document's
+// registers. Every item under a key has the same type.
+func Collect[T any](m *Movements, key string, item T) {
+	list, _ := m.byKey[key].([]T)
+	if list == nil {
+		m.keys = append(m.keys, key)
+	}
+	m.byKey[key] = append(list, item)
+}
+
 // Err is the first mistake made while adding movements.
 func (m *Movements) Err() error { return errors.Join(m.errs...) }
 

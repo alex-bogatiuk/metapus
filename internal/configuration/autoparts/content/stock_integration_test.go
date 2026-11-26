@@ -14,7 +14,10 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/customer_order"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_issue"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/price_setting"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/item_prices"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/order_state_history"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/order_state_repo"
@@ -24,6 +27,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/accumulation"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/information"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
@@ -53,6 +57,10 @@ func newStockFixture(t *testing.T) *stockFixture {
 		r.Bind(registers.NewAccumulationStore())
 	}
 	accumulation.Install(f.engine, declared...)
+	for _, r := range []information.Declared{order_state_history.Register, item_prices.Register} {
+		r.Bind(registers.NewInformationStore())
+	}
+	information.Install(f.engine, item_prices.Register)
 	for _, statement := range []struct {
 		sql  string
 		args []any
@@ -427,4 +435,71 @@ func TestCustomerOrderStateDecidesItsMovements(t *testing.T) {
 	unknown := id.New()
 	order.StateID = &unknown
 	require.ErrorContains(t, customer_order.ApplyState(f.ctx, order_state_repo.New(), order), "the order state is not found")
+}
+
+// A price setting records item prices from its date; an order line without
+// a price takes the price valid on the order's date.
+func TestOrderLinesTakeThePriceList(t *testing.T) {
+	f := newStockFixture(t)
+	setting := &price_setting.PriceSetting{Document: entity.NewDocument(), CurrencyID: f.currency,
+		Prices: []price_setting.PriceLine{{LineID: id.New(), LineNo: 1, ItemID: f.oil, Price: 95000}, {LineID: id.New(), LineNo: 2, ItemID: f.pads, Price: 410000}}}
+	setting.Date = time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, f.post(setting))
+	raise := &price_setting.PriceSetting{Document: entity.NewDocument(), CurrencyID: f.currency,
+		Prices: []price_setting.PriceLine{{LineID: id.New(), LineNo: 1, ItemID: f.oil, Price: 99000}}}
+	raise.Date = time.Date(2026, 11, 25, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, f.post(raise))
+
+	order := f.order(
+		customer_order.GoodsLine{ItemID: f.oil, Quantity: pieces(2)},
+		customer_order.GoodsLine{ItemID: f.pads, Quantity: pieces(1), Price: 380000, Amount: 380000},
+	)
+	order.Date = time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, customer_order.FillPrices(f.ctx, order))
+	require.Equal(t, types.MinorUnits(95000), order.Goods[0].Price, "the price valid on the order's date, not the later one")
+	require.Equal(t, types.MinorUnits(190000), order.Goods[0].Amount)
+	require.Equal(t, types.MinorUnits(380000), order.Goods[1].Price, "a line's own price stays")
+
+	// Reposting the setting replaces its prices; unposting removes them.
+	setting.Prices = setting.Prices[:1]
+	setting.Prices[0].Price = 97000
+	require.NoError(t, f.post(setting))
+	later := f.order(customer_order.GoodsLine{ItemID: f.oil, Quantity: pieces(1)}, customer_order.GoodsLine{ItemID: f.pads, Quantity: pieces(1)})
+	later.Date = order.Date
+	require.NoError(t, customer_order.FillPrices(f.ctx, later))
+	require.Equal(t, types.MinorUnits(97000), later.Goods[0].Price)
+	require.Zero(t, later.Goods[1].Price, "the pads have no price any more")
+
+	duplicate := &price_setting.PriceSetting{Document: entity.NewDocument(), CurrencyID: f.currency,
+		Prices: []price_setting.PriceLine{{LineNo: 1, ItemID: f.oil, Price: 1}, {LineNo: 2, ItemID: f.oil, Price: 2}}}
+	duplicate.Date = setting.Date
+	require.ErrorContains(t, f.post(duplicate), "already has a price in line 1")
+}
+
+// The order's state changes are kept in the history, once each.
+func TestOrderStateHistory(t *testing.T) {
+	f := newStockFixture(t)
+	order := f.order(customer_order.GoodsLine{ItemID: f.oil, Quantity: pieces(1)})
+	at := time.Date(2026, 11, 26, 9, 0, 0, 0, time.UTC)
+	set := func(state id.ID, minutes int) {
+		t.Helper()
+		order.StateID = &state
+		require.NoError(t, customer_order.ApplyState(f.ctx, order_state_repo.New(), order))
+		require.NoError(t, customer_order.RecordState(f.ctx, order, at.Add(time.Duration(minutes)*time.Minute)))
+	}
+	set(order_state.New, 0)
+	set(order_state.New, 5)
+	set(order_state.Working, 10)
+	set(order_state.ReadyForPickup, 20)
+
+	history, err := order_state_history.Register.Records(f.ctx, information.Filter{"customer_order_id": order.ID}, time.Time{}, time.Time{})
+	require.NoError(t, err)
+	require.Len(t, history, 3, "saving the same state again writes nothing")
+	require.Equal(t, order_state.New, history[0].StateID)
+	require.Equal(t, order_state.InProgress, history[1].Status)
+	require.NotEqual(t, id.Nil(), history[2].AuthorID, "the author is the user who saved the order")
+
+	then, err := order_state_history.Register.SliceLast(f.ctx, at.Add(15*time.Minute), information.Filter{"customer_order_id": order.ID})
+	require.NoError(t, err)
+	require.Equal(t, order_state.Working, then[0].StateID, "the state at a moment is the last one set before it")
 }
