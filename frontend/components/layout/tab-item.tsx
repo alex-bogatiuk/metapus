@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useTabsStore, type Tab } from "@/stores/useTabsStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
-import { getRouteIcon } from "@/lib/entity-icon"
+import { getRouteIcon, getRouteKind, routeKindTint } from "@/lib/entity-icon"
 import { copyText } from "@/lib/clipboard"
 
 interface TabItemProps {
@@ -99,7 +99,14 @@ function TabTitle({ tab, isActive }: { tab: Tab; isActive: boolean }) {
   const [titleRef, overflow] = useOverflowFlag<HTMLSpanElement>(`${isActive ? 1 : 0}${tab.isDirty ? "● " : ""}${tab.title}`)
   return (
     <>
-    {React.createElement(getRouteIcon(tab.url), { "aria-hidden": true, className: "size-3.5 shrink-0 opacity-80" })}
+    {React.createElement(getRouteIcon(tab.url), {
+      "aria-hidden": true,
+      className: cn(
+        "size-3.5 shrink-0 transition-opacity duration-150",
+        routeKindTint[getRouteKind(tab.url)],
+        isActive ? "opacity-100" : "opacity-75 group-hover:opacity-100",
+      ),
+    })}
     <span
       ref={titleRef}
       data-overflow={overflow ? "true" : undefined}

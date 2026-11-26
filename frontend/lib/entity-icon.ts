@@ -96,6 +96,43 @@ function segmentToKey(segment: string): string[] {
   return [key, key.replace(/ies$/, "y"), key.replace(/s$/, "")]
 }
 
+/** The metadata entity a URL segment such as "goods-receipts" stands for. */
+function entityByRoute(segment: string) {
+  const meta = useMetadataStore.getState()
+  return meta.getEntityByRoute(segment) ?? (segment.endsWith("s") ? meta.getEntityByRoute(segment.slice(0, -1)) : undefined)
+}
+
+/** What a page holds, which tints its icon: data people edit, or analytics they read. */
+export type RouteKind = "document" | "catalog" | "report" | "system"
+
+const sectionKinds: Record<string, RouteKind> = {
+  documents: "document",
+  catalogs: "catalog",
+  reports: "report",
+  finance: "report",
+}
+
+/**
+ * Kind of a page by its URL: the metadata entity's type when the URL names one,
+ * otherwise its section. Pages outside the known sections are "system".
+ * NOTE: reads useMetadataStore.getState() directly (not a hook).
+ */
+export function getRouteKind(url: string): RouteKind {
+  const [section, segment] = (url.split(/[?#]/)[0] || "/").split("/").filter(Boolean)
+  if (!section) return "system"
+  const entity = segment ? entityByRoute(segment) : undefined
+  if (entity) return entity.type === "register" ? "report" : entity.type
+  return sectionKinds[section] ?? "system"
+}
+
+/** Tailwind text colour for each kind; system pages keep the surrounding ink. */
+export const routeKindTint: Record<RouteKind, string | undefined> = {
+  document: "text-entity-document",
+  catalog: "text-entity-catalog",
+  report: "text-entity-report",
+  system: undefined,
+}
+
 /**
  * Icon for a page by its URL, so a tab shows what it holds before its data loads.
  * NOTE: reads useMetadataStore.getState() directly (not a hook).
@@ -110,8 +147,7 @@ export function getRouteIcon(url: string): LucideIcon {
 
   const [section, segment] = path.split("/").filter(Boolean)
   if ((section === "catalogs" || section === "documents") && segment) {
-    const meta = useMetadataStore.getState()
-    const entity = meta.getEntityByRoute(segment) ?? (segment.endsWith("s") ? meta.getEntityByRoute(segment.slice(0, -1)) : undefined)
+    const entity = entityByRoute(segment)
     if (entity && entityIcons[entity.key]) return entityIcons[entity.key]
     const known = segmentToKey(segment).find((key) => entityIcons[key])
     if (known) return entityIcons[known]

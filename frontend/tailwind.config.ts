@@ -15,6 +15,11 @@ const config = {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         brand: 'hsl(var(--brand) / <alpha-value>)',
+        entity: {
+          document: 'hsl(var(--entity-document) / <alpha-value>)',
+          catalog: 'hsl(var(--entity-catalog) / <alpha-value>)',
+          report: 'hsl(var(--entity-report) / <alpha-value>)',
+        },
         background: 'hsl(var(--background))',
         'workspace-surface': 'hsl(var(--workspace-surface))',
         field: 'hsl(var(--field))',
