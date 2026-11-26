@@ -42,7 +42,7 @@ Tenant-база получает миграции из трёх источник
 | `configuration/crypto/00007_crypto_outbound.sql` | Выводы, sweep, treasury, signing, approvals и signing jobs, native funding, аренда ресурсов, сверка и инциденты |
 | `configuration/crypto/00008_crypto_aml.sql` | AML |
 | `configuration/crypto/00009_crypto_custody.sql` | Custody-учёт: identity, receipts и suspense, реестр признания, сетевые комиссии, expected routing |
-| `configuration/autoparts/00001_autoparts_catalogs.sql` | «Автозапчасти»: номенклатура и склады |
+| `configuration/autoparts/00001_autoparts_catalogs.sql` | «Автозапчасти»: номенклатура, склады и состояния заказов покупателей (с шестью начальными) |
 | `configuration/autoparts/00002_autoparts_stock.sql` | «Автозапчасти»: заказы покупателей, приходные накладные и декларативные регистры «Запасы на складах», «Запасы» (с резервами), «Заказы покупателей» на общих триггерах платформы |
 | `configuration/autoparts/00003_autoparts_goods_issue.sql` | «Автозапчасти»: расходные накладные (по заказу и без) |
 

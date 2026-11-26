@@ -17,8 +17,16 @@ export const CreateCustomerOrderRequestSchema: z.ZodType<Wire.CreateCustomerOrde
   "customerId": z.string(),
   "warehouseId": z.string(),
   "currencyId": z.string(),
+  "stateId": z.string().nullable().optional(),
   "goods": z.array(CustomerOrderGoodsLineRequestSchema).optional(),
   "postImmediately": z.boolean().optional(),
+}))
+
+export const CreateCustomerOrderStateRequestSchema: z.ZodType<Wire.CreateCustomerOrderStateRequest> = z.lazy(() => z.strictObject({
+  "code": z.string().optional(),
+  "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "status": z.string(),
 }))
 
 export const CreateGoodsIssueRequestSchema: z.ZodType<Wire.CreateGoodsIssueRequest> = z.lazy(() => z.strictObject({
@@ -95,6 +103,8 @@ export const CustomerOrderGoodsLineResponseSchema: z.ZodType<Wire.CustomerOrderG
   "reserve": z.number().finite(),
   "price": minorUnitsSchema,
   "amount": minorUnitsSchema,
+  "cancelled": z.number().finite(),
+  "released": z.number().finite(),
   "item": Platform.PostgresRefDisplaySchema.optional(),
 }))
 
@@ -113,11 +123,36 @@ export const CustomerOrderResponseSchema: z.ZodType<Wire.CustomerOrderResponse> 
   "customerId": z.string(),
   "warehouseId": z.string(),
   "currencyId": z.string(),
+  "stateId": z.string().optional(),
+  "status": z.string(),
   "customer": Platform.PostgresRefDisplaySchema.optional(),
   "warehouse": Platform.PostgresRefDisplaySchema.optional(),
   "currency": Platform.PostgresRefDisplaySchema.optional(),
+  "state": Platform.PostgresRefDisplaySchema.optional(),
   "goods": z.array(CustomerOrderGoodsLineResponseSchema).optional(),
 }))
+
+export const CustomerOrderStateCursorResponseSchema: z.ZodType<Wire.CustomerOrderStateCursorResponse> = z.lazy(() => z.object({
+  "items": z.array(CustomerOrderStateResponseSchema),
+  "nextCursor": z.string().optional(),
+  "prevCursor": z.string().optional(),
+  "hasMore": z.boolean(),
+  "hasPrev": z.boolean(),
+  "targetIndex": z.number().int().optional(),
+  "totalCount": z.number().int().nullable(),
+}))
+
+export const CustomerOrderStateResponseSchema: z.ZodType<Wire.CustomerOrderStateResponse> = z.lazy(() => z.object({
+  "id": z.string(),
+  "version": z.number().int(),
+  "deletionMark": z.boolean(),
+  "code": z.string(),
+  "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "status": z.string(),
+}))
+
+export const CustomerOrderStateTreeResponseSchema: z.ZodType<Wire.CustomerOrderStateTreeResponse> = z.lazy(() => z.array(CustomerOrderStateResponseSchema))
 
 export const GoodsIssueCursorResponseSchema: z.ZodType<Wire.GoodsIssueCursorResponse> = z.lazy(() => z.object({
   "items": z.array(GoodsIssueResponseSchema),
@@ -169,7 +204,7 @@ export const GoodsIssueResponseSchema: z.ZodType<Wire.GoodsIssueResponse> = z.la
   "warehouse": Platform.PostgresRefDisplaySchema.optional(),
   "currency": Platform.PostgresRefDisplaySchema.optional(),
   "customerOrder": Platform.PostgresRefDisplaySchema.optional(),
-  "goods": z.array(CustomerOrderGoodsLineResponseSchema).optional(),
+  "goods": z.array(GoodsIssueGoodsLineResponseSchema).optional(),
 }))
 
 export const GoodsReceiptCursorResponseSchema: z.ZodType<Wire.GoodsReceiptCursorResponse> = z.lazy(() => z.object({
@@ -260,7 +295,16 @@ export const UpdateCustomerOrderRequestSchema: z.ZodType<Wire.UpdateCustomerOrde
   "customerId": z.string(),
   "warehouseId": z.string(),
   "currencyId": z.string(),
+  "stateId": z.string().nullable().optional(),
   "goods": z.array(CustomerOrderGoodsLineRequestSchema).optional(),
+  "version": z.number().int(),
+}))
+
+export const UpdateCustomerOrderStateRequestSchema: z.ZodType<Wire.UpdateCustomerOrderStateRequest> = z.lazy(() => z.strictObject({
+  "code": z.string().optional(),
+  "name": z.string(),
+  "attributes": z.record(z.string(), jsonValueSchema).optional(),
+  "status": z.string(),
   "version": z.number().int(),
 }))
 

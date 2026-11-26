@@ -14,8 +14,16 @@ export type CreateCustomerOrderRequest = {
   "customerId": string
   "warehouseId": string
   "currencyId": string
+  "stateId"?: string | null
   "goods"?: Array<CustomerOrderGoodsLineRequest>
   "postImmediately"?: boolean
+}
+
+export type CreateCustomerOrderStateRequest = {
+  "code"?: string
+  "name": string
+  "attributes"?: Record<string, JsonValue>
+  "status": string
 }
 
 export type CreateGoodsIssueRequest = {
@@ -92,6 +100,8 @@ export type CustomerOrderGoodsLineResponse = {
   "reserve": number
   "price": MinorUnits
   "amount": MinorUnits
+  "cancelled": number
+  "released": number
   "item"?: Platform.PostgresRefDisplay
 }
 
@@ -110,11 +120,36 @@ export type CustomerOrderResponse = {
   "customerId": string
   "warehouseId": string
   "currencyId": string
+  "stateId"?: string
+  "status": string
   "customer"?: Platform.PostgresRefDisplay
   "warehouse"?: Platform.PostgresRefDisplay
   "currency"?: Platform.PostgresRefDisplay
+  "state"?: Platform.PostgresRefDisplay
   "goods"?: Array<CustomerOrderGoodsLineResponse>
 }
+
+export type CustomerOrderStateCursorResponse = {
+  "items": Array<CustomerOrderStateResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type CustomerOrderStateResponse = {
+  "id": string
+  "version": number
+  "deletionMark": boolean
+  "code": string
+  "name": string
+  "attributes"?: Record<string, JsonValue>
+  "status": string
+}
+
+export type CustomerOrderStateTreeResponse = Array<CustomerOrderStateResponse>
 
 export type GoodsIssueCursorResponse = {
   "items": Array<GoodsIssueResponse>
@@ -166,7 +201,7 @@ export type GoodsIssueResponse = {
   "warehouse"?: Platform.PostgresRefDisplay
   "currency"?: Platform.PostgresRefDisplay
   "customerOrder"?: Platform.PostgresRefDisplay
-  "goods"?: Array<CustomerOrderGoodsLineResponse>
+  "goods"?: Array<GoodsIssueGoodsLineResponse>
 }
 
 export type GoodsReceiptCursorResponse = {
@@ -257,7 +292,16 @@ export type UpdateCustomerOrderRequest = {
   "customerId": string
   "warehouseId": string
   "currencyId": string
+  "stateId"?: string | null
   "goods"?: Array<CustomerOrderGoodsLineRequest>
+  "version": number
+}
+
+export type UpdateCustomerOrderStateRequest = {
+  "code"?: string
+  "name": string
+  "attributes"?: Record<string, JsonValue>
+  "status": string
   "version": number
 }
 

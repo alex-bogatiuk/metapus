@@ -2,6 +2,7 @@ package content
 
 import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/item"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/order_state"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/warehouse"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/customer_order"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_issue"
@@ -9,6 +10,9 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/order_state_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/domain"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/metadata"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registry"
 )
 
@@ -19,11 +23,26 @@ func register(reg *registry.Registry) {
 	reg.RegisterCatalog(registry.Catalog[warehouse.Warehouse](registry.Presentation{
 		Singular: "Склад", Plural: "Склады", NewLabel: "Новый склад", Genitive: "склад",
 	}))
+	metadata.RegisterEnum[order_state.Status]([]metadata.EnumValue{
+		{Value: string(order_state.Open), Label: "Открыт"},
+		{Value: string(order_state.InProgress), Label: "В работе"},
+		{Value: string(order_state.Completed), Label: "Выполнен"},
+		{Value: string(order_state.Cancelled), Label: "Отменён"},
+	})
+	reg.RegisterCatalog(registry.Catalog[order_state.State](registry.Presentation{
+		Singular: "Состояние заказа", Plural: "Состояния заказов покупателей", NewLabel: "Новое состояние", Genitive: "состояние заказа",
+	}))
 	reg.RegisterAccumulation(warehouse_stock.Register)
 	reg.RegisterAccumulation(stock.Register)
 	reg.RegisterAccumulation(customer_orders.Register)
 	reg.RegisterDocument(customerOrderRegistration{registry.Document[customer_order.CustomerOrder](registry.Presentation{
 		Singular: "Заказ покупателя", Plural: "Заказы покупателей", NewLabel: "Новый заказ покупателя", Genitive: "заказ покупателя",
+	}).Configure(func(s *domain.BaseHeaderDocumentService[*customer_order.CustomerOrder]) {
+		// The state decides the order's movements: its status, and what a
+		// closed order cancels and releases, are set before every save.
+		hook := customer_order.StateHook(order_state_repo.New())
+		s.GetHooks().OnBeforeCreate(hook)
+		s.GetHooks().OnBeforeUpdate(hook)
 	})})
 	reg.RegisterDocument(goodsReceiptRegistration{registry.Document[goods_receipt.GoodsReceipt](registry.Presentation{
 		Singular: "Приходная накладная", Plural: "Приходные накладные", NewLabel: "Новая приходная накладная", Genitive: "приходную накладную",
@@ -73,7 +92,8 @@ type customerOrderRegistration struct {
 
 func (customerOrderRegistration) MovementSources() map[string][]string {
 	return map[string][]string{
-		"warehouse_id": {"warehouse_id"}, "item_id": {"goods.item_id"}, "quantity": {"goods.quantity", "goods.reserve"},
+		"warehouse_id": {"warehouse_id"}, "item_id": {"goods.item_id"},
+		"quantity": {"goods.quantity", "goods.reserve", "goods.cancelled", "goods.released"},
 	}
 }
 

@@ -3,16 +3,16 @@
  * the sidebar and the command palette, and the route icons, labels and
  * entity keys the tabs need before metadata loads.
  */
-import { ClipboardList, PackageCheck, PackageOpen, Plus, Warehouse, Wrench } from "lucide-react"
+import { ClipboardList, ListChecks, PackageCheck, PackageOpen, Plus, Warehouse, Wrench } from "lucide-react"
 import { registerIcons } from "@/lib/entity-icon"
 import { registerRouteEntities } from "@/lib/entity-url"
 import { registerNavigation } from "@/lib/navigation"
 import { registerRouteLabels } from "@/lib/tab-utils"
 
 export function registerAutopartsNavigation(): void {
-  registerIcons({ entities: { item: Wrench, warehouse: Warehouse, goods_receipt: PackageOpen, goods_issue: PackageCheck, customer_order: ClipboardList } })
+  registerIcons({ entities: { item: Wrench, warehouse: Warehouse, goods_receipt: PackageOpen, goods_issue: PackageCheck, customer_order: ClipboardList, customer_order_state: ListChecks } })
 
-  registerRouteEntities({ items: "item", warehouses: "warehouse", "goods-receipts": "goods_receipt", "goods-issues": "goods_issue", "customer-orders": "customer_order" })
+  registerRouteEntities({ items: "item", warehouses: "warehouse", "goods-receipts": "goods_receipt", "goods-issues": "goods_issue", "customer-orders": "customer_order", "customer-order-states": "customer_order_state" })
 
   registerRouteLabels({
     entities: {
@@ -26,6 +26,7 @@ export function registerAutopartsNavigation(): void {
       "goods-issue": "Расходные накладные",
       "customer-orders": "Заказы покупателей",
       "customer-order": "Заказы покупателей",
+      "customer-order-states": "Состояния заказов покупателей",
     },
   })
 
@@ -56,6 +57,7 @@ export function registerAutopartsNavigation(): void {
             items: [
               { entityKey: "item", fallback: "Номенклатура" },
               { entityKey: "warehouse", fallback: "Склады" },
+              { entityKey: "customer_order_state", fallback: "Состояния заказов покупателей" },
             ],
           },
         ],
@@ -64,6 +66,7 @@ export function registerAutopartsNavigation(): void {
     commands: [
       { id: "nav:items", label: "Номенклатура", url: "/catalogs/items", keywords: "номенклатура запчасти артикул товары items", section: "navigate" },
       { id: "nav:warehouses", label: "Склады", url: "/catalogs/warehouses", keywords: "склады склад warehouses", section: "navigate" },
+      { id: "nav:customer-order-states", label: "Состояния заказов покупателей", url: "/catalogs/customer-order-states", keywords: "состояния статусы заказов покупателей order states", section: "navigate" },
       { id: "nav:goods-receipts", label: "Приходные накладные", url: "/documents/goods-receipts", keywords: "приходная накладная поступление поставщик goods receipt", section: "navigate" },
       { id: "nav:customer-orders", label: "Заказы покупателей", url: "/documents/customer-orders", keywords: "заказ покупателя резерв под заказ клиент customer order", section: "navigate" },
       { id: "create:customer-order", label: "Создать заказ покупателя", url: "/documents/customer-orders/new", icon: Plus, keywords: "создать заказ покупателя резерв", section: "create" },

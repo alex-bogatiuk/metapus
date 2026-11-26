@@ -22,6 +22,8 @@ CREATE TABLE doc_customer_orders (
  customer_id UUID NOT NULL REFERENCES cat_counterparties(id),
  warehouse_id UUID NOT NULL REFERENCES cat_warehouses(id),
  currency_id UUID NOT NULL REFERENCES cat_currencies(id),
+ state_id UUID REFERENCES cat_customer_order_states(id),
+ status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'completed', 'cancelled')),
  created_by UUID,
  updated_by UUID,
  deletion_mark BOOLEAN NOT NULL DEFAULT FALSE,
@@ -41,7 +43,9 @@ CREATE TRIGGER trg_doc_customer_orders_txid BEFORE UPDATE ON doc_customer_orders
 CREATE TRIGGER trg_doc_customer_orders_soft_delete BEFORE UPDATE OF deletion_mark ON doc_customer_orders FOR EACH ROW EXECUTE FUNCTION soft_delete_with_timestamp();
 CREATE TRIGGER trg_doc_customer_orders_updated_at BEFORE UPDATE ON doc_customer_orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Table part goods: reserve is how much of the quantity is reserved now.
+-- Table part goods: reserve is how much of the quantity is reserved now;
+-- cancelled and released are what a closed order no longer ships and the
+-- reserve it gave back (the order fills them when it is closed).
 CREATE TABLE doc_customer_orders__goods (
  line_id UUID PRIMARY KEY,
  document_id UUID NOT NULL REFERENCES doc_customer_orders(id) ON DELETE CASCADE,
@@ -50,7 +54,9 @@ CREATE TABLE doc_customer_orders__goods (
  quantity BIGINT NOT NULL CHECK (quantity > 0),
  reserve BIGINT NOT NULL DEFAULT 0 CHECK (reserve >= 0 AND reserve <= quantity),
  price BIGINT NOT NULL DEFAULT 0 CHECK (price >= 0),
- amount BIGINT NOT NULL DEFAULT 0 CHECK (amount >= 0)
+ amount BIGINT NOT NULL DEFAULT 0 CHECK (amount >= 0),
+ cancelled BIGINT NOT NULL DEFAULT 0 CHECK (cancelled >= 0 AND cancelled <= quantity),
+ released BIGINT NOT NULL DEFAULT 0 CHECK (released >= 0)
 );
 CREATE INDEX idx_doc_customer_orders__goods_document ON doc_customer_orders__goods (document_id, line_no);
 

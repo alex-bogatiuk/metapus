@@ -10,12 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/order_state"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/customer_order"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_issue"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/order_state_repo"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
@@ -86,8 +88,12 @@ func (f *stockFixture) issue(lines ...goods_issue.GoodsLine) *goods_issue.GoodsI
 	return doc
 }
 
+// order is an order in progress; the engine posts it without the service's
+// hook, so the status is set as ApplyState would set it for «В работе».
 func (f *stockFixture) order(lines ...customer_order.GoodsLine) *customer_order.CustomerOrder {
-	doc := &customer_order.CustomerOrder{Document: entity.NewDocument(), CustomerID: f.supplier, WarehouseID: f.warehouse, CurrencyID: f.currency}
+	working := order_state.Working
+	doc := &customer_order.CustomerOrder{Document: entity.NewDocument(), CustomerID: f.supplier, WarehouseID: f.warehouse, CurrencyID: f.currency,
+		StateID: &working, Status: order_state.InProgress}
 	doc.Date = time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
 	for i, line := range lines {
 		line.LineID, line.LineNo = id.New(), i+1
@@ -340,4 +346,85 @@ func TestDocumentsFilledFromACustomerOrder(t *testing.T) {
 	require.Equal(t, pieces(3), rest.Goods[0].Quantity)
 	require.Equal(t, pieces(3), rest.Goods[0].Reserve)
 	require.Equal(t, types.MinorUnits(360000), rest.Goods[0].Amount, "the amount follows the quantity")
+}
+
+// The order's state decides what it does: a new order reserves nothing, an
+// order in progress reserves and awaits, and closing it (completed or
+// cancelled) gives the unshipped reserve back to the free stock and awaits
+// nothing more. Reopening restores it.
+func TestCustomerOrderStateDecidesItsMovements(t *testing.T) {
+	f := newStockFixture(t)
+	require.NoError(t, f.post(f.receipt(goods_receipt.GoodsLine{ItemID: f.oil, Quantity: pieces(10)})))
+	order := f.order(customer_order.GoodsLine{ItemID: f.oil, Quantity: pieces(6), Reserve: pieces(4)})
+	save := func(state id.ID) {
+		t.Helper()
+		order.StateID = &state
+		require.NoError(t, customer_order.ApplyState(f.ctx, order_state_repo.New(), order))
+		require.NoError(t, f.post(order))
+	}
+
+	// A new order (no state given) is open: posted, it moves nothing.
+	order.StateID = nil
+	require.NoError(t, customer_order.ApplyState(f.ctx, order_state_repo.New(), order))
+	require.Equal(t, order_state.New, *order.StateID)
+	require.Equal(t, order_state.Open, order.Status)
+	require.NoError(t, f.post(order))
+	require.Equal(t, pieces(10), f.reserved(t, f.oil, stock.Free()))
+	require.Zero(t, f.awaited(t, f.oil, order.ID))
+
+	save(order_state.Working)
+	require.Equal(t, order_state.InProgress, order.Status)
+	require.Equal(t, pieces(4), f.reserved(t, f.oil, order.ID))
+	require.Equal(t, pieces(6), f.awaited(t, f.oil, order.ID))
+
+	// 2 more arrive for the order; 3 are shipped from the reserve.
+	require.NoError(t, f.post(f.receipt(goods_receipt.GoodsLine{ItemID: f.oil, Quantity: pieces(2), CustomerOrderID: &order.ID})))
+	shipment := f.issue(goods_issue.GoodsLine{ItemID: f.oil, Quantity: pieces(3), Reserve: pieces(3)})
+	shipment.CustomerOrderID = &order.ID
+	require.NoError(t, f.post(shipment))
+	require.Equal(t, pieces(3), f.reserved(t, f.oil, order.ID))
+	require.Equal(t, pieces(3), f.awaited(t, f.oil, order.ID))
+
+	// The customer takes no more: the order is completed. The 3 not shipped
+	// are cancelled and their reserve is free again.
+	save(order_state.Done)
+	require.Equal(t, order_state.Completed, order.Status)
+	require.Equal(t, pieces(3), order.Goods[0].Cancelled)
+	require.Equal(t, pieces(3), order.Goods[0].Released)
+	require.Zero(t, f.awaited(t, f.oil, order.ID))
+	require.Zero(t, f.reserved(t, f.oil, order.ID))
+	require.Equal(t, pieces(9), f.reserved(t, f.oil, stock.Free()))
+	require.Equal(t, pieces(9), f.stock(t, f.oil))
+
+	// Saving a closed order again changes nothing.
+	save(order_state.Done)
+	require.Equal(t, pieces(3), order.Goods[0].Cancelled)
+	require.Equal(t, pieces(3), order.Goods[0].Released)
+	require.Equal(t, pieces(9), f.reserved(t, f.oil, stock.Free()))
+
+	// Nothing more ships under a closed order, and it cannot be unposted
+	// once shipped from.
+	more := f.issue(goods_issue.GoodsLine{ItemID: f.oil, Quantity: pieces(1)})
+	more.CustomerOrderID = &order.ID
+	require.Error(t, f.post(more))
+	require.Error(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Unpost(ctx, order, noUpdate) }))
+
+	// Reopened, it awaits the rest and takes its reserve back.
+	save(order_state.ReadyForPickup)
+	require.Zero(t, order.Goods[0].Cancelled)
+	require.Equal(t, pieces(3), f.awaited(t, f.oil, order.ID))
+	require.Equal(t, pieces(3), f.reserved(t, f.oil, order.ID))
+	require.Equal(t, pieces(6), f.reserved(t, f.oil, stock.Free()))
+
+	// Cancelled, it lets everything go.
+	save(order_state.Rejected)
+	require.Equal(t, order_state.Cancelled, order.Status)
+	require.Zero(t, f.awaited(t, f.oil, order.ID))
+	require.Zero(t, f.reserved(t, f.oil, order.ID))
+	require.Equal(t, pieces(9), f.reserved(t, f.oil, stock.Free()))
+
+	// A state that is not in the catalog is refused.
+	unknown := id.New()
+	order.StateID = &unknown
+	require.ErrorContains(t, customer_order.ApplyState(f.ctx, order_state_repo.New(), order), "the order state is not found")
 }
