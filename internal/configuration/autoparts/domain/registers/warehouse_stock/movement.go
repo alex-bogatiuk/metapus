@@ -1,12 +1,13 @@
 // Package warehouse_stock is the accumulation register of physical stock on
 // hand (ЗапасыНаСкладах): quantities by warehouse and item, without amounts.
+// The register is declared: the platform stores its movements and balances,
+// posts it and shows its movements from this description.
 package warehouse_stock
 
 import (
-	"time"
-
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/accumulation"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
@@ -15,28 +16,13 @@ import (
 type Movement struct {
 	entity.MovementBase
 
-	// Dimensions
-	WarehouseID id.ID `db:"warehouse_id" json:"warehouseId"`
-	ItemID      id.ID `db:"item_id" json:"itemId"`
-
-	// Resources
-	Quantity types.Quantity `db:"quantity" json:"quantity"`
+	WarehouseID id.ID          `db:"warehouse_id" json:"warehouseId" meta:"label:Склад,ref:warehouse" register:"dimension"`
+	ItemID      id.ID          `db:"item_id" json:"itemId" meta:"label:Номенклатура,ref:item" register:"dimension"`
+	Quantity    types.Quantity `db:"quantity" json:"quantity" meta:"label:Количество" register:"resource"`
 }
 
-// NewMovement creates a movement of the register.
-func NewMovement(recorderID id.ID, recorderType string, recorderVersion int, period time.Time,
-	recordType entity.RecordType, warehouseID, itemID id.ID, quantity types.Quantity) Movement {
-	return Movement{
-		MovementBase: entity.NewMovementBase(recorderID, recorderType, recorderVersion, period, recordType),
-		WarehouseID:  warehouseID,
-		ItemID:       itemID,
-		Quantity:     quantity,
-	}
-}
-
-// Balance is the stock of an item at a warehouse.
-type Balance struct {
-	WarehouseID id.ID          `db:"warehouse_id" json:"warehouseId"`
-	ItemID      id.ID          `db:"item_id" json:"itemId"`
-	Quantity    types.Quantity `db:"quantity" json:"quantity"`
-}
+// Register is the warehouse stock register (reg_warehouse_stock_movements,
+// reg_warehouse_stock_balances).
+var Register = accumulation.New[Movement](accumulation.Definition{
+	Key: "warehouse_stock", Label: "Запасы на складах", Table: "reg_warehouse_stock", Kind: accumulation.Balances,
+})

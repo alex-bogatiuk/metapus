@@ -15,7 +15,8 @@
 | `pkg/sdk/id`, `types`, `apperror` | UUIDv7, `Quantity` (4 знака) и `MinorUnits` (деньги в минимальных единицах валюты документа), ошибки 400/403/404/409 |
 | `pkg/sdk/registry` | объявление справочников и документов: `registry.Catalog[T]`, `registry.Document[T]`, `Presentation`, `MovementSourceProvider` |
 | `pkg/sdk/posting` | регистры в проведении: `Module`, `RegisterVisitor`, `RegisterRecorder`, `PostingValidator`, `MovementSet` |
-| `pkg/sdk/registers` | хранение движений в PostgreSQL: `BaseAccumulationRepo` |
+| `pkg/sdk/registers/accumulation` | декларативные регистры накопления: `New[M]` по структуре движения, `Source` документа, запросы `Balances`, `BalancesAt`, `Turnovers` |
+| `pkg/sdk/registers` | хранение движений в PostgreSQL: `AccumulationStore` декларативных регистров, `BaseAccumulationRepo` для написанных вручную |
 | `pkg/sdk/configuration` | контракт `Configuration` и части процессов: `Server`, `Worker`, `SeedEnv`, маршруты outbox, компоненты, очистки |
 | `pkg/sdk/integrations`, `contracts` | каталог интеграций, потребители пулов, HTTP-контракты собственных маршрутов |
 | `pkg/sdk/sdktest` | только для тестов. `Check` — контрактная проверка конфигурации; фикстуры своей базы: `Migrate`, `OpenPool`, `NewTxManager`, `WithPool`; с тегом `integration`: `NewTenant` — свежий тенант с её миграциями, `NewTenantWithMigrations` — то же для тестов внутри пакетов конфигурации, `NewExchangeRateDatabase` — пустая база кластера курсов |
@@ -56,7 +57,7 @@
 
 Типы — это алиасы платформенных, функции — тонкие обёртки. Собственных типов у фасада нет, кроме ограничений для дженериков и тестового `sdktest.Tenant`. Это проверяет `internal/architecture` (`TestSDKIsAFacade`).
 
-Обе конфигурации — [«Автозапчасти»](../autoparts/README.md) и крипто — в коде и тестах импортируют из платформы только `pkg/sdk`. Это закреплено тестом (`TestSDKConfigurationsUseOnlyThePublicAPI`, список `sdkConfigurations`). «Автозапчастям» хватает 11 пакетов ядра, крипто использует 61 пакет фасада.
+Обе конфигурации — [«Автозапчасти»](../autoparts/README.md) и крипто — в коде и тестах импортируют из платформы только `pkg/sdk`. Это закреплено тестом (`TestSDKConfigurationsUseOnlyThePublicAPI`, список `sdkConfigurations`). «Автозапчастям» хватает 12 пакетов ядра, крипто использует 61 пакет фасада.
 
 Правила слоёв (`TestInternalLayerDependenciesPointInward`, `TestInnerPackagesDoNotTransitivelyDependOnAdapters`) смотрят сквозь фасад: импорт пакета `pkg/sdk` считается импортом того, что он фронтирует. Домен конфигурации не может взять `pkg/sdk/postgres` или `pkg/sdk/http/...`, как не мог взять `internal/infrastructure/...`.
 

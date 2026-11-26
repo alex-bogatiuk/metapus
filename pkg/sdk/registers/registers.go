@@ -7,6 +7,14 @@ import (
 	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
+// AccumulationStore keeps the movements and balances of declarative
+// accumulation registers in PostgreSQL. The registry binds registered
+// registers to it; a test that posts without the server binds them itself.
+type AccumulationStore = core.AccumulationStore
+
+// NewAccumulationStore creates the store of declarative registers.
+func NewAccumulationStore() *AccumulationStore { return core.NewAccumulationStore() }
+
 type (
 	// BaseAccumulationRepo writes a register's movements (COPY inside the
 	// posting transaction) and deletes a document's earlier versions. Embed

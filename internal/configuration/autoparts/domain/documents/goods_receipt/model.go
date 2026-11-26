@@ -11,6 +11,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/accumulation"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
 
@@ -75,18 +76,17 @@ func (e *GoodsReceipt) CanPost(ctx context.Context) error {
 	return e.Validate(ctx)
 }
 
-// GenerateWarehouseStockMovements adds every line's quantity to the
-// warehouse's stock.
-func (e *GoodsReceipt) GenerateWarehouseStockMovements(context.Context) ([]warehouse_stock.Movement, error) {
-	movements := make([]warehouse_stock.Movement, 0, len(e.Goods))
+// RegisterMovements adds every line's quantity to the warehouse's stock.
+func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Movements) error {
 	for _, line := range e.Goods {
-		movements = append(movements, warehouse_stock.NewMovement(e.ID, Definition.Name, e.PostedVersion+1, e.Date,
-			entity.RecordTypeReceipt, e.WarehouseID, line.ItemID, line.Quantity))
+		warehouse_stock.Register.Receipt(out, warehouse_stock.Movement{
+			WarehouseID: e.WarehouseID, ItemID: line.ItemID, Quantity: line.Quantity,
+		})
 	}
-	return movements, nil
+	return nil
 }
 
 // GetLineCount sizes the movement set.
 func (e *GoodsReceipt) GetLineCount() int { return len(e.Goods) }
 
-var _ warehouse_stock.MovementSource = (*GoodsReceipt)(nil)
+var _ accumulation.Source = (*GoodsReceipt)(nil)

@@ -15,6 +15,8 @@ import (
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/accumulation"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/types"
 )
@@ -23,22 +25,24 @@ type stockFixture struct {
 	ctx                  context.Context
 	db                   *sdktest.Tenant
 	engine               *posting.Engine
-	registers            *content.Registers
 	supplier, currency   id.ID
 	warehouse, oil, pads id.ID
 }
 
 // newStockFixture is a fresh tenant database of the auto parts
-// configuration, migrated as the tenant command migrates it.
+// configuration, migrated as the tenant command migrates it: the migration
+// also checks the declared register's tables. The engine posts the register
+// as the server does.
 func newStockFixture(t *testing.T) *stockFixture {
 	t.Helper()
 	db := sdktest.NewTenant(t, content.Autoparts())
 	f := &stockFixture{
 		ctx: db.AdminContext(), db: db,
-		engine: posting.NewEngine(), registers: content.NewRegisters(),
+		engine:   posting.NewEngine(),
 		supplier: id.New(), currency: id.New(), warehouse: id.New(), oil: id.New(), pads: id.New(),
 	}
-	f.registers.InstallPosting(f.engine)
+	warehouse_stock.Register.Bind(registers.NewAccumulationStore())
+	accumulation.Install(f.engine, warehouse_stock.Register)
 	for _, statement := range []struct {
 		sql  string
 		args []any
@@ -66,9 +70,13 @@ func (f *stockFixture) receipt(lines ...goods_receipt.GoodsLine) *goods_receipt.
 
 func (f *stockFixture) stock(t *testing.T, item id.ID) types.Quantity {
 	t.Helper()
-	balance, err := f.registers.WarehouseStock.Balance(f.ctx, f.warehouse, item)
+	balances, err := warehouse_stock.Register.Balances(f.ctx, accumulation.Filter{"warehouse_id": f.warehouse, "item_id": item})
 	require.NoError(t, err)
-	return balance.Quantity
+	if len(balances) == 0 {
+		return 0
+	}
+	require.Len(t, balances, 1)
+	return balances[0].Quantity
 }
 
 func pieces(n int64) types.Quantity { return types.NewQuantityFromInt64Scaled(n * types.QuantityScale) }
@@ -89,11 +97,11 @@ func TestGoodsReceiptMovesWarehouseStock(t *testing.T) {
 	require.Equal(t, pieces(15), f.stock(t, f.oil))
 	require.Equal(t, pieces(2), f.stock(t, f.pads))
 
-	movements, err := f.registers.WarehouseStock.GetDocumentMovements(f.ctx, doc.ID)
+	movements, err := warehouse_stock.Register.GetDocumentMovements(f.ctx, doc.ID)
 	require.NoError(t, err)
 	require.Len(t, movements, 3)
 	for _, m := range movements {
-		require.Equal(t, warehouse_stock.Name, m.PolicyEntity)
+		require.Equal(t, warehouse_stock.Register.Key(), m.PolicyEntity)
 		require.Equal(t, "Запасы на складах", m.RegisterName)
 		require.Equal(t, string(entity.RecordTypeReceipt), m.RecordType)
 	}
@@ -110,7 +118,7 @@ func TestGoodsReceiptMovesWarehouseStock(t *testing.T) {
 	require.False(t, doc.IsPosted())
 	require.Zero(t, f.stock(t, f.oil))
 	require.Zero(t, f.stock(t, f.pads))
-	movements, err = f.registers.WarehouseStock.GetDocumentMovements(f.ctx, doc.ID)
+	movements, err = warehouse_stock.Register.GetDocumentMovements(f.ctx, doc.ID)
 	require.NoError(t, err)
 	require.Empty(t, movements)
 }

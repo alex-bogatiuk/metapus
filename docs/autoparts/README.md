@@ -32,17 +32,35 @@
 
 Интеграционные тесты [`stock_integration_test.go`](../../internal/configuration/autoparts/content/stock_integration_test.go) создают тенанта с миграциями конфигурации и проверяют проведение, перепроведение и отмену, а также что в базе нет крипто-таблиц.
 
-## Сколько ручной работы требует регистр
+## Как объявлен регистр
 
-Справочники и документ выводятся из моделей: `v1.Catalog` и `v1.Document` дают хранение, маршруты, контракты, права, проведение и движения. Регистр «Запасы на складах» пришлось писать руками целиком. Это список для будущих декларативных регистров:
+«Запасы на складах» — декларативный регистр: его описание — это структура движения и одна переменная в [`movement.go`](../../internal/configuration/autoparts/domain/registers/warehouse_stock/movement.go).
 
-1. **Тип движения** с `entity.MovementBase`, измерениями и ресурсами — и тип остатка (`movement.go`).
-2. **Интерфейс репозитория и сервис**: запись, удаление при перепроведении, остаток, а также `entity.MovementProvider` с колонками движений, их подписями, типами и `RefEntity` (`service.go`).
-3. **Интерфейс-источник для документов, visitor и recorder** проведения с ключом в `MovementSet.Extensions` и приведением типа (`posting.go`).
-4. **PostgreSQL-репозиторий** поверх `register_repo.BaseAccumulationRepo`: список колонок и маппер строки, выборка движений документа, остаток (`stock_repo.go`).
-5. **Модуль проведения** `posting.Module`, подключённый через `Configuration.Server` (`content/registers.go`).
-6. **Миграция**: таблица движений и таблица остатков, две функции и два statement-триггера пересчёта остатков, индексы и ограничения (`00002_autoparts_stock.sql`).
-7. **Источники движений документа** для FLS (`platform.MovementSourceProvider`) — обёртка над `v1.Document` в `content/register.go`.
-8. **Метод документа** `GenerateWarehouseStockMovements` с версией движений `PostedVersion+1`.
+```go
+type Movement struct {
+	entity.MovementBase
+	WarehouseID id.ID          `db:"warehouse_id" meta:"label:Склад,ref:warehouse" register:"dimension"`
+	ItemID      id.ID          `db:"item_id" meta:"label:Номенклатура,ref:item" register:"dimension"`
+	Quantity    types.Quantity `db:"quantity" meta:"label:Количество" register:"resource"`
+}
 
-Всё, кроме пункта 8 и правил выбора ресурсов, выводится из описания регистра: ключ, таблица, измерения со ссылками и ресурсы. Это примерно 300 строк Go и 100 строк SQL на каждый регистр. Отчёт по остаткам и контроль отрицательных остатков сюда ещё не входят.
+var Register = accumulation.New[Movement](accumulation.Definition{
+	Key: "warehouse_stock", Label: "Запасы на складах", Table: "reg_warehouse_stock", Kind: accumulation.Balances,
+})
+```
+
+Остальное делает платформа ([`internal/domain/registers/accumulation`](../../internal/domain/registers/accumulation)):
+
+| Что | Кто делает |
+|---|---|
+| Регистрация | `reg.RegisterAccumulation(warehouse_stock.Register)` в [`content/register.go`](../../internal/configuration/autoparts/content/register.go) |
+| Движения документа | Метод `RegisterMovements` приходной накладной вызывает `warehouse_stock.Register.Receipt`; регистратор, версию и период платформа берёт из документа |
+| Запись, перепроведение, отмена проведения | Общий recorder и хранилище платформы |
+| Остатки | Общий триггер `sys_accumulation_balances` (платформенная миграция `00006`) с таблицами и колонками регистра в аргументах |
+| Запросы | `Register.Balances`, `BalancesAt` (на момент), `Turnovers` (за период) с фильтром по измерениям |
+| «Движения документа» | Колонки и подписи из тегов `meta` |
+| Таблицы | Миграция [`00002_autoparts_stock.sql`](../../db/configuration/autoparts/00002_autoparts_stock.sql) по образцу `migration.AccumulationDDL`; миграция тенанта сверяет таблицы, типы, первичный ключ и триггеры с объявлением и останавливается при расхождении |
+
+Ручной код регистра (сервис, visitor, recorder, репозиторий, две plpgsql-функции, модуль проведения) удалён. Новый регистр — это структура движения, переменная, строка регистрации и миграция таблиц.
+
+Что ещё не входит: контроль отрицательных остатков и резервов, регистры сведений, отчёт по остаткам. Регистр, который проводит воркер, а не сервер, пока подключается к движку воркера вручную (`accumulation.Install`).

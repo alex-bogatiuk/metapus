@@ -6,6 +6,7 @@ import (
 	dbassets "github.com/alex-bogatiuk/metapus/db"
 	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 	"github.com/alex-bogatiuk/metapus/internal/core/version"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
 	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 )
@@ -13,13 +14,27 @@ import (
 // MigrationOptions migrate a tenant database of the assembled application:
 // the platform's migrations, the configuration's in a goose history of their
 // own (migration.WithConfiguration), the extensions', then the permissions
-// and catalog codes of the assembled entities.
+// and catalog codes of the assembled entities and the check of their
+// declarative registers' tables.
 func MigrationOptions(cfg Configuration, extensions ...func(*v1.FactoryRegistry)) []migration.Option {
 	return []migration.Option{
 		migration.WithConfiguration(cfg.Name(), cfg.Migrations()),
 		migration.WithPermissions(Permissions(cfg, extensions...)),
 		migration.WithCatalogCodes(CatalogDefinitions(cfg, extensions...)),
+		migration.WithAccumulationRegisters(AccumulationSchemas(cfg, extensions...)),
 	}
+}
+
+// AccumulationSchemas are the declarative accumulation registers of the
+// assembled application, which the tenant migration checks against their
+// tables.
+func AccumulationSchemas(cfg Configuration, extensions ...func(*v1.FactoryRegistry)) []*accumulation.Schema {
+	registers := Compose(cfg, extensions...).AccumulationRegisters()
+	schemas := make([]*accumulation.Schema, len(registers))
+	for i, r := range registers {
+		schemas[i] = r.Schema()
+	}
+	return schemas
 }
 
 // ExpectedSchema is the schema of a tenant database migrated by this binary

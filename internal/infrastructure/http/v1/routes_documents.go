@@ -8,6 +8,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
 	"github.com/alex-bogatiuk/metapus/internal/domain/registers/settlement"
 	"github.com/alex-bogatiuk/metapus/internal/domain/reports/variants"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
@@ -41,6 +42,7 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 	for _, module := range cfg.PostingModules {
 		movementProviders = append(movementProviders, module.InstallPosting(postingEngine)...)
 	}
+	movementProviders = append(movementProviders, accumulation.Install(postingEngine, factoryReg.AccumulationRegisters()...)...)
 
 	// CurrencyResolver is guaranteed non-nil here — created in NewRouter before catalog/document registration.
 	currencyResolver := cfg.CurrencyResolver

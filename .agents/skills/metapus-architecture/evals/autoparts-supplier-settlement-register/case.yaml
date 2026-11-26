@@ -2,7 +2,10 @@ schema_version: "1.1"
 name: autoparts-supplier-settlement-register
 expected_outcome: |
   The register lives entirely under internal/configuration/autoparts and its
-  migration under db/configuration/autoparts. It follows the visitor/recorder
-  pattern through a posting.Module, the receipt generates movements in a pure
-  function, money is MinorUnits, and the code imports only github.com/alex-bogatiuk/metapus/pkg/sdk from
-  the platform. The architecture tests and the build pass.
+  migration under db/configuration/autoparts. It is a declarative register
+  (accumulation.New over a movement struct with supplier and currency
+  dimensions, registered with RegisterAccumulation, tables as
+  migration.AccumulationDDL prints them), the receipt adds its movements in a
+  pure RegisterMovements, money is MinorUnits with its currency dimension, and
+  the code imports only github.com/alex-bogatiuk/metapus/pkg/sdk from the
+  platform. The architecture tests and the build pass.

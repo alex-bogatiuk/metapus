@@ -2,6 +2,17 @@
 
 Каждое изменение `pkg/sdk` записывается здесь вместе с новой `sdk.APIVersion` ([правила](README.md#версионирование)).
 
+## 3.2.0 — 2026-11-26
+
+Декларативные регистры накопления. Только добавления: конфигурации для 3.0.0 и 3.1.0 совместимы.
+
+- Новый пакет `registers/accumulation`: `New[M]`, `Register[M]`, `Definition`, `Kind` (`Balances`, `Turnovers`), `Schema`, `Field`, `FieldType`, `Filter`, `Source`, `Movements`, `Declared`, `Install`. Регистр объявляется структурой движения с тегами `register:"dimension"` и `register:"resource"`; платформа сама хранит движения и остатки, проводит регистр, показывает «Движения документа» и отвечает на запросы `Balances`, `BalancesAt`, `Turnovers`.
+- `registry.Registry.RegisterAccumulation`, `AccumulationRegisters` — регистрация регистра; сервер подключает его к проведению, миграция тенанта сверяет его таблицы с объявлением.
+- `registers`: `AccumulationStore`, `NewAccumulationStore` — хранилище декларативных регистров, для тестов, которые проводят без сервера.
+- `migration`: `AccumulationDDL` — SQL таблиц и триггеров регистра для миграции конфигурации.
+- `entity.MovementBase.Header` — общие поля движения для обобщённого кода.
+- Платформенная миграция `00006_accumulation_registers.sql`: общие функции триггеров `sys_accumulation_balances` и `sys_accumulation_movements_immutable`; `ExpectedSchemaVersion` = 6.
+
 ## 3.1.0 — 2026-11-22
 
 Расширенный слой: всё, что использует крипто-конфигурация, которая теперь, как и «Автозапчасти», импортирует из платформы только `pkg/sdk`. Только добавления, поэтому конфигурации для 3.0.0 совместимы. Версия ещё не выпущена (тега нет), поэтому сужение слоя вошло в неё же.

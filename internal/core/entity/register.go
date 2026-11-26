@@ -68,6 +68,11 @@ func NewMovementBase(recorderID id.ID, recorderType string, recorderVersion int,
 	}
 }
 
+// Header returns the movement's common fields. A movement type that embeds
+// MovementBase gets it, so a declarative register fills the recorder and
+// period of any movement type alike.
+func (m *MovementBase) Header() *MovementBase { return m }
+
 // SetRecordingMetadata accepts explicit adapter-supplied metadata. It preserves
 // existing identities when importing or recording an already prepared fact.
 func (m *MovementBase) SetRecordingMetadata(lineID id.ID, at time.Time) {

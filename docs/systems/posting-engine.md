@@ -9,7 +9,19 @@
 
 `posting.Postable` определяет ID, тип, posted version, проверки и переходы состояния. `RegisterVisitor.CollectMovements` извлекает движения только у поддерживаемого source-интерфейса. Базовый `MovementSet` содержит settlement slice и `Extensions`; crypto visitors хранят в Extensions типизированные slices.
 
-Действующие crypto sources: CryptoBalance, CryptoMerchantBalance, CryptoFee, CryptoPlatformCost, CryptoProviderBalance, CryptoReceiptSuspense. StockVisitor/StockMovementSource в текущем контенте отсутствуют. Новый регистр подключается через `AddVisitor` и `AddRecorder`. Регистры конфигурации собираются модулем `posting.Module` (криптоконфигурация: [`cryptoregisters`](../../internal/configuration/crypto/infrastructure/crypto/cryptoregisters/module.go)), который HTTP-сервер получает через `RouterConfig.PostingModules`, а воркер вызывает напрямую. PostgreSQL-репозитории криптовых регистров находятся в `storage/postgres/crypto_register_repo`.
+Действующие crypto sources: CryptoBalance, CryptoMerchantBalance, CryptoFee, CryptoPlatformCost, CryptoProviderBalance, CryptoReceiptSuspense. Новый регистр подключается через `AddVisitor` и `AddRecorder`. Регистры конфигурации собираются модулем `posting.Module` (криптоконфигурация: [`cryptoregisters`](../../internal/configuration/crypto/infrastructure/crypto/cryptoregisters/module.go)), который HTTP-сервер получает через `RouterConfig.PostingModules`, а воркер вызывает напрямую. PostgreSQL-репозитории криптовых регистров находятся в `storage/postgres/crypto_register_repo`.
+
+### Декларативные регистры
+
+Регистр, которому хватает измерений, ресурсов и остатков, объявляется без visitor, recorder и репозитория ([`internal/domain/registers/accumulation`](../../internal/domain/registers/accumulation/schema.go)). Конфигурация описывает структуру движения: она встраивает `entity.MovementBase`, а поля помечены `register:"dimension"` (`id.ID` со ссылкой `meta:"ref:…"` или строка) и `register:"resource"` (`types.Quantity` или `types.MinorUnits` с `currency=<колонка валюты>`). `accumulation.New[M](Definition{Key, Label, Table, Kind})` проверяет описание при старте, `Registry.RegisterAccumulation` привязывает регистр к хранилищу PostgreSQL. Документ реализует `accumulation.Source`: `RegisterMovements(ctx, out)` вызывает `Receipt`, `Expense` или `Turnover` регистра.
+
+- Один `accumulation.Visitor` собирает движения всех декларативных регистров документа и раскладывает их по ключам в `MovementSet.Extensions`. Регистратор, версию `PostedVersion+1` и период (дату документа, если движение не задало свой) заполняет платформа.
+- Каждый регистр — свой `RegisterRecorder` и `MovementProvider`. Перепроведение удаляет движения прежних версий, остатки ведут общие statement-триггеры `sys_accumulation_balances` (платформенная миграция `00006`); UPDATE движений запрещён.
+- Сервер подключает зарегистрированные регистры к своему движку сам (`routes_documents.go`). Движок воркера или теста подключает их через `accumulation.Install`.
+- Миграция тенанта сверяет таблицы регистра с объявлением (`migration.CheckAccumulationRegisters`): колонки, типы, NOT NULL, первичный ключ остатков и триггеры. При расхождении она останавливается и показывает ожидаемый SQL (`migration.AccumulationDDL`).
+- Запросы: `Balances` (текущие из таблицы остатков), `BalancesAt` (сумма движений до момента), `Turnovers` (изменение за полуинтервал периода), фильтр — по колонкам измерений.
+
+Контроля отрицательных остатков у декларативных регистров пока нет: регистр, которому он нужен, добавляет `PostingValidator` сам.
 
 ## 2. Транзакционная граница
 
@@ -78,6 +90,9 @@ Processing fee — выручка; `chain_resource_rent` и `chain_network_fee` 
 internal/domain/posting/engine.go   — Координатор транзакции проведения
 internal/domain/posting/visitor.go  — Сбор движений из документов
 internal/domain/posting/recorder.go — Запись движений в регистры
+internal/domain/registers/accumulation/ — Декларативные регистры: описание, visitor, recorder, запросы
+internal/infrastructure/storage/postgres/register_repo/accumulation.go — Хранилище декларативных регистров
+internal/infrastructure/storage/postgres/migration/accumulation.go — Сверка таблиц регистров при миграции тенанта
 internal/configuration/crypto/domain/registers/cryptoposting/ — Visitor/Recorder криптовых регистров (конфигурация, подключается при сборке движка)
 internal/infrastructure/http/v1/handlers/document.go — SSE Batch processing
 internal/configuration/crypto/domain/registers/crypto_merchant_balance/service.go — CheckAndReserveMerchantBalance + StornoMovements

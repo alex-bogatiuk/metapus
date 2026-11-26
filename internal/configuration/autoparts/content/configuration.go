@@ -13,7 +13,6 @@ import (
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/configuration"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/contracts"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/integrations"
-	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registry"
 )
 
@@ -27,8 +26,8 @@ type autoparts struct{}
 
 func (autoparts) Name() string { return Name }
 
-// APIVersion: the configuration is built for the platform API 3.0.
-func (autoparts) APIVersion() string { return "3.0.0" }
+// APIVersion: the configuration is built for the platform API 3.2.
+func (autoparts) APIVersion() string { return "3.2.0" }
 
 func (autoparts) Register(reg *registry.Registry) { register(reg) }
 
@@ -46,9 +45,10 @@ func (autoparts) IntegrationCatalog() *integrations.Catalog { return nil }
 
 func (autoparts) PoolConsumers() []integrations.PoolConsumer { return nil }
 
-// Server adds the warehouse stock register to posting.
+// Server adds nothing: the warehouse stock register is declared
+// (RegisterAccumulation) and the platform posts it.
 func (autoparts) Server(context.Context, configuration.ServerEnv) (configuration.Server, error) {
-	return configuration.Server{PostingModules: []posting.Module{NewRegisters()}}, nil
+	return configuration.Server{}, nil
 }
 
 func (autoparts) Worker(context.Context, configuration.WorkerEnv) (configuration.Worker, error) {

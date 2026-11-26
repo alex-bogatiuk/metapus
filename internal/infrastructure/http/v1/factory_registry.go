@@ -11,7 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"strings"
 
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
 	"github.com/alex-bogatiuk/metapus/internal/domain/reports/schema"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/register_repo"
 )
 
 // RouteRegistration is a generic interface for route groups that don't follow
@@ -41,6 +43,7 @@ type FactoryRegistry struct {
 	documents        []DocumentRegistration
 	customDocuments  []CustomDocumentRegistration
 	registers        []RouteRegistration
+	accumulation     []accumulation.Declared
 	datasets         []*schema.Dataset
 }
 
@@ -115,6 +118,27 @@ func (r *FactoryRegistry) validateEntity(reg entityIdentity, kind entity.Kind) {
 // RegisterRegister adds an accumulation register route registration.
 func (r *FactoryRegistry) RegisterRegister(reg RouteRegistration) {
 	r.registers = append(r.registers, reg)
+}
+
+// RegisterAccumulation adds a declarative accumulation register and binds
+// it to the platform's PostgreSQL store. Documents that implement
+// accumulation.Source move it when posted, its movements show in the
+// document's movements, and the tenant migration checks its tables. Keys and
+// tables are unique.
+func (r *FactoryRegistry) RegisterAccumulation(reg accumulation.Declared) {
+	schema := reg.Schema()
+	for _, existing := range r.accumulation {
+		if existing.Schema().Key == schema.Key || existing.Schema().Table == schema.Table {
+			panic("duplicate accumulation register: " + schema.Key)
+		}
+	}
+	reg.Bind(register_repo.NewAccumulationStore())
+	r.accumulation = append(r.accumulation, reg)
+}
+
+// AccumulationRegisters returns the declarative accumulation registers.
+func (r *FactoryRegistry) AccumulationRegisters() []accumulation.Declared {
+	return r.accumulation
 }
 
 // Catalogs returns all registered catalog factories.

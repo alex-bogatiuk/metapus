@@ -85,8 +85,9 @@ func RunAll(dsn string, opts ...Option) (output string, err error) {
 // Run migrates a tenant database: the platform's migrations, the
 // configuration's (WithConfiguration), then the extension modules'. With
 // WithPermissions it then syncs the registry's permissions
-// (SyncPermissions), and with WithCatalogCodes it numbers catalog items
-// stored without a code (BackfillCatalogCodes).
+// (SyncPermissions), with WithAccumulationRegisters it checks the declarative
+// registers' tables (CheckAccumulationRegisters), and with WithCatalogCodes
+// it numbers catalog items stored without a code (BackfillCatalogCodes).
 func Run(dsn string, opts ...Option) (result Result, err error) {
 	var o options
 	for _, opt := range opts {
@@ -159,6 +160,12 @@ func Run(dsn string, opts ...Option) (result Result, err error) {
 		}
 		fmt.Fprintf(&out, "[permissions] %d created and granted to %s, %d regrouped\n",
 			len(synced.Created), AdminRoleCode, len(synced.Updated))
+	}
+	if len(o.registers) > 0 {
+		if err := CheckAccumulationRegisters(ctx, db, o.registers); err != nil {
+			return result, err
+		}
+		fmt.Fprintf(&out, "[registers] %d accumulation registers match their tables\n", len(o.registers))
 	}
 	if len(o.catalogs) > 0 {
 		assigned, berr := BackfillCatalogCodes(ctx, db, o.catalogs)

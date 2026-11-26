@@ -8,6 +8,7 @@ import (
 
 	dbassets "github.com/alex-bogatiuk/metapus/db"
 	"github.com/alex-bogatiuk/metapus/internal/core/version"
+	"github.com/alex-bogatiuk/metapus/internal/domain/registers/accumulation"
 	core "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/migration"
 )
 
@@ -45,3 +46,9 @@ func ConfigurationVersionTable(name string) string { return core.ConfigurationVe
 func WithConfiguration(name string, source fs.FS) core.Option {
 	return core.WithConfiguration(name, source)
 }
+
+// AccumulationDDL is the SQL that creates a declarative register's tables
+// and triggers, to start the register's migration from. The tenant migration
+// checks the tables against the same declaration and shows this text when
+// they differ.
+func AccumulationDDL(schema *accumulation.Schema) string { return core.AccumulationDDL(schema) }

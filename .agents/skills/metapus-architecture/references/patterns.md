@@ -97,40 +97,46 @@ reg.RegisterCatalog(registry.Catalog[warehouse.Warehouse](registry.Presentation{
 
 **Ловушка.** «Маленький» `if cfg.Name() == "crypto"` или строковое имя таблицы конфигурации в платформе. Оба ломают границу так же, как импорт, и второе ловит тест.
 
-## 5. Visitor / Recorder регистра
+## 5. Регистр накопления: декларативный или Visitor / Recorder
 
 **Когда.** Документ при проведении двигает регистр (остатки, взаиморасчёты, баланс).
 
-**Как.** Три части:
-- **источник** — интерфейс, который реализует документ: `Generate<Регистр>Movements(ctx) ([]Movement, error)`; чистая функция от полей документа;
-- **Visitor** — проверяет, реализует ли документ источник, и кладёт движения в `MovementSet` под именем регистра (`set.SetExtension`);
-- **Recorder** — забирает свой набор (`set.GetExtension`) и пишет через сервис регистра; `ReverseMovements` сторнирует при перепроведении.
-
-Всё вместе отдаётся `posting.Module`, который также возвращает `MovementProvider` для отчёта «Движения документа». Для FLS регистрация документа объявляет `MovementSources()` — какие поля документа раскрывают каждую колонку движения.
+**Как — по умолчанию декларативно.** Регистр с измерениями, ресурсами и остатками объявляется структурой движения и одной переменной; visitor, recorder, репозиторий и plpgsql пишет платформа (`internal/domain/registers/accumulation`, фасад `pkg/sdk/registers/accumulation`).
 
 ```go
-// internal/configuration/autoparts/domain/registers/warehouse_stock/posting.go
-func (Visitor) CollectMovements(ctx context.Context, doc posting.Postable, set *posting.MovementSet) error {
-	source, ok := doc.(MovementSource)
-	if !ok {
-		return nil
-	}
-	movements, err := source.GenerateWarehouseStockMovements(ctx)
-	if err != nil {
-		return fmt.Errorf("generate warehouse stock movements: %w", err)
-	}
-	if len(movements) > 0 {
-		set.SetExtension(Name, movements)
+// internal/configuration/autoparts/domain/registers/warehouse_stock/movement.go
+type Movement struct {
+	entity.MovementBase
+	WarehouseID id.ID          `db:"warehouse_id" meta:"label:Склад,ref:warehouse" register:"dimension"`
+	ItemID      id.ID          `db:"item_id" meta:"label:Номенклатура,ref:item" register:"dimension"`
+	Quantity    types.Quantity `db:"quantity" meta:"label:Количество" register:"resource"`
+}
+
+var Register = accumulation.New[Movement](accumulation.Definition{
+	Key: "warehouse_stock", Label: "Запасы на складах", Table: "reg_warehouse_stock", Kind: accumulation.Balances,
+})
+
+// документ — accumulation.Source, чистая функция от своих полей
+func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Movements) error {
+	for _, line := range e.Goods {
+		warehouse_stock.Register.Receipt(out, warehouse_stock.Movement{WarehouseID: e.WarehouseID, ItemID: line.ItemID, Quantity: line.Quantity})
 	}
 	return nil
 }
 ```
 
-Ресурсы, которые надо заблокировать до проверки остатков, — через `PostingResourceLocker` (ключи отсортированы). Проверка остатков — `PostingValidator.ValidateBeforePost`.
+Дальше — `reg.RegisterAccumulation(warehouse_stock.Register)` в `content/register.go` и миграция таблиц по образцу `migration.AccumulationDDL(Register.Schema())`: таблица движений, таблица остатков, триггеры на общих функциях `sys_accumulation_balances` и `sys_accumulation_movements_immutable`. Миграция тенанта сверяет таблицы с объявлением и остановится при расхождении. Запросы — `Register.Balances`, `BalancesAt`, `Turnovers` с `accumulation.Filter` по колонкам измерений. Для FLS регистрация документа по-прежнему объявляет `MovementSources()`; ключи колонок движений — имена колонок (`warehouse_id`, `quantity`).
 
-**Где.** `autoparts/domain/registers/warehouse_stock`, `autoparts/content/registers.go`, `crypto/infrastructure/crypto/cryptoregisters`, `docs/systems/posting-engine.md`.
+**Как — вручную, когда декларативного не хватает** (append-only финансовые движения со сторно, свои блокировки и проверки остатков, nullable-измерения, регистр крипто). Три части:
+- **источник** — интерфейс документа: `Generate<Регистр>Movements(ctx) ([]Movement, error)`; чистая функция от полей документа;
+- **Visitor** — проверяет, реализует ли документ источник, и кладёт движения в `MovementSet` под именем регистра (`set.SetExtension`);
+- **Recorder** — забирает свой набор (`set.GetExtension`) и пишет через сервис регистра; `ReverseMovements` сторнирует при перепроведении.
 
-**Ловушка.** Генерировать движения с обращением к базе (курс, остаток) — тогда перепроведение даёт другой результат. Нужные данные загружаются в документ до проведения или проверяются валидатором; генератор остаётся чистым. Вторая ловушка — UPDATE/DELETE движений: финансовые регистры append-only, отмена — `AppendReversalsByRecorder`.
+Всё вместе отдаётся `posting.Module`, который также возвращает `MovementProvider` для отчёта «Движения документа». Ресурсы, которые надо заблокировать до проверки остатков, — через `PostingResourceLocker` (ключи отсортированы). Проверка остатков — `PostingValidator.ValidateBeforePost`; декларативному регистру, которому она нужна, валидатор пока добавляется так же.
+
+**Где.** Декларативный: `internal/domain/registers/accumulation`, `autoparts/domain/registers/warehouse_stock`, `db/migrations/00006_accumulation_registers.sql`. Ручной: `crypto/infrastructure/crypto/cryptoregisters`, `crypto/domain/registers/*`. Обзор — `docs/systems/posting-engine.md`.
+
+**Ловушка.** Генерировать движения с обращением к базе (курс, остаток) — тогда перепроведение даёт другой результат. Нужные данные загружаются в документ до проведения или проверяются валидатором; генератор остаётся чистым. Вторая ловушка — UPDATE/DELETE финансовых движений: финансовые регистры append-only, отмена — `AppendReversalsByRecorder`. Декларативный регистр при перепроведении удаляет движения прежних версий, поэтому для финансового учёта со сторно он не подходит. Третья — миграция регистра, разошедшаяся с объявлением: исправляй миграцию (до релиза) или объявление, а не проверку.
 
 ## 6. Хуки жизненного цикла и transactional outbox
 

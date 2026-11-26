@@ -1,45 +1,10 @@
 -- Goods receipts and the warehouse stock register (ЗапасыНаСкладах):
--- quantities by warehouse and item. A statement trigger keeps the balances
--- in step with the movements.
+-- quantities by warehouse and item. The platform's statement triggers keep
+-- the balances in step with the movements.
 
 -- +goose Up
 -- +goose StatementBegin
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
-
--- Function bodies are validated when first executed; definitions precede the tables they use.
-SET LOCAL check_function_bodies = off;
-
-CREATE OR REPLACE FUNCTION update_warehouse_stock_balance_on_insert()
-RETURNS TRIGGER AS $func$
-BEGIN
-    INSERT INTO reg_warehouse_stock_balances (warehouse_id, item_id, quantity, updated_at)
-    SELECT warehouse_id, item_id,
-           SUM(CASE WHEN record_type = 'receipt' THEN quantity ELSE -quantity END),
-           NOW()
-    FROM new_rows
-    GROUP BY warehouse_id, item_id
-    ON CONFLICT (warehouse_id, item_id)
-    DO UPDATE SET quantity = reg_warehouse_stock_balances.quantity + EXCLUDED.quantity,
-                  updated_at = NOW();
-    RETURN NULL;
-END;
-$func$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION update_warehouse_stock_balance_on_delete()
-RETURNS TRIGGER AS $func$
-BEGIN
-    INSERT INTO reg_warehouse_stock_balances (warehouse_id, item_id, quantity, updated_at)
-    SELECT warehouse_id, item_id,
-           SUM(CASE WHEN record_type = 'receipt' THEN -quantity ELSE quantity END),
-           NOW()
-    FROM old_rows
-    GROUP BY warehouse_id, item_id
-    ON CONFLICT (warehouse_id, item_id)
-    DO UPDATE SET quantity = reg_warehouse_stock_balances.quantity + EXCLUDED.quantity,
-                  updated_at = NOW();
-    RETURN NULL;
-END;
-$func$ LANGUAGE plpgsql;
 
 CREATE TABLE doc_goods_receipts (
  id UUID PRIMARY KEY,
@@ -84,23 +49,27 @@ CREATE TABLE doc_goods_receipts__goods (
 );
 CREATE INDEX idx_doc_goods_receipts__goods_document ON doc_goods_receipts__goods (document_id, line_no);
 
+-- The register is declared in Go (domain/registers/warehouse_stock); these
+-- tables follow registers.AccumulationDDL of that declaration, and the tenant
+-- migration checks them against it. The platform's shared triggers keep the
+-- balances (db/migrations/00006_accumulation_registers.sql).
 CREATE TABLE reg_warehouse_stock_movements (
- line_id          UUID        PRIMARY KEY DEFAULT gen_random_uuid_v7(),
+ line_id          UUID        PRIMARY KEY,
  recorder_id      UUID        NOT NULL,
- recorder_type    VARCHAR(50) NOT NULL,
- recorder_version INT         NOT NULL DEFAULT 1,
+ recorder_type    TEXT        NOT NULL,
+ recorder_version INT         NOT NULL,
  period           TIMESTAMPTZ NOT NULL,
- record_type      VARCHAR(10) NOT NULL,
+ record_type      TEXT        NOT NULL CHECK (record_type IN ('receipt', 'expense')),
+ created_at       TIMESTAMPTZ NOT NULL,
  warehouse_id     UUID        NOT NULL REFERENCES cat_warehouses(id),
  item_id          UUID        NOT NULL REFERENCES cat_items(id),
- quantity         BIGINT      NOT NULL,
- created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
- CONSTRAINT chk_warehouse_stock_record_type CHECK (record_type IN ('receipt', 'expense')),
- CONSTRAINT chk_warehouse_stock_quantity_positive CHECK (quantity > 0)
+ quantity         BIGINT      NOT NULL CHECK (quantity > 0)
 );
 COMMENT ON TABLE reg_warehouse_stock_movements IS 'Запасы на складах — движения (количество в 1/10000 единицы)';
 CREATE INDEX idx_reg_warehouse_stock_movements_recorder ON reg_warehouse_stock_movements (recorder_id, recorder_version);
-CREATE INDEX idx_reg_warehouse_stock_movements_balance ON reg_warehouse_stock_movements (warehouse_id, item_id, period);
+CREATE INDEX idx_reg_warehouse_stock_movements_dimensions ON reg_warehouse_stock_movements (warehouse_id, item_id, period);
+CREATE TRIGGER trg_reg_warehouse_stock_immutable BEFORE UPDATE ON reg_warehouse_stock_movements
+    FOR EACH ROW EXECUTE FUNCTION sys_accumulation_movements_immutable();
 
 CREATE TABLE reg_warehouse_stock_balances (
  warehouse_id UUID        NOT NULL REFERENCES cat_warehouses(id),
@@ -110,15 +79,14 @@ CREATE TABLE reg_warehouse_stock_balances (
  PRIMARY KEY (warehouse_id, item_id)
 );
 COMMENT ON TABLE reg_warehouse_stock_balances IS 'Запасы на складах — остатки, ведутся триггерами движений';
-
-CREATE TRIGGER trg_warehouse_stock_balance_insert
+CREATE TRIGGER trg_reg_warehouse_stock_balances_insert
     AFTER INSERT ON reg_warehouse_stock_movements
     REFERENCING NEW TABLE AS new_rows
-    FOR EACH STATEMENT EXECUTE FUNCTION update_warehouse_stock_balance_on_insert();
-CREATE TRIGGER trg_warehouse_stock_balance_delete
+    FOR EACH STATEMENT EXECUTE FUNCTION sys_accumulation_balances('reg_warehouse_stock_balances', 'warehouse_id,item_id', 'quantity');
+CREATE TRIGGER trg_reg_warehouse_stock_balances_delete
     AFTER DELETE ON reg_warehouse_stock_movements
     REFERENCING OLD TABLE AS old_rows
-    FOR EACH STATEMENT EXECUTE FUNCTION update_warehouse_stock_balance_on_delete();
+    FOR EACH STATEMENT EXECUTE FUNCTION sys_accumulation_balances('reg_warehouse_stock_balances', 'warehouse_id,item_id', 'quantity');
 -- +goose StatementEnd
 
 -- +goose Down
@@ -126,8 +94,6 @@ CREATE TRIGGER trg_warehouse_stock_balance_delete
 SELECT pg_advisory_xact_lock(hashtext('metapus_migrations'));
 DROP TABLE reg_warehouse_stock_balances;
 DROP TABLE reg_warehouse_stock_movements;
-DROP FUNCTION update_warehouse_stock_balance_on_delete();
-DROP FUNCTION update_warehouse_stock_balance_on_insert();
 DROP TABLE doc_goods_receipts__goods;
 DROP TABLE doc_goods_receipts;
 -- +goose StatementEnd
