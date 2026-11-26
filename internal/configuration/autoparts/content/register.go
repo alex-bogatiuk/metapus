@@ -3,6 +3,7 @@ package content
 import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/item"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/catalogs/warehouse"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_issue"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registry"
@@ -19,6 +20,9 @@ func register(reg *registry.Registry) {
 	reg.RegisterDocument(goodsReceiptRegistration{registry.Document[goods_receipt.GoodsReceipt](registry.Presentation{
 		Singular: "Приходная накладная", Plural: "Приходные накладные", NewLabel: "Новая приходная накладная", Genitive: "приходную накладную",
 	})})
+	reg.RegisterDocument(goodsIssueRegistration{registry.Document[goods_issue.GoodsIssue](registry.Presentation{
+		Singular: "Расходная накладная", Plural: "Расходные накладные", NewLabel: "Новая расходная накладная", Genitive: "расходную накладную",
+	})})
 }
 
 // goodsReceiptRegistration declares the fields behind the goods receipt's
@@ -34,3 +38,17 @@ func (goodsReceiptRegistration) MovementSources() map[string][]string {
 }
 
 var _ registry.MovementSourceProvider = goodsReceiptRegistration{}
+
+// goodsIssueRegistration declares the fields behind the goods issue's stock
+// movements, as goodsReceiptRegistration does for the receipt.
+type goodsIssueRegistration struct {
+	*registry.AutoDocument[goods_issue.GoodsIssue, *goods_issue.GoodsIssue]
+}
+
+func (goodsIssueRegistration) MovementSources() map[string][]string {
+	return map[string][]string{
+		"warehouse_id": {"warehouse_id"}, "item_id": {"goods.item_id"}, "quantity": {"goods.quantity"},
+	}
+}
+
+var _ registry.MovementSourceProvider = goodsIssueRegistration{}

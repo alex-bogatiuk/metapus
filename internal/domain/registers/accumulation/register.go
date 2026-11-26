@@ -10,6 +10,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 )
 
@@ -24,6 +25,16 @@ type Store interface {
 	SelectBalances(ctx context.Context, schema *Schema, filter Filter, dst any) error
 	SelectBalancesAt(ctx context.Context, schema *Schema, at time.Time, filter Filter, dst any) error
 	SelectTurnovers(ctx context.Context, schema *Schema, from, to time.Time, filter Filter, dst any) error
+	// SelectRecorderTotals sums the document's movements per combination of
+	// dimensions, receipts less expenses.
+	SelectRecorderTotals(ctx context.Context, schema *Schema, recorderID id.ID, dst any) error
+	// SelectBalancesOf reads the balances rows of the given combinations,
+	// each the dimension values in schema order; a combination without a row
+	// is left out.
+	SelectBalancesOf(ctx context.Context, schema *Schema, combinations [][]any, dst any) error
+	// LockCombinations takes a transaction lock on each key in the order
+	// given; the posting sorts the keys of all registers it moves.
+	LockCombinations(ctx context.Context, keys []int64) error
 }
 
 // Filter selects combinations of dimensions: column → value, or a slice of
@@ -32,12 +43,14 @@ type Filter map[string]any
 
 // Declared is a register as the platform sees it, whatever its movement
 // type: it binds to the store, records postings and shows a document's
-// movements.
+// movements. Only New makes one.
 type Declared interface {
 	Schema() *Schema
 	Bind(store Store)
+	BindNames(names domain.RefResolver)
 	posting.RegisterRecorder
 	entity.MovementProvider
+	planControl(ctx context.Context, doc posting.Postable, unposting bool) (*controlPlan, error)
 }
 
 // Register is an accumulation register whose movements have type M.
@@ -46,9 +59,26 @@ type Declared interface {
 type Register[M any] struct {
 	schema *Schema
 	store  atomic.Pointer[storeBox]
+	names  atomic.Pointer[namesBox]
 }
 
 type storeBox struct{ Store }
+
+type namesBox struct{ domain.RefResolver }
+
+// BindNames lets the register name the references in its messages, such as
+// the warehouse and item of a shortage, as the user may read them. Without
+// it the messages show their IDs.
+func (r *Register[M]) BindNames(names domain.RefResolver) {
+	r.names.Store(&namesBox{names})
+}
+
+func (r *Register[M]) resolver() domain.RefResolver {
+	if box := r.names.Load(); box != nil {
+		return box.RefResolver
+	}
+	return nil
+}
 
 // New declares the register def with movements of type M. It panics when
 // the description is wrong, as a mistake in a declaration found at start-up.

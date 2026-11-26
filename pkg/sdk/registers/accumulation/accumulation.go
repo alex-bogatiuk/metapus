@@ -17,7 +17,9 @@
 //
 // The configuration registers it (registry.Registry.RegisterAccumulation)
 // and creates its tables in a migration (migration.AccumulationDDL prints
-// them). A document moves it by implementing Source.
+// them). A document moves it by implementing Source. Definition.NonNegative
+// refuses postings that take a balance below zero; a reserve is a dimension
+// such as the customer order, empty (id.Nil) for the free balance.
 package accumulation
 
 import (
@@ -47,6 +49,11 @@ type (
 	Movements = core.Movements
 	// Declared is a register whatever its movement type.
 	Declared = core.Declared
+	// Shortage is one resource a posting would take below zero in a
+	// NonNegative register: the "shortages" detail of its error.
+	Shortage = core.Shortage
+	// DimensionValue is a dimension of a Shortage.
+	DimensionValue = core.DimensionValue
 )
 
 const (
@@ -54,6 +61,9 @@ const (
 	Balances = core.Balances
 	// Turnovers registers only sum their movements over a period.
 	Turnovers = core.Turnovers
+	// CodeInsufficientBalance is the code of the error that refuses a
+	// posting which would take a NonNegative register below zero.
+	CodeInsufficientBalance = core.CodeInsufficientBalance
 )
 
 // New declares the register def with movements of type M; it panics when

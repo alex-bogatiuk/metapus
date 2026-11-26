@@ -58,6 +58,13 @@ type Definition struct {
 	Table string
 	// Kind is Balances or Turnovers.
 	Kind Kind
+	// NonNegative forbids a posting or unposting that takes a resource of a
+	// Balances register below zero (контроль отрицательных остатков). The
+	// platform locks the combinations the document moves, in one order for
+	// every posting, and checks them once all registers are written. A
+	// combination the document leaves below zero without lowering it, such
+	// as a receipt into a balance that is already negative, passes.
+	NonNegative bool
 }
 
 // FieldType is how a dimension or resource is stored and shown.
@@ -177,6 +184,25 @@ func (s *Schema) Values(movement Movement) []any {
 	return values
 }
 
+// dimensionValues are movement's dimensions in schema order.
+func (s *Schema) dimensionValues(v reflect.Value) []any {
+	values := make([]any, len(s.Dimensions))
+	for i, f := range s.Dimensions {
+		values[i] = v.FieldByIndex(f.index).Interface()
+	}
+	return values
+}
+
+// resourceValues are movement's resources in schema order, in their stored
+// units.
+func (s *Schema) resourceValues(v reflect.Value) []int64 {
+	values := make([]int64, len(s.Resources))
+	for i, f := range s.Resources {
+		values[i] = v.FieldByIndex(f.index).Int()
+	}
+	return values
+}
+
 // Movement is a pointer to a register's movement: its type embeds
 // entity.MovementBase.
 type Movement interface {
@@ -210,6 +236,9 @@ func NewSchema(def Definition, movement reflect.Type) (*Schema, error) {
 	}
 	if def.Kind != Balances && def.Kind != Turnovers {
 		add("kind %q is neither %q nor %q", def.Kind, Balances, Turnovers)
+	}
+	if def.NonNegative && def.Kind != Balances {
+		add("a %s register has no balances to keep non-negative", def.Kind)
 	}
 	schema := &Schema{Definition: def, movement: movement}
 	if movement.Kind() != reflect.Struct {

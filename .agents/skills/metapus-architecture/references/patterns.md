@@ -114,6 +114,7 @@ type Movement struct {
 
 var Register = accumulation.New[Movement](accumulation.Definition{
 	Key: "warehouse_stock", Label: "Запасы на складах", Table: "reg_warehouse_stock", Kind: accumulation.Balances,
+	NonNegative: true, // остаток не уходит в минус: проведение с нехваткой отклоняется
 })
 
 // документ — accumulation.Source, чистая функция от своих полей
@@ -127,12 +128,14 @@ func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Mo
 
 Дальше — `reg.RegisterAccumulation(warehouse_stock.Register)` в `content/register.go` и миграция таблиц по образцу `migration.AccumulationDDL(Register.Schema())`: таблица движений, таблица остатков, триггеры на общих функциях `sys_accumulation_balances` и `sys_accumulation_movements_immutable`. Миграция тенанта сверяет таблицы с объявлением и остановится при расхождении. Запросы — `Register.Balances`, `BalancesAt`, `Turnovers` с `accumulation.Filter` по колонкам измерений. Для FLS регистрация документа по-прежнему объявляет `MovementSources()`; ключи колонок движений — имена колонок (`warehouse_id`, `quantity`).
 
-**Как — вручную, когда декларативного не хватает** (append-only финансовые движения со сторно, свои блокировки и проверки остатков, nullable-измерения, регистр крипто). Три части:
+Контроль отрицательных остатков — `NonNegative: true`, без своего валидатора: платформа блокирует затронутые комбинации в общем отсортированном порядке и отказывает с `INSUFFICIENT_BALANCE`, если документ увёл ресурс ниже нуля. Резерв — измерение «заказ» в том же регистре (`id.Nil` — свободный остаток): резервирование — расход со свободного и приход на заказ.
+
+**Как — вручную, когда декларативного не хватает** (append-only финансовые движения со сторно, проверки остатков между несколькими регистрами, nullable-измерения, регистр крипто). Три части:
 - **источник** — интерфейс документа: `Generate<Регистр>Movements(ctx) ([]Movement, error)`; чистая функция от полей документа;
 - **Visitor** — проверяет, реализует ли документ источник, и кладёт движения в `MovementSet` под именем регистра (`set.SetExtension`);
 - **Recorder** — забирает свой набор (`set.GetExtension`) и пишет через сервис регистра; `ReverseMovements` сторнирует при перепроведении.
 
-Всё вместе отдаётся `posting.Module`, который также возвращает `MovementProvider` для отчёта «Движения документа». Ресурсы, которые надо заблокировать до проверки остатков, — через `PostingResourceLocker` (ключи отсортированы). Проверка остатков — `PostingValidator.ValidateBeforePost`; декларативному регистру, которому она нужна, валидатор пока добавляется так же.
+Всё вместе отдаётся `posting.Module`, который также возвращает `MovementProvider` для отчёта «Движения документа». Ресурсы, которые надо заблокировать до проверки остатков, — через `PostingResourceLocker` (ключи отсортированы). Проверка остатков — `PostingValidator.ValidateBeforePost` или `PostingController` (проверка после записи всех регистров).
 
 **Где.** Декларативный: `internal/domain/registers/accumulation`, `autoparts/domain/registers/warehouse_stock`, `db/migrations/00006_accumulation_registers.sql`. Ручной: `crypto/infrastructure/crypto/cryptoregisters`, `crypto/domain/registers/*`. Обзор — `docs/systems/posting-engine.md`.
 

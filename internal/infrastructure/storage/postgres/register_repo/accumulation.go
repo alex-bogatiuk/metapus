@@ -104,6 +104,60 @@ func (s *AccumulationStore) SelectTurnovers(ctx context.Context, schema *accumul
 	return s.selectInto(ctx, s.grouped(schema, q), dst)
 }
 
+// SelectRecorderTotals sums the document's movements per combination.
+func (s *AccumulationStore) SelectRecorderTotals(ctx context.Context, schema *accumulation.Schema, recorderID id.ID, dst any) error {
+	q := s.sums(schema).Where(squirrel.Eq{"recorder_id": recorderID}).GroupBy(quoted(schema.DimensionColumns())...)
+	return s.selectInto(ctx, q, dst)
+}
+
+// SelectBalancesOf reads the balances rows of the combinations, joined with
+// one array per dimension.
+func (s *AccumulationStore) SelectBalancesOf(ctx context.Context, schema *accumulation.Schema, combinations [][]any, dst any) error {
+	if len(combinations) == 0 {
+		return nil
+	}
+	dimensions := quoted(schema.DimensionColumns())
+	arrays := make([]string, len(schema.Dimensions))
+	args := make([]any, len(schema.Dimensions))
+	for i, f := range schema.Dimensions {
+		values := make([]string, len(combinations))
+		for j, c := range combinations {
+			values[j] = fmt.Sprint(c[i])
+		}
+		arrays[i] = fmt.Sprintf("$%d::text[]::%s[]", i+1, f.Type.SQLType())
+		args[i] = values
+	}
+	sql := fmt.Sprintf("SELECT %s FROM %s JOIN unnest(%s) AS k(%s) USING (%s)",
+		strings.Join(quoted(schema.FieldColumns()), ", "), quote(schema.BalancesTable()),
+		strings.Join(arrays, ", "), strings.Join(dimensions, ", "), strings.Join(dimensions, ", "))
+	return pgxscan.Select(ctx, postgres.MustGetTxManager(ctx).GetQuerier(ctx), dst, sql, args...)
+}
+
+// LockCombinations takes a transaction-scoped advisory lock on each key, in
+// the order given. Outside a transaction it refuses: the lock would end with
+// the statement.
+func (s *AccumulationStore) LockCombinations(ctx context.Context, keys []int64) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	txm := postgres.MustGetTxManager(ctx)
+	if txm.GetTx(ctx) == nil {
+		return fmt.Errorf("register balance locks need a transaction")
+	}
+	batch := &pgx.Batch{}
+	for _, key := range keys {
+		batch.Queue("SELECT pg_advisory_xact_lock($1)", key)
+	}
+	results := txm.GetQuerier(ctx).SendBatch(ctx, batch)
+	for range keys {
+		if _, err := results.Exec(); err != nil {
+			_ = results.Close()
+			return fmt.Errorf("lock combination: %w", err)
+		}
+	}
+	return results.Close()
+}
+
 // sums selects the dimensions and the signed sum of each resource over the
 // movements table.
 func (s *AccumulationStore) sums(schema *accumulation.Schema) squirrel.SelectBuilder {

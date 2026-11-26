@@ -87,8 +87,10 @@ func (Visitor) CollectMovements(ctx context.Context, doc posting.Postable, set *
 }
 
 // Install adds registers to engine: the visitor that collects their
-// movements and a recorder per register. It returns the registers as the
-// providers of the document movements view.
+// movements, a recorder per register, and the control that locks the
+// combinations a posting moves and keeps NonNegative registers at or above
+// zero. It returns the registers as the providers of the document movements
+// view.
 func Install(engine *posting.Engine, registers ...Declared) []entity.MovementProvider {
 	if len(registers) == 0 {
 		return nil
@@ -99,6 +101,7 @@ func Install(engine *posting.Engine, registers ...Declared) []entity.MovementPro
 		engine.AddRecorder(r)
 		providers = append(providers, r)
 	}
+	engine.AddRecorder(controller{registers: registers})
 	return providers
 }
 

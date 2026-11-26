@@ -4,6 +4,18 @@ import type { JsonValue } from "@/lib/json-value"
 import type { MinorUnits } from "@/lib/money"
 import type * as Platform from "@/types/generated/http-contracts"
 
+export type CreateGoodsIssueRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "attributes"?: Record<string, JsonValue>
+  "customerId": string
+  "warehouseId": string
+  "currencyId": string
+  "goods"?: Array<GoodsReceiptGoodsLineRequest>
+  "postImmediately"?: boolean
+}
+
 export type CreateGoodsReceiptRequest = {
   "number"?: string
   "date": string
@@ -32,6 +44,53 @@ export type CreateWarehouseRequest = {
   "name": string
   "attributes"?: Record<string, JsonValue>
   "address"?: string
+}
+
+export type GoodsIssueCursorResponse = {
+  "items": Array<GoodsIssueResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type GoodsIssueGoodsLineRequest = {
+  "lineId"?: string | null
+  "itemId": string
+  "quantity"?: number | string
+  "price"?: MinorUnits
+  "amount"?: MinorUnits
+}
+
+export type GoodsIssueGoodsLineResponse = {
+  "lineId": string
+  "lineNo": number
+  "itemId": string
+  "quantity": number
+  "price": MinorUnits
+  "amount": MinorUnits
+  "item"?: Platform.PostgresRefDisplay
+}
+
+export type GoodsIssueResponse = {
+  "id": string
+  "version": number
+  "deletionMark": boolean
+  "posted": boolean
+  "postedVersion": number
+  "number": string
+  "date": string
+  "description"?: string
+  "attributes"?: Record<string, JsonValue>
+  "customerId": string
+  "warehouseId": string
+  "currencyId": string
+  "customer"?: Platform.PostgresRefDisplay
+  "warehouse"?: Platform.PostgresRefDisplay
+  "currency"?: Platform.PostgresRefDisplay
+  "goods"?: Array<GoodsReceiptGoodsLineResponse>
 }
 
 export type GoodsReceiptCursorResponse = {
@@ -106,6 +165,18 @@ export type ItemResponse = {
 }
 
 export type ItemTreeResponse = Array<ItemResponse>
+
+export type UpdateGoodsIssueRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "attributes"?: Record<string, JsonValue>
+  "customerId": string
+  "warehouseId": string
+  "currencyId": string
+  "goods"?: Array<GoodsReceiptGoodsLineRequest>
+  "version": number
+}
 
 export type UpdateGoodsReceiptRequest = {
   "number"?: string

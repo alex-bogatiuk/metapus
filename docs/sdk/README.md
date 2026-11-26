@@ -15,7 +15,7 @@
 | `pkg/sdk/id`, `types`, `apperror` | UUIDv7, `Quantity` (4 знака) и `MinorUnits` (деньги в минимальных единицах валюты документа), ошибки 400/403/404/409 |
 | `pkg/sdk/registry` | объявление справочников и документов: `registry.Catalog[T]`, `registry.Document[T]`, `Presentation`, `MovementSourceProvider` |
 | `pkg/sdk/posting` | регистры в проведении: `Module`, `RegisterVisitor`, `RegisterRecorder`, `PostingValidator`, `MovementSet` |
-| `pkg/sdk/registers/accumulation` | декларативные регистры накопления: `New[M]` по структуре движения, `Source` документа, запросы `Balances`, `BalancesAt`, `Turnovers` |
+| `pkg/sdk/registers/accumulation` | декларативные регистры накопления: `New[M]` по структуре движения, `Source` документа, контроль отрицательных остатков (`NonNegative`, `Shortage`), запросы `Balances`, `BalancesAt`, `Turnovers` |
 | `pkg/sdk/registers` | хранение движений в PostgreSQL: `AccumulationStore` декларативных регистров, `BaseAccumulationRepo` для написанных вручную |
 | `pkg/sdk/configuration` | контракт `Configuration` и части процессов: `Server`, `Worker`, `SeedEnv`, маршруты outbox, компоненты, очистки |
 | `pkg/sdk/integrations`, `contracts` | каталог интеграций, потребители пулов, HTTP-контракты собственных маршрутов |

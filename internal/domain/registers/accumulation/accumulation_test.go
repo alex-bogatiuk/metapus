@@ -145,3 +145,11 @@ func TestUnboundRegisterSaysSo(t *testing.T) {
 	_, err = register.Balances(context.Background(), accumulation.Filter{"quantity": 1})
 	require.ErrorContains(t, err, "has no dimension quantity")
 }
+
+func TestOnlyBalancesAreKeptNonNegative(t *testing.T) {
+	t.Parallel()
+	def := stockDefinition
+	def.Kind, def.NonNegative = accumulation.Turnovers, true
+	_, err := accumulation.NewSchema(def, reflect.TypeFor[stockMovement]())
+	require.ErrorContains(t, err, "a turnovers register has no balances to keep non-negative")
+}

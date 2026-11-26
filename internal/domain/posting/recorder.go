@@ -46,6 +46,21 @@ type PostingResourceLocker interface {
 	LockReversalResources(context.Context, id.ID) error
 }
 
+// PostingController is an optional interface for recorders that check what a
+// posting or unposting did to their registers, such as a balance that may not
+// go negative. Inside the transaction, after the resource locks and before any
+// movement is reversed, the engine calls BeginControl; it may lock what it
+// will check and note the state before. The check it returns runs once every
+// register is written, still in the transaction, and its error fails the
+// operation. unposting is true when the document's movements go away and
+// none come.
+type PostingController interface {
+	BeginControl(ctx context.Context, doc Postable, unposting bool) (PostingCheck, error)
+}
+
+// PostingCheck checks the outcome of a posting; a nil check checks nothing.
+type PostingCheck func(ctx context.Context) error
+
 // ---------------------------------------------------------------------------
 // Built-in recorders (adapters over existing register services)
 // ---------------------------------------------------------------------------

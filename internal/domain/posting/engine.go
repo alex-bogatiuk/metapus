@@ -260,6 +260,10 @@ func (e *Engine) doPost(ctx context.Context, doc Postable, updateDoc func(contex
 				}
 			}
 		}
+		checks, err := e.beginControls(ctx, doc, false)
+		if err != nil {
+			return err
+		}
 		// If re-posting, reverse old movements first
 		for _, validate := range e.transactionValidators {
 			if err := validate(ctx, doc); err != nil {
@@ -304,6 +308,9 @@ func (e *Engine) doPost(ctx context.Context, doc Postable, updateDoc func(contex
 			if err := rec.RecordFromSet(ctx, movements); err != nil {
 				return fmt.Errorf("record %s movements: %w", rec.Name(), err)
 			}
+		}
+		if err := runChecks(ctx, checks); err != nil {
+			return err
 		}
 
 		// Update document posted state
@@ -376,8 +383,15 @@ func (e *Engine) Unpost(ctx context.Context, doc Postable, updateDoc func(contex
 				}
 			}
 		}
+		checks, err := e.beginControls(ctx, doc, true)
+		if err != nil {
+			return err
+		}
 		if err := e.reverseAllMovements(ctx, doc.GetID(), doc.GetPostedVersion()+1); err != nil {
 			return fmt.Errorf("reverse movements: %w", err)
+		}
+		if err := runChecks(ctx, checks); err != nil {
+			return err
 		}
 
 		// Update document state
@@ -415,6 +429,37 @@ func (e *Engine) collectMovements(ctx context.Context, doc Postable) (*MovementS
 		}
 	}
 	return set, nil
+}
+
+// beginControls starts the controls of the recorders that check a posting's
+// outcome (PostingController), before any movement changes.
+func (e *Engine) beginControls(ctx context.Context, doc Postable, unposting bool) ([]PostingCheck, error) {
+	var checks []PostingCheck
+	for _, rec := range e.recorders {
+		controller, ok := rec.(PostingController)
+		if !ok {
+			continue
+		}
+		check, err := controller.BeginControl(ctx, doc, unposting)
+		if err != nil {
+			return nil, fmt.Errorf("begin %s control: %w", rec.Name(), err)
+		}
+		if check != nil {
+			checks = append(checks, check)
+		}
+	}
+	return checks, nil
+}
+
+// runChecks runs the controls once every register is written; the first
+// failure fails the posting as it is, so its message reaches the user.
+func runChecks(ctx context.Context, checks []PostingCheck) error {
+	for _, check := range checks {
+		if err := check(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // reverseAllMovements applies each recorder's reversal policy to a document version.

@@ -2,7 +2,8 @@
 // («Автозапчасти»): its catalogs, documents and registers, its migrations
 // (db/configuration/autoparts) and its part of the server. It is a skeleton
 // that checks the platform carries a second industry configuration: the item
-// and warehouse catalogs, the goods receipt and the warehouse stock register.
+// and warehouse catalogs, the goods receipt and issue, and the warehouse stock
+// register.
 package content
 
 import (
@@ -26,8 +27,8 @@ type autoparts struct{}
 
 func (autoparts) Name() string { return Name }
 
-// APIVersion: the configuration is built for the platform API 3.2.
-func (autoparts) APIVersion() string { return "3.2.0" }
+// APIVersion: the configuration is built for the platform API 3.3.
+func (autoparts) APIVersion() string { return "3.3.0" }
 
 func (autoparts) Register(reg *registry.Registry) { register(reg) }
 

@@ -22,7 +22,9 @@ type Movement struct {
 }
 
 // Register is the warehouse stock register (reg_warehouse_stock_movements,
-// reg_warehouse_stock_balances).
+// reg_warehouse_stock_balances). Stock never goes below zero: a document
+// that would issue more than the warehouse holds is not posted.
 var Register = accumulation.New[Movement](accumulation.Definition{
 	Key: "warehouse_stock", Label: "Запасы на складах", Table: "reg_warehouse_stock", Kind: accumulation.Balances,
+	NonNegative: true,
 })

@@ -10,8 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_issue"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
@@ -66,6 +68,20 @@ func (f *stockFixture) receipt(lines ...goods_receipt.GoodsLine) *goods_receipt.
 		doc.Goods = append(doc.Goods, line)
 	}
 	return doc
+}
+
+func (f *stockFixture) issue(lines ...goods_issue.GoodsLine) *goods_issue.GoodsIssue {
+	doc := &goods_issue.GoodsIssue{Document: entity.NewDocument(), CustomerID: f.supplier, WarehouseID: f.warehouse, CurrencyID: f.currency}
+	doc.Date = time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC)
+	for i, line := range lines {
+		line.LineID, line.LineNo = id.New(), i+1
+		doc.Goods = append(doc.Goods, line)
+	}
+	return doc
+}
+
+func (f *stockFixture) post(doc posting.Postable) error {
+	return f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Post(ctx, doc, noUpdate) })
 }
 
 func (f *stockFixture) stock(t *testing.T, item id.ID) types.Quantity {
@@ -140,4 +156,43 @@ func TestAutopartsTenantHasNoCryptoTables(t *testing.T) {
 	require.NoError(t, f.db.Pool.QueryRow(f.ctx, `SELECT to_regclass('reg_warehouse_stock_balances') IS NOT NULL, to_regclass('cat_merchants') IS NOT NULL`).Scan(&autoparts, &crypto))
 	require.True(t, autoparts)
 	require.False(t, crypto)
+}
+
+// A goods issue takes its lines from the warehouse stock, and the stock never
+// goes below zero: an issue of more than the warehouse holds is refused, and
+// so is reposting or unposting the receipt the issued goods came with.
+func TestGoodsIssueCannotTakeMoreThanTheWarehouseHolds(t *testing.T) {
+	f := newStockFixture(t)
+	receipt := f.receipt(goods_receipt.GoodsLine{ItemID: f.oil, Quantity: pieces(10), Price: 90000, Amount: 900000})
+	require.NoError(t, f.post(receipt))
+
+	sale := f.issue(goods_issue.GoodsLine{ItemID: f.oil, Quantity: pieces(4), Price: 120000, Amount: 480000})
+	require.NoError(t, f.post(sale))
+	require.Equal(t, pieces(6), f.stock(t, f.oil))
+
+	tooMuch := f.issue(
+		goods_issue.GoodsLine{ItemID: f.oil, Quantity: pieces(7), Price: 120000, Amount: 840000},
+		goods_issue.GoodsLine{ItemID: f.pads, Quantity: pieces(1), Price: 450000, Amount: 450000},
+	)
+	err := f.post(tooMuch)
+	require.Error(t, err)
+	require.False(t, tooMuch.IsPosted())
+	appErr, ok := apperror.AsAppError(err)
+	require.True(t, ok)
+	require.Equal(t, accumulation.CodeInsufficientBalance, appErr.Code)
+	shortages := appErr.Details["shortages"].([]accumulation.Shortage)
+	require.Len(t, shortages, 2, "both lines are short: the oil by one, the pads entirely")
+	require.Contains(t, appErr.Message, "в наличии 6.0000, требуется 7.0000, не хватает 1.0000")
+	require.Equal(t, pieces(6), f.stock(t, f.oil), "the refused issue moved nothing")
+
+	// The supplier's receipt cannot shrink below what was sold from it.
+	receipt.Goods[0].Quantity = pieces(3)
+	require.Error(t, f.post(receipt))
+	require.Error(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Unpost(ctx, receipt, noUpdate) }))
+	require.Equal(t, pieces(6), f.stock(t, f.oil))
+
+	// Once the sale is unposted the receipt may go.
+	require.NoError(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Unpost(ctx, sale, noUpdate) }))
+	require.NoError(t, f.db.RunInTransaction(f.ctx, func(ctx context.Context) error { return f.engine.Unpost(ctx, receipt, noUpdate) }))
+	require.Zero(t, f.stock(t, f.oil))
 }

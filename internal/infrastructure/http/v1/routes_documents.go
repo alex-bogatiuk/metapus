@@ -43,6 +43,10 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		movementProviders = append(movementProviders, module.InstallPosting(postingEngine)...)
 	}
 	movementProviders = append(movementProviders, accumulation.Install(postingEngine, factoryReg.AccumulationRegisters()...)...)
+	// Shortage messages name warehouses and items as the user may read them.
+	for _, register := range factoryReg.AccumulationRegisters() {
+		register.BindNames(postgres.NewRefResolverRepo(reg))
+	}
 
 	// CurrencyResolver is guaranteed non-nil here — created in NewRouter before catalog/document registration.
 	currencyResolver := cfg.CurrencyResolver
