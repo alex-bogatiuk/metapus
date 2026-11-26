@@ -1812,6 +1812,14 @@ export type SettingsPerformanceSettingsInput = {
   "batchConcurrency"?: number
 }
 
+export type SettingsPeriodLockSettings = {
+  "date": string
+}
+
+export type SettingsPeriodLockSettingsInput = {
+  "date"?: string
+}
+
 export type StatusResponse = {
   "status": string
 }
@@ -1834,6 +1842,7 @@ export type SuccessResponse = {
 export type SystemSettingsResponse = {
   "general": SettingsGeneralSettings
   "performance": SettingsPerformanceSettings
+  "periodLock": SettingsPeriodLockSettings
   "exchangeRates": SettingsExchangeRatesSettings
   "version": number
   "updatedAt": string
@@ -2089,6 +2098,11 @@ export type UpdateOrganizationRequest = {
 
 export type UpdatePerformanceSettingsRequest = {
   "data": SettingsPerformanceSettingsInput
+  "version": number
+}
+
+export type UpdatePeriodLockSettingsRequest = {
+  "data": SettingsPeriodLockSettingsInput
   "version": number
 }
 

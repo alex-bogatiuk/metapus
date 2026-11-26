@@ -38,6 +38,7 @@ Tenant-база получает миграции из трёх источник
 | `00004_settlement.sql` | Регистр взаиморасчётов |
 | `00005_platform.sql` | Настройки, сервисные и интеграционные аккаунты (провайдер — идентификатор каталога, список задаёт конфигурация), курсы валют (источники, соответствия, котировки, состояние загрузки), автоматизация, уведомления, варианты отчётов, list views, worker jobs |
 | `00006_accumulation_registers.sql` | Общие функции триггеров декларативных регистров накопления: `sys_accumulation_balances` ведёт остатки, `sys_accumulation_movements_immutable` запрещает UPDATE движений |
+| `00007_period_lock.sql` | `sys_period_locks`: даты запрета изменения документов (общая и по организациям) |
 | `configuration/crypto/00006_crypto_core.sql` | Сети, токены, кошельки, инвойсы, платежи, payment links, watcher, наблюдения, funding, wallet pool, вебхуки мерчантов, финансовые регистры; права и FLS криптосущностей; провайдеры интеграций конфигурации |
 | `configuration/crypto/00007_crypto_outbound.sql` | Выводы, sweep, treasury, signing, approvals и signing jobs, native funding, аренда ресурсов, сверка и инциденты |
 | `configuration/crypto/00008_crypto_aml.sql` | AML |

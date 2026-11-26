@@ -8,7 +8,7 @@ package version
 // migration (db/migrations). A configuration's migrations (db/configuration/
 // <name>) and the extension modules' have version histories of their own and
 // do not move it; version_test.go guards drift.
-const ExpectedSchemaVersion = 6
+const ExpectedSchemaVersion = 7
 
 // CompatibleSchema returns true when the tenant's platform schema is at the
 // expected version. Compatibility requires an exact match.

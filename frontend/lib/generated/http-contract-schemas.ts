@@ -1816,6 +1816,14 @@ export const SettingsPerformanceSettingsInputSchema: z.ZodType<Wire.SettingsPerf
   "batchConcurrency": z.number().int().optional(),
 }))
 
+export const SettingsPeriodLockSettingsSchema: z.ZodType<Wire.SettingsPeriodLockSettings> = z.lazy(() => z.object({
+  "date": z.string(),
+}))
+
+export const SettingsPeriodLockSettingsInputSchema: z.ZodType<Wire.SettingsPeriodLockSettingsInput> = z.lazy(() => z.strictObject({
+  "date": z.string().optional(),
+}))
+
 export const StatusResponseSchema: z.ZodType<Wire.StatusResponse> = z.lazy(() => z.object({
   "status": z.string(),
 }))
@@ -1838,6 +1846,7 @@ export const SuccessResponseSchema: z.ZodType<Wire.SuccessResponse> = z.lazy(() 
 export const SystemSettingsResponseSchema: z.ZodType<Wire.SystemSettingsResponse> = z.lazy(() => z.object({
   "general": SettingsGeneralSettingsSchema,
   "performance": SettingsPerformanceSettingsSchema,
+  "periodLock": SettingsPeriodLockSettingsSchema,
   "exchangeRates": SettingsExchangeRatesSettingsSchema,
   "version": z.number().int(),
   "updatedAt": z.string(),
@@ -2093,6 +2102,11 @@ export const UpdateOrganizationRequestSchema: z.ZodType<Wire.UpdateOrganizationR
 
 export const UpdatePerformanceSettingsRequestSchema: z.ZodType<Wire.UpdatePerformanceSettingsRequest> = z.lazy(() => z.strictObject({
   "data": SettingsPerformanceSettingsInputSchema,
+  "version": z.number().int(),
+}))
+
+export const UpdatePeriodLockSettingsRequestSchema: z.ZodType<Wire.UpdatePeriodLockSettingsRequest> = z.lazy(() => z.strictObject({
+  "data": SettingsPeriodLockSettingsInputSchema,
   "version": z.number().int(),
 }))
 

@@ -38,6 +38,7 @@ export const httpRoutes = [
   { scope: "api", method: "PATCH", path: "/settings/general", request: Wire.UpdateGeneralSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
   { scope: "api", method: "PATCH", path: "/settings/performance", request: Wire.UpdatePerformanceSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
   { scope: "api", method: "PATCH", path: "/settings/exchangeRates", request: Wire.UpdateExchangeRatesSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
+  { scope: "api", method: "PATCH", path: "/settings/periodLock", request: Wire.UpdatePeriodLockSettingsRequestSchema, requestFields: ["data", "version"], response: Wire.SystemSettingsResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/system/version", request: null, requestFields: null, response: Wire.SystemVersionResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/system/event-log", request: null, requestFields: null, response: Wire.EventLogCursorResponseSchema, optionalRequest: false },
   { scope: "api", method: "GET", path: "/system/event-log/stats", request: null, requestFields: null, response: Wire.EventLogStatsResponseSchema, optionalRequest: false },

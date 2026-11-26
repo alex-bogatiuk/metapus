@@ -18,6 +18,9 @@ const (
 	PermissionEventLogRead = "event_log:read"
 	// PermissionWorkerJobRead opens the worker job monitor.
 	PermissionWorkerJobRead = "worker_job:read"
+	// PermissionClosedPeriodEdit changes documents dated on or before the
+	// period lock date (исключение из даты запрета, settings.PeriodLockSettings).
+	PermissionClosedPeriodEdit = "closed_period:edit"
 )
 
 // SystemPermissions lists the system administration permissions.
@@ -26,6 +29,7 @@ func SystemPermissions() []Permission {
 		{Code: PermissionSystemAdmin, Name: "Администрирование системы", Resource: "system", Action: "admin"},
 		{Code: PermissionEventLogRead, Name: "Журнал событий: чтение", Resource: "event_log", Action: "read"},
 		{Code: PermissionWorkerJobRead, Name: "Задачи воркера: чтение", Resource: "worker_job", Action: "read"},
+		{Code: PermissionClosedPeriodEdit, Name: "Изменение документов в закрытом периоде", Resource: "closed_period", Action: "edit"},
 	}
 }
 

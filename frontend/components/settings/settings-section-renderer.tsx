@@ -16,6 +16,7 @@ import type { SettingValue } from "@/lib/schemas/settings"
 import { useCallback } from "react"
 import { ReferenceField } from "@/components/shared/reference-field"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import {
@@ -165,6 +166,26 @@ function FieldRow({ field, value, onChange }: FieldRowProps) {
         </div>
       )
 
+    case "date":
+      return (
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_280px] sm:gap-4">
+          <FieldLabel field={field} />
+          <div className="flex items-center gap-2">
+            <DatePicker
+              value={typeof value === "string" && value ? parseCalendarDay(value) : null}
+              onChange={(date) => onChange(field.key, date ? formatCalendarDay(date) : "")}
+              placeholder="Не задана"
+              className="flex-1"
+            />
+            {typeof value === "string" && value && (
+              <Button variant="ghost" size="sm" onClick={() => onChange(field.key, "")}>
+                Снять
+              </Button>
+            )}
+          </div>
+        </div>
+      )
+
     case "text":
       return (
         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_280px] sm:gap-4">
@@ -186,4 +207,16 @@ function FieldLabel({ field }: { field: SettingFieldDef }) {
       <p className="text-xs text-muted-foreground">{field.description}</p>
     </div>
   )
+}
+
+/** A YYYY-MM-DD day as a local date, so the picker shows that day. */
+function parseCalendarDay(day: string): Date {
+  const [year, month, date] = day.split("-").map(Number)
+  return new Date(year, month - 1, date)
+}
+
+/** The picked local day as YYYY-MM-DD. */
+function formatCalendarDay(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }

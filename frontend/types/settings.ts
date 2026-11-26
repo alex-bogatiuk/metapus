@@ -45,6 +45,8 @@ export interface RoleRecord {
 export interface SystemSettings {
   exchangeRates: { sourceId: string | null }
   performance: PerformanceSettings
+  /** The last closed day (YYYY-MM-DD in the tenant timezone), "" when none. */
+  periodLock: { date: string }
   version: number
   updatedAt: string
 }
@@ -53,6 +55,7 @@ export function defaultSystemSettings(): SystemSettings {
   return {
     exchangeRates: { sourceId: null },
     performance: defaultPerformanceSettings(),
+    periodLock: { date: "" },
     version: 1,
     updatedAt: new Date().toISOString(),
   }

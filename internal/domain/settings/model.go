@@ -15,6 +15,9 @@ type Settings struct {
 	General     GeneralSettings     `json:"general"`
 	Performance PerformanceSettings `json:"performance"`
 
+	// PeriodLock is the date up to which documents may not change.
+	PeriodLock PeriodLockSettings `json:"periodLock"`
+
 	// Module-scoped
 	ExchangeRates ExchangeRatesSettings `json:"exchangeRates"`
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"net/http/httptest"
 	"net/url"
@@ -26,6 +27,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/core/security"
 	"github.com/alex-bogatiuk/metapus/internal/core/types"
 	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 	_ "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/jsoncodec"
 	v1 "github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1"
@@ -629,4 +631,92 @@ func TestDeclaredBasisFillsADraftFromAnotherDocument(t *testing.T) {
 	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT basis_type, basis_id::text FROM doc_goods_returns WHERE id=$1", saved["id"]).Scan(&basisType, &basisID))
 	require.Equal(t, "GoodsReceipt", basisType)
 	require.Equal(t, receiptID, basisID)
+}
+
+// The period lock refuses every change of a document dated in the closed
+// period, through the one repository every document write takes: creating
+// it, changing it, moving it into the period, posting, unposting and
+// marking it. Holders of the exception and administrators work there.
+func TestPeriodLockRefusesChangesInTheClosedPeriod(t *testing.T) {
+	tenant := testsupport.NewSecurityTenants(t)[0]
+	ctx := context.Background()
+	db, err := sql.Open("pgx", tenant.Pool.Config().ConnConfig.ConnString())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	root := t.TempDir()
+	require.NoError(t, run([]string{"--name", "probe_document", "--type", "document"}, root, io.Discard))
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", "probe_document")), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
+	require.NoError(t, err)
+	_, err = provider.Up(ctx)
+	require.NoError(t, err)
+	_, err = tenant.Pool.Exec(ctx, `UPDATE sys_settings SET general = '{"timezone": "Europe/Moscow"}';
+		INSERT INTO sys_period_locks (locked_until) VALUES ('2026-10-31')`)
+	require.NoError(t, err)
+
+	repo := document_repo.NewBaseDocumentRepo("doc_probe_documents", postgres.ExtractDBColumns[migrationDocument](), func() *migrationDocument { return &migrationDocument{} })
+	svc := domain.NewBaseHeaderDocumentService(domain.BaseHeaderDocumentServiceConfig[*migrationDocument]{
+		Repo: repo, TxManager: tenant.Tx, Numerator: numerator.Noop(), EntityName: "probe_document", PostingEngine: posting.NewEngine(nil),
+	})
+	clerk := tenant.Context(appctx.UserContext{UserID: id.New().String()})
+	accountant := tenant.Context(appctx.UserContext{UserID: id.New().String(), Permissions: []string{auth.PermissionClosedPeriodEdit}})
+	document := func(date time.Time) *migrationDocument {
+		doc := &migrationDocument{Document: entity.NewDocument()}
+		doc.Number, doc.Date = "LOCK-"+doc.ID.String()[24:], date
+		return doc
+	}
+	closed := func(err error) {
+		t.Helper()
+		appErr, ok := apperror.AsAppError(err)
+		require.True(t, ok, "%v", err)
+		require.Equal(t, apperror.CodePeriodClosed, appErr.Code, appErr.Message)
+	}
+	october := time.Date(2026, 10, 15, 10, 0, 0, 0, time.UTC)
+
+	closed(svc.Create(clerk, document(october)))
+	// 21:30 UTC on 31 October is 1 November in Moscow: open.
+	require.NoError(t, svc.Create(clerk, document(time.Date(2026, 10, 31, 21, 30, 0, 0, time.UTC))))
+
+	// The accountant enters an October document; the clerk can do nothing
+	// with it.
+	old := document(october)
+	require.NoError(t, svc.Create(accountant, old))
+	stored, err := svc.GetByID(clerk, old.ID)
+	require.NoError(t, err)
+	stored.Description = "исправление"
+	closed(svc.Update(clerk, stored))
+	closed(svc.Post(clerk, old.ID))
+	closed(svc.SetDeletionMark(clerk, old.ID, true))
+	require.NoError(t, svc.Post(accountant, old.ID))
+	closed(svc.Unpost(clerk, old.ID))
+	require.NoError(t, svc.Unpost(accountant, old.ID))
+
+	// A November document cannot be moved into October.
+	november := document(time.Date(2026, 11, 10, 10, 0, 0, 0, time.UTC))
+	require.NoError(t, svc.Create(clerk, november))
+	moved, err := svc.GetByID(clerk, november.ID)
+	require.NoError(t, err)
+	moved.Date = october
+	closed(svc.Update(clerk, moved))
+
+	admin := tenant.Context(appctx.UserContext{UserID: id.New().String(), IsAdmin: true})
+	require.NoError(t, svc.SetDeletionMark(admin, old.ID, true))
+
+	// The settings section moves and clears the date.
+	settingsRepo := postgres.NewSettingsRepo()
+	current, err := settingsRepo.Get(admin)
+	require.NoError(t, err)
+	require.Equal(t, "2026-10-31", current.PeriodLock.Date)
+	updated, err := settingsRepo.UpdateSection(admin, "periodLock", json.RawMessage(`{"date":"2026-09-30"}`), current.Version)
+	require.NoError(t, err)
+	require.Equal(t, "2026-09-30", updated.PeriodLock.Date)
+	require.Equal(t, current.Version+1, updated.Version)
+	require.NoError(t, svc.Create(clerk, document(october)), "October is open once the date moves back")
+	_, err = settingsRepo.UpdateSection(admin, "periodLock", json.RawMessage(`{"date":"30.09.2026"}`), updated.Version)
+	require.Error(t, err)
+	_, err = settingsRepo.UpdateSection(admin, "periodLock", json.RawMessage(`{"date":""}`), current.Version)
+	require.Error(t, err, "a stale version conflicts")
+	cleared, err := settingsRepo.UpdateSection(admin, "periodLock", json.RawMessage(`{"date":""}`), updated.Version)
+	require.NoError(t, err)
+	require.Empty(t, cleared.PeriodLock.Date)
+	require.NoError(t, svc.Create(clerk, document(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))))
 }

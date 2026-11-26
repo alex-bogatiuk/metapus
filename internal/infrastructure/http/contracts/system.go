@@ -17,6 +17,7 @@ func systemContracts() []Contract {
 		Request[dto.SettingsSectionRequest[settings.GeneralSettings]]("UpdateGeneralSettingsRequest"),
 		Request[dto.SettingsSectionRequest[settings.PerformanceSettings]]("UpdatePerformanceSettingsRequest"),
 		Request[dto.SettingsSectionRequest[settings.ExchangeRatesSettings]]("UpdateExchangeRatesSettingsRequest"),
+		Request[dto.SettingsSectionRequest[settings.PeriodLockSettings]]("UpdatePeriodLockSettingsRequest"),
 		Response[userpref.UserPreferences]("UserPreferencesResponse"),
 		Request[userpref.InterfacePrefs]("UpdateInterfacePreferencesRequest"),
 		Response[dto.SystemVersionResponse]("SystemVersionResponse"),
@@ -38,7 +39,7 @@ func systemRoutes() []RouteContract {
 	}
 	add("GET", "/settings", "", "SystemSettingsResponse")
 	for _, section := range []struct{ path, name string }{
-		{"general", "General"}, {"performance", "Performance"}, {"exchangeRates", "ExchangeRates"},
+		{"general", "General"}, {"performance", "Performance"}, {"exchangeRates", "ExchangeRates"}, {"periodLock", "PeriodLock"},
 	} {
 		add("PATCH", "/settings/"+section.path, "Update"+section.name+"SettingsRequest", "SystemSettingsResponse")
 	}

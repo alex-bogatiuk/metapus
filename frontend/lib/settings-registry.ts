@@ -15,11 +15,12 @@ import type { SettingsSection } from "@/stores/useSettingsStore"
 import {
   Gauge,
   Coins,
+  LockKeyhole,
 } from "lucide-react"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-export type FieldType = "switch" | "select" | "number" | "text" | "reference"
+export type FieldType = "switch" | "select" | "number" | "text" | "reference" | "date"
 
 export interface SelectOption {
   value: string
@@ -100,6 +101,27 @@ export const settingsSections: SettingSectionDef[] = [
       },
     ],
     saveHint: "Изменения применятся к следующим пакетным операциям",
+  },
+  {
+    id: "periodLock",
+    title: "Дата запрета изменения",
+    description: "Закрытый период документов",
+    icon: LockKeyhole,
+    category: "general",
+    groups: [
+      {
+        label: "Закрытый период",
+        fields: [
+          {
+            key: "date",
+            label: "Дата запрета",
+            description: "Документы с этой датой и раньше нельзя создавать, изменять, проводить, отменять и помечать на удаление. Исключение — право «Изменение документов в закрытом периоде» и администраторы.",
+            type: "date",
+          },
+        ],
+      },
+    ],
+    saveHint: "Запрет действует для всех документов сразу после сохранения",
   },
 
   // ── Module-scoped ──

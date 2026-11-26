@@ -22,7 +22,7 @@ func TestEffectivePermissionsAddSystemCodesForSystemAdmins(t *testing.T) {
 		{
 			name: "admin role",
 			user: appctx.UserContext{Roles: []string{"admin"}, Permissions: granted},
-			want: []string{"catalog:currency:read", auth.PermissionEventLogRead, auth.PermissionSystemAdmin, auth.PermissionWorkerJobRead},
+			want: []string{"catalog:currency:read", auth.PermissionEventLogRead, auth.PermissionSystemAdmin, auth.PermissionWorkerJobRead, auth.PermissionClosedPeriodEdit},
 		},
 		{
 			name: "admin flag",

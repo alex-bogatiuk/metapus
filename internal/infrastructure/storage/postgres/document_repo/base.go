@@ -160,11 +160,40 @@ func (r *BaseDocumentRepo[T]) Builder() squirrel.StatementBuilderType {
 	return squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 }
 
+// checkPeriodLock refuses a write of a document whose new date, or stored
+// date (for a stored document), is in the closed period (settings
+// PeriodLockSettings). Every document write goes through the repository,
+// the posting engine's included, so one check covers creating, changing,
+// posting, unposting and marking a document.
+func (r *BaseDocumentRepo[T]) checkPeriodLock(ctx context.Context, entityID any, newDate any) error {
+	lock, timezone, err := postgres.PeriodLock(ctx)
+	if err != nil || lock.Date == "" {
+		return err
+	}
+	var dates []time.Time
+	if d, ok := newDate.(time.Time); ok {
+		dates = append(dates, d)
+	}
+	if entityID != nil {
+		var stored time.Time
+		err := r.GetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
+			fmt.Sprintf("SELECT date FROM %s WHERE id = $1", r.tableName), entityID).Scan(&stored)
+		if err != nil && err != pgx.ErrNoRows {
+			return fmt.Errorf("read stored date: %w", err)
+		}
+		dates = append(dates, stored)
+	}
+	return lock.CheckDocumentDates(ctx, timezone, dates...)
+}
+
 // Create inserts a new document.
 func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
 	data := postgres.StructToMap(entity)
 	if len(data) == 0 {
 		return fmt.Errorf("no db tags found in entity")
+	}
+	if err := r.checkPeriodLock(ctx, nil, data["date"]); err != nil {
+		return err
 	}
 
 	filteredData := make(map[string]any, len(r.selectCols))
@@ -220,6 +249,9 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 	version, ok := data["version"].(int)
 	if !ok {
 		return fmt.Errorf("entity has no 'version' field or it is not an int")
+	}
+	if err := r.checkPeriodLock(ctx, entityID, data["date"]); err != nil {
+		return err
 	}
 
 	// Exclude immutable fields
@@ -284,6 +316,9 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 
 // Delete soft-deletes a document.
 func (r *BaseDocumentRepo[T]) Delete(ctx context.Context, entityID id.ID) error {
+	if err := r.checkPeriodLock(ctx, entityID, nil); err != nil {
+		return err
+	}
 	q := r.Builder().
 		Update(r.tableName).
 		Set("deletion_mark", true).
