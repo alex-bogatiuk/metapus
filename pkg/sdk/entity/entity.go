@@ -14,6 +14,9 @@ type (
 	Part               = core.Part
 	CodeRule           = core.CodeRule
 	NumberRule         = core.NumberRule
+	StatusModel        = core.StatusModel
+	StatusValue        = core.StatusValue
+	StatusTransition   = core.StatusTransition
 	CatalogMeta        = core.CatalogMeta
 	HierarchyType      = core.HierarchyType
 )

@@ -51,7 +51,7 @@ import { UserPicker } from "@/components/shared/user-picker"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { codePlaceholder } from "@/lib/catalog-code"
-import { Save, ArrowLeft, ArrowRightLeft, ChevronRight, Network } from "lucide-react"
+import { Save, ArrowLeft, ArrowRightLeft, ChevronRight, History, Network } from "lucide-react"
 import { FormSkeleton } from "@/components/shared/form-skeleton"
 import { toast } from "sonner"
 import { useTabTitle } from "@/hooks/useTabTitle"
@@ -69,6 +69,8 @@ import { isSystemAdmin, useAuthStore } from "@/stores/useAuthStore"
 import { createTabStateKey } from "@/stores/useTabStateStore"
 import { majorToMinor, minorUnitsSchema } from "@/lib/money"
 import type { EntityMetadata, MetadataField } from "@/lib/schemas/metadata"
+import { withReachableStatuses } from "@/lib/document-status"
+import { DocumentStatusHistoryDialog } from "@/components/shared/document-status-history-dialog"
 import { parseEntityValues } from "@/lib/schemas/entity-values"
 import { formRequestFieldNames, formRequestParts, projectFormRequest } from "@/lib/http-contracts"
 import { displayValue, isWideField, isWritableField, planFormLayout } from "@/lib/form-layout"
@@ -396,6 +398,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
     const [refreshing, setRefreshing] = useState(false)
     const [saving, setSaving] = useState(false)
     const [pendingAction, setPendingAction] = useState<EntityActionDef | null>(null)
+    const [statusHistoryOpen, setStatusHistoryOpen] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const getLabel = useMetadataStore((s) => s.getLabel)
     const user = useAuthStore((s) => s.user)
@@ -798,7 +801,11 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
         )
     }
 
-    const editableFields = meta.fields.filter((f) => !HIDDEN_FIELDS.has(f.name) && !hiddenFields.includes(f.name))
+    // The status field offers the statuses a transition from the stored one reaches.
+    const storedStatus = !isNew && meta.statuses ? formState.serverSnapshot?.[meta.statuses.field] : undefined
+    const editableFields = meta.fields
+        .filter((f) => !HIDDEN_FIELDS.has(f.name) && !hiddenFields.includes(f.name))
+        .map((f) => withReachableStatuses(f, meta.statuses, typeof storedStatus === "string" ? storedStatus : undefined))
     const tableParts = meta.tableParts ?? []
     const layout = planFormLayout({ kind: entityType, fields: editableFields, partCount: tableParts.length, accepted: formRequestFields })
     const activeTab = activePart ?? tableParts[0]?.name ?? EXTRA_TAB
@@ -1037,6 +1044,11 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                         title: "Связанные документы",
                         onClick: () => router.push(`${buildEntityUrlByRoute(routePrefix, "document", id)}/related`),
                     }] : []),
+                    ...(meta.statuses ? [{
+                        icon: <History className="h-3.5 w-3.5" />,
+                        title: "История статусов",
+                        onClick: () => setStatusHistoryOpen(true),
+                    }] : []),
                 ] : undefined}
                 backHref={listPath}
                 backTargetId={id === "new" ? undefined : id}
@@ -1047,6 +1059,9 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                     url: buildEntityUrlByRoute(routePrefix, entityType, id),
                 } : undefined}
             />
+            {meta.statuses && !isNew && id && (
+                <DocumentStatusHistoryDialog open={statusHistoryOpen} onOpenChange={setStatusHistoryOpen} documentPath={`${basePath}/${id}`} />
+            )}
 
             {/* The form's content keeps the panel's width (Radix lays the viewport's
                 content out as a table that grows to its widest child), so a wide

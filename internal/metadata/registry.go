@@ -159,6 +159,9 @@ type EntityDef struct {
 	// CreateBasedOn lists the documents a document of this type fills
 	// (ввод на основании); the form offers them.
 	CreateBasedOn []CreateBasedOnDef `json:"createBasedOn,omitempty"`
+	// Statuses is a document's status model (entity.StatusModel); nil when
+	// it declares none.
+	Statuses *StatusModelDef `json:"statuses,omitempty"`
 
 	// Code is how the server fills a catalog's code (see BindCode); nil for
 	// documents.

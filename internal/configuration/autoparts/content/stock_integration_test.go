@@ -21,9 +21,12 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/order_state_repo"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/appctx"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/id"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/sdk/postgres/document_repo"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/posting"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/registers/accumulation"
@@ -502,4 +505,54 @@ func TestOrderStateHistory(t *testing.T) {
 	then, err := order_state_history.Register.SliceLast(f.ctx, at.Add(15*time.Minute), information.Filter{"customer_order_id": order.ID})
 	require.NoError(t, err)
 	require.Equal(t, order_state.Working, then[0].StateID, "the state at a moment is the last one set before it")
+}
+
+// The order's status model holds when the order is written: closing an
+// order is open to everyone who may change it, reopening a closed one only
+// to holders of document:customer_order:reopen, and each change of status
+// is in the order's status history.
+func TestCustomerOrderStatusFollowsItsModel(t *testing.T) {
+	f := newStockFixture(t)
+	repo := document_repo.NewDocumentRepoForDefinition(customer_order.Definition, postgres.ExtractDBColumns[customer_order.CustomerOrder](),
+		func() *customer_order.CustomerOrder { return new(customer_order.CustomerOrder) })
+	clerk := f.db.Context(appctx.UserContext{UserID: id.New().String()})
+	manager := f.db.Context(appctx.UserContext{UserID: id.New().String(), Permissions: []string{"document:customer_order:reopen"}})
+	order := f.order(customer_order.GoodsLine{ItemID: f.oil, Quantity: pieces(2)})
+	order.Number = "ЗП-" + order.ID.String()[24:]
+	stored := false
+	write := func(ctx context.Context, state id.ID) error {
+		order.StateID = &state
+		return f.db.RunInTransaction(ctx, func(ctx context.Context) error {
+			if err := customer_order.ApplyState(ctx, order_state_repo.New(), order); err != nil {
+				return err
+			}
+			if !stored {
+				stored = true
+				return repo.Create(ctx, order)
+			}
+			return repo.Update(ctx, order)
+		})
+	}
+	require.NoError(t, write(clerk, order_state.Working))
+
+	require.NoError(t, write(clerk, order_state.Done))
+	require.Equal(t, order_state.Completed, order.Status)
+	err := write(clerk, order_state.ReadyForPickup)
+	appErr, ok := apperror.AsAppError(err)
+	require.True(t, ok, "%v", err)
+	require.Equal(t, apperror.CodeForbidden, appErr.Code, "reopening a closed order needs its permission")
+	require.NoError(t, write(manager, order_state.ReadyForPickup))
+	require.Equal(t, order_state.InProgress, order.Status)
+	require.NoError(t, write(clerk, order_state.AwaitingPayment), "an order in work goes back to open")
+
+	var trail []string
+	rows, err := f.db.Pool.Query(f.ctx, `SELECT status FROM sys_document_status_history WHERE document_type = 'customer_order' AND document_id = $1 ORDER BY changed_at, id`, order.ID)
+	require.NoError(t, err)
+	for rows.Next() {
+		var status string
+		require.NoError(t, rows.Scan(&status))
+		trail = append(trail, status)
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, []string{"in_progress", "completed", "in_progress", "open"}, trail)
 }

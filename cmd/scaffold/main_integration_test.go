@@ -212,6 +212,13 @@ type declaredModel struct {
 // router that reads as an administrator of tenant, and returns a JSON caller.
 func serveDeclared(t *testing.T, tenant *testsupport.SecurityTenant, reg *v1.FactoryRegistry, models []declaredModel) func(method, path, body string) (int, map[string]any) {
 	t.Helper()
+	return serveDeclaredAs(t, tenant, reg, models, appctx.UserContext{UserID: id.New().String(), IsAdmin: true, Roles: []string{"admin"}})
+}
+
+// serveDeclaredAs is serveDeclared for the user principal, who holds the
+// permissions of principal.Permissions.
+func serveDeclaredAs(t *testing.T, tenant *testsupport.SecurityTenant, reg *v1.FactoryRegistry, models []declaredModel, principal appctx.UserContext) func(method, path, body string) (int, map[string]any) {
+	t.Helper()
 	ctx := context.Background()
 	metaReg := metadata.NewRegistry()
 	for _, entry := range models {
@@ -227,12 +234,16 @@ func serveDeclared(t *testing.T, tenant *testsupport.SecurityTenant, reg *v1.Fac
 	require.NoError(t, err)
 	t.Cleanup(engine.Stop)
 	reads := postgres.NewAuthorizedReadService(metaReg, engine)
-	principal := appctx.UserContext{UserID: id.New().String(), IsAdmin: true, Roles: []string{"admin"}}
 	_, err = tenant.Pool.Exec(ctx, `INSERT INTO auth_users(id,email,password_hash) VALUES($1,$2,'fixture')`, principal.UserID, principal.UserID+"@declared.test")
 	require.NoError(t, err)
 	router := gin.New()
+	granted := map[string]struct{}{}
+	for _, permission := range principal.Permissions {
+		granted[permission] = struct{}{}
+	}
 	router.Use(func(c *gin.Context) {
 		c.Request = c.Request.WithContext(readaccess.WithService(tenant.Context(principal), reads))
+		c.Set("permissions_set", granted)
 		c.Next()
 	})
 	router.Use(middleware.ErrorHandler())
@@ -632,6 +643,117 @@ func TestDeclaredBasisFillsADraftFromAnotherDocument(t *testing.T) {
 	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT basis_type, basis_id::text FROM doc_goods_returns WHERE id=$1", saved["id"]).Scan(&basisType, &basisID))
 	require.Equal(t, "GoodsReceipt", basisType)
 	require.Equal(t, receiptID, basisID)
+}
+
+// A service ticket with a status model: new, in work, closed. Reopening a
+// closed ticket takes its own permission.
+type ticketStatus string
+
+var ticketDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "service_ticket", Name: "ServiceTicket", Route: "service-ticket", Table: "doc_service_tickets",
+	Statuses: entity.StatusModel{
+		Column: "status", Initial: "new",
+		Values: []entity.StatusValue{{Value: "new", Label: "Новая"}, {Value: "work", Label: "В работе"}, {Value: "closed", Label: "Закрыта"}},
+		Transitions: []entity.StatusTransition{
+			{From: []string{"new"}, To: "work"},
+			{From: []string{"new", "work"}, To: "closed"},
+			{From: []string{"closed"}, To: "work", Permission: "reopen", Label: "Возобновление заявки"},
+		},
+	}}
+
+type serviceTicket struct {
+	entity.Document
+	Status ticketStatus `db:"status" json:"status" meta:"label:Статус"`
+}
+
+func (serviceTicket) EntityDefinition() entity.Definition { return ticketDefinition }
+func (*serviceTicket) GetDocumentType() string            { return ticketDefinition.Name }
+
+// The status model of a declared document holds on every write: a new
+// document starts in the initial status, a change no transition allows is
+// refused, a transition with a permission is closed to users without it,
+// and each change is in the document's status history.
+func TestDeclaredDocumentFollowsItsStatusModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tenant := testsupport.NewSecurityTenants(t)[0]
+	ctx := context.Background()
+	db, err := sql.Open("pgx", tenant.Pool.Config().ConnConfig.ConnString())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	root := t.TempDir()
+	require.NoError(t, run([]string{"--name", "service_ticket", "--type", "document"}, root, io.Discard))
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", "service_ticket")), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
+	require.NoError(t, err)
+	_, err = provider.Up(ctx)
+	require.NoError(t, err)
+	_, err = tenant.Pool.Exec(ctx, `ALTER TABLE doc_service_tickets ADD COLUMN status TEXT NOT NULL`)
+	require.NoError(t, err)
+
+	reg := v1.NewFactoryRegistry()
+	reg.RegisterDocument(v1.Document[serviceTicket](metadata.Presentation{Singular: "Заявка", Plural: "Заявки"}))
+	models := []declaredModel{{serviceTicket{}, ticketDefinition}}
+	admin := serveDeclared(t, tenant, reg, models)
+	clerk := serveDeclaredAs(t, tenant, reg, models, appctx.UserContext{UserID: id.New().String(),
+		Permissions: []string{"document:service_ticket:read", "document:service_ticket:create", "document:service_ticket:update"}})
+
+	permissions := map[string]string{}
+	for _, p := range reg.Permissions() {
+		permissions[p.Code] = p.Name
+	}
+	require.Equal(t, "Заявки: возобновление заявки", permissions["document:service_ticket:reopen"])
+
+	number := func() string { return "T-" + id.New().String()[24:] }
+	status, ticket := clerk("POST", "/document/service-ticket", `{"number":"`+number()+`","date":"2026-11-20T09:00:00Z"}`)
+	require.Equal(t, 201, status, ticket)
+	require.Equal(t, "new", ticket["status"], "a document written without a status starts in the initial one")
+	ticketID := ticket["id"].(string)
+	change := func(call func(string, string, string) (int, map[string]any), to string, version float64) (int, map[string]any) {
+		return call("PUT", "/document/service-ticket/"+ticketID, fmt.Sprintf(`{"number":%q,"date":"2026-11-20T09:00:00Z","status":%q,"version":%v}`, ticket["number"], to, version))
+	}
+	refused := func(code int, body map[string]any, want string) {
+		t.Helper()
+		require.Equal(t, want, body["code"], body)
+		require.NotEqual(t, 200, code)
+	}
+
+	status, body := change(clerk, "work", 1)
+	require.Equal(t, 200, status, body)
+	code, body := change(clerk, "new", 2)
+	refused(code, body, domain.CodeStatusTransitionNotAllowed)
+	require.Contains(t, body["message"], "из статуса «В работе» в статус «Новая»")
+	code, body = change(clerk, "lost", 2)
+	refused(code, body, domain.CodeStatusUnknown)
+	status, body = change(clerk, "closed", 2)
+	require.Equal(t, 200, status, body)
+	code, body = change(clerk, "work", 3)
+	require.Equal(t, 403, code, body)
+	require.Contains(t, body["message"], "«В работе»")
+	status, body = change(admin, "work", 3)
+	require.Equal(t, 200, status, "an administrator reopens the ticket: %v", body)
+
+	var stored string
+	require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT status FROM doc_service_tickets WHERE id=$1", ticketID).Scan(&stored))
+	require.Equal(t, "work", stored)
+
+	status, history := clerk("GET", "/document/service-ticket/"+ticketID+"/status-history", "")
+	require.Equal(t, 200, status, history)
+	items := history["items"].([]any)
+	require.Len(t, items, 4, "refused changes leave no rows")
+	var trail []string
+	for _, item := range items {
+		row := item.(map[string]any)
+		trail = append(trail, fmt.Sprintf("%v→%v", row["previousStatusLabel"], row["statusLabel"]))
+		require.NotEmpty(t, row["changedByName"], row)
+	}
+	require.Equal(t, []string{"<nil>→Новая", "Новая→В работе", "В работе→Закрыта", "Закрыта→В работе"}, trail)
+
+	status, direct := clerk("POST", "/document/service-ticket", `{"number":"`+number()+`","date":"2026-11-20T09:00:00Z","status":"closed"}`)
+	require.Equal(t, 201, status, "a new document may start where a transition from the initial status leads: %v", direct)
+	status, history = clerk("GET", "/document/service-ticket/"+direct["id"].(string)+"/status-history", "")
+	require.Equal(t, 200, status, history)
+	require.Len(t, history["items"], 1)
+
+	status, _ = clerk("GET", "/document/service-ticket/"+id.New().String()+"/status-history", "")
+	require.Equal(t, 404, status, "the history of a missing document is not found")
 }
 
 // The period lock refuses every change of a document dated in the closed

@@ -696,6 +696,20 @@ export const DocumentResponseSchema: z.ZodType<Wire.DocumentResponse> = z.lazy((
   "description": z.string().optional(),
 }))
 
+export const DocumentStatusChangeSchema: z.ZodType<Wire.DocumentStatusChange> = z.lazy(() => z.object({
+  "status": z.string(),
+  "statusLabel": z.string(),
+  "previousStatus": z.string().optional(),
+  "previousStatusLabel": z.string().optional(),
+  "changedAt": z.string(),
+  "changedBy": z.string().optional(),
+  "changedByName": z.string().optional(),
+}))
+
+export const DocumentStatusHistoryResponseSchema: z.ZodType<Wire.DocumentStatusHistoryResponse> = z.lazy(() => z.object({
+  "items": z.array(DocumentStatusChangeSchema),
+}))
+
 export const DomainDeletedObjectResultSchema: z.ZodType<Wire.DomainDeletedObjectResult> = z.lazy(() => z.object({
   "entityName": z.string(),
   "entityId": z.string(),
@@ -846,6 +860,7 @@ export const EntityMetadataResponseSchema: z.ZodType<Wire.EntityMetadataResponse
   "capabilities": MetadataDocumentCapabilitiesSchema.optional(),
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
   "createBasedOn": z.array(MetadataCreateBasedOnDefSchema).optional(),
+  "statuses": MetadataStatusModelDefSchema.optional(),
   "code": MetadataCodeAssignmentSchema.optional(),
   "previewFields": z.array(MetadataPreviewFieldDefSchema).optional(),
 }))
@@ -1506,6 +1521,19 @@ export const MetadataPreviewFieldDefSchema: z.ZodType<Wire.MetadataPreviewFieldD
   "label": z.string(),
   "column": z.string(),
   "referenceType": z.string(),
+}))
+
+export const MetadataStatusModelDefSchema: z.ZodType<Wire.MetadataStatusModelDef> = z.lazy(() => z.object({
+  "field": z.string(),
+  "initial": z.string(),
+  "values": z.array(MetadataEnumValueSchema),
+  "transitions": z.array(MetadataStatusTransitionDefSchema).optional(),
+}))
+
+export const MetadataStatusTransitionDefSchema: z.ZodType<Wire.MetadataStatusTransitionDef> = z.lazy(() => z.object({
+  "from": z.array(z.string()).optional(),
+  "to": z.string(),
+  "permission": z.string().optional(),
 }))
 
 export const MetadataTablePartDefSchema: z.ZodType<Wire.MetadataTablePartDef> = z.lazy(() => z.object({

@@ -26,12 +26,11 @@ func register(reg *registry.Registry) {
 	reg.RegisterCatalog(registry.Catalog[warehouse.Warehouse](registry.Presentation{
 		Singular: "Склад", Plural: "Склады", NewLabel: "Новый склад", Genitive: "склад",
 	}))
-	metadata.RegisterEnum[order_state.Status]([]metadata.EnumValue{
-		{Value: string(order_state.Open), Label: "Открыт"},
-		{Value: string(order_state.InProgress), Label: "В работе"},
-		{Value: string(order_state.Completed), Label: "Выполнен"},
-		{Value: string(order_state.Cancelled), Label: "Отменён"},
-	})
+	statuses := make([]metadata.EnumValue, len(order_state.Values))
+	for i, v := range order_state.Values {
+		statuses[i] = metadata.EnumValue{Value: v.Value, Label: v.Label}
+	}
+	metadata.RegisterEnum[order_state.Status](statuses)
 	reg.RegisterCatalog(registry.Catalog[order_state.State](registry.Presentation{
 		Singular: "Состояние заказа", Plural: "Состояния заказов покупателей", NewLabel: "Новое состояние", Genitive: "состояние заказа",
 	}))

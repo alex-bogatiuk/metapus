@@ -37,6 +37,14 @@ const (
 	Cancelled Status = "cancelled"
 )
 
+// Values are the statuses with their names, in the order the UI lists them.
+var Values = []entity.StatusValue{
+	{Value: string(Open), Label: "Открыт"},
+	{Value: string(InProgress), Label: "В работе"},
+	{Value: string(Completed), Label: "Выполнен"},
+	{Value: string(Cancelled), Label: "Отменён"},
+}
+
 // Closed reports whether an order of the status is closed.
 func (s Status) Closed() bool { return s == Completed || s == Cancelled }
 

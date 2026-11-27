@@ -30,6 +30,7 @@
 | [systems/command-palette.md](systems/command-palette.md) | Command Palette (Ctrl+K), навигация, калькулятор, глобальный поиск по данным | command palette, ctrl+k, search, calculator, actions, global search, data search, SearchFieldsProvider, RLS |
 | [systems/crypto-processing.md](systems/crypto-processing.md) | Приём платежей, учёт, свипы, вывод, AML и границы подписания | crypto, watcher, invoice, custody, receipt, settlement, sweep, withdrawal, AML, Vault, webhook |
 | [systems/dashboard-widgets.md](systems/dashboard-widgets.md) | Дашборды, виджеты, layout пользователя | dashboard, widgets, UI, preferences |
+| [systems/document-statuses.md](systems/document-statuses.md) | Статусная модель документа: статусы, переходы, права на переход, история статусов | status, state machine, transitions, workflow, статусы, переходы, история статусов |
 | [systems/domain-layer.md](systems/domain-layer.md) | Бизнес-логика, сервисы, хуки | domain, services, hooks, logic, repository |
 | [systems/exchange-rates.md](systems/exchange-rates.md) | Эксплуатация курсов: CoinGecko, неизменяемые наблюдения, оценка Portal и диагностика | exchange rate, rate source, currency, coingecko, rate feed, currency mapping, multiplier |
 | [systems/exchange-rates-design.md](systems/exchange-rates-design.md) | Загрузчик CoinGecko, история котировок, freshness и оценка Portal | exchange rates, architecture, UX, history, asOf, freshness, manual rates, rate policy, currency pair |

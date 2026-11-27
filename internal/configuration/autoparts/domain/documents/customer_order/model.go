@@ -31,7 +31,24 @@ var Definition = entity.Definition{
 	// A document without a number gets the next one of its yearly series (ЗП-2026-00001).
 	Number: entity.NumberRule{Prefix: "ЗП"},
 	Parts:  []entity.Part{{Key: "goods", Field: "goods"}},
+	// The status of the order's state (статусная модель заказа): an open
+	// order goes to work and back, and either one is completed or
+	// cancelled. Reopening a closed order takes the right to reopen it,
+	// since it takes back the reserve and awaits shipment again.
+	Statuses: entity.StatusModel{
+		Column: "status", Initial: string(order_state.Open), Values: order_state.Values,
+		Transitions: []entity.StatusTransition{
+			{From: []string{string(order_state.Open)}, To: string(order_state.InProgress)},
+			{From: []string{string(order_state.InProgress)}, To: string(order_state.Open)},
+			{From: []string{string(order_state.Open), string(order_state.InProgress)}, To: string(order_state.Completed)},
+			{From: []string{string(order_state.Open), string(order_state.InProgress)}, To: string(order_state.Cancelled)},
+			{From: closed, To: string(order_state.Open), Permission: "reopen", Label: "Возобновление закрытого заказа"},
+			{From: closed, To: string(order_state.InProgress), Permission: "reopen", Label: "Возобновление закрытого заказа"},
+		},
+	},
 }
+
+var closed = []string{string(order_state.Completed), string(order_state.Cancelled)}
 
 // CustomerOrder is one order of a customer.
 type CustomerOrder struct {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -35,6 +36,12 @@ func NewDocumentRepoForDefinition[T any](def entity.Definition, selectCols []str
 	}
 	repo := NewBaseDocumentRepo(def.Table, selectCols, newFn)
 	repo.SetEntityName(def.Key)
+	if def.Statuses.Declared() {
+		if !slices.Contains(selectCols, def.Statuses.Column) {
+			panic(fmt.Sprintf("document %q: status column %q is not a column of the document", def.Name, def.Statuses.Column))
+		}
+		repo.definition = def
+	}
 	return repo
 }
 
@@ -59,6 +66,11 @@ type BaseDocumentRepo[T any] struct {
 	// Configured via RegisterRLSDimension. At query time, DataScope.ApplyConditions
 	// uses this map to inject WHERE conditions for matching dimensions.
 	rlsDimensions map[string]string // e.g. {"organization": "organization_id"}
+
+	// definition is the document's Definition when it declares statuses
+	// (entity.StatusModel): writes check its transitions and record the
+	// status history.
+	definition entity.Definition
 }
 
 // NewBaseDocumentRepo creates a new base document repository.
@@ -186,8 +198,43 @@ func (r *BaseDocumentRepo[T]) checkPeriodLock(ctx context.Context, entityID any,
 	return lock.CheckDocumentDates(ctx, timezone, dates...)
 }
 
+// statusChange checks the status a write gives a document of a Definition
+// with statuses (entity.StatusModel) and returns it with the stored one; a
+// new document's stored status is empty, and one written without a status
+// gets the model's initial one. changed reports whether the write changes
+// the status, so that its history gets a row.
+func (r *BaseDocumentRepo[T]) statusChange(ctx context.Context, doc T, entityID any) (status, stored string, changed bool, err error) {
+	model := r.definition.Statuses
+	if !model.Declared() {
+		return "", "", false, nil
+	}
+	status, _ = postgres.StringField(doc, model.Column)
+	if entityID != nil {
+		err := r.GetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
+			fmt.Sprintf("SELECT %s FROM %s WHERE id = $1", model.Column, r.tableName), entityID).Scan(&stored)
+		if err != nil && err != pgx.ErrNoRows {
+			return "", "", false, fmt.Errorf("read stored status: %w", err)
+		}
+	}
+	if status == "" {
+		status = stored
+		if status == "" {
+			status = model.Initial
+		}
+		postgres.SetStringField(doc, model.Column, status)
+	}
+	if err := domain.CheckStatusChange(ctx, r.definition, stored, status); err != nil {
+		return "", "", false, err
+	}
+	return status, stored, status != stored, nil
+}
+
 // Create inserts a new document.
 func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
+	status, _, changed, err := r.statusChange(ctx, entity, nil)
+	if err != nil {
+		return err
+	}
 	data := postgres.StructToMap(entity)
 	if len(data) == 0 {
 		return fmt.Errorf("no db tags found in entity")
@@ -225,7 +272,9 @@ func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
 		}
 		return fmt.Errorf("insert %s: %w", r.tableName, err)
 	}
-
+	if changed {
+		return postgres.RecordDocumentStatus(ctx, r.definition.Key, data["id"], status, "")
+	}
 	return nil
 }
 
@@ -252,6 +301,13 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 	}
 	if err := r.checkPeriodLock(ctx, entityID, data["date"]); err != nil {
 		return err
+	}
+	status, stored, changed, err := r.statusChange(ctx, entity, entityID)
+	if err != nil {
+		return err
+	}
+	if r.definition.Statuses.Declared() {
+		data[r.definition.Statuses.Column] = status
 	}
 
 	// Exclude immutable fields
@@ -310,7 +366,9 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 	if v, ok := any(entity).(interface{ SetUpdatedAt(time.Time) }); ok {
 		v.SetUpdatedAt(updatedAt)
 	}
-
+	if changed {
+		return postgres.RecordDocumentStatus(ctx, r.definition.Key, entityID, status, stored)
+	}
 	return nil
 }
 

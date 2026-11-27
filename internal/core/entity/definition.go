@@ -33,6 +33,9 @@ type Definition struct {
 	// Number declares how a document is numbered (see NumberRule); the zero
 	// value takes a prefix derived from the key.
 	Number NumberRule
+	// Statuses declares a document's statuses and the changes allowed
+	// between them (see StatusModel); the zero value declares none.
+	Statuses StatusModel
 }
 
 // PartSeparator joins a header table name and a part key. It is reserved for
@@ -118,6 +121,12 @@ func (d Definition) Validate() error {
 		fields[field] = true
 	}
 	if err := d.validateCode(); err != nil {
+		return err
+	}
+	if d.Statuses.Declared() && d.Kind != DocumentKind {
+		return fmt.Errorf("entity %q: only documents declare statuses", d.Name)
+	}
+	if err := d.Statuses.validate(d.Name); err != nil {
 		return err
 	}
 	return d.validateNumber()

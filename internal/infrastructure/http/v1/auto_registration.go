@@ -206,6 +206,9 @@ func (r *AutoDocument[T, PT]) HTTPContracts() spec.Bundle {
 			bundle.AddRoute(def, "GET", "/based-on/"+rule.SourceKey()+"/:id", "", def.Name+"Response")
 		}
 	}
+	if def.Statuses.Declared() {
+		bundle.AddRoute(def, "GET", "/:id/status-history", "", "DocumentStatusHistoryResponse")
+	}
 	for _, part := range shape.parts {
 		bundle.Contracts = append(bundle.Contracts,
 			spec.Contract{Name: def.Name + part.contract + "LineRequest", Type: part.create, Direction: spec.Input},
@@ -257,10 +260,14 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 		MovementRefResolver: deps.MovementRefResolver,
 		SettingsRepo:        deps.SettingsRepo,
 	})
-	if routes := r.basisRoutes(handler, shape); len(routes) > 0 {
-		return basisDocumentHandler[PT, AutoCreate[T], AutoUpdate[T]]{BaseDocumentHandler: handler, routes: routes}
+	wrapped := autoDocumentHandler[PT, AutoCreate[T], AutoUpdate[T]]{BaseDocumentHandler: handler, routes: r.basisRoutes(handler, shape)}
+	if def.Statuses.Declared() {
+		wrapped.statusHistory = statusHistoryHandler(def, service.GetByID)
 	}
-	return handler
+	if len(wrapped.routes) == 0 && wrapped.statusHistory == nil {
+		return handler
+	}
+	return wrapped
 }
 
 // autoDocumentParts is the store of the document's table parts, nil when the

@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 	"github.com/alex-bogatiuk/metapus/internal/domain/posting"
 	"github.com/alex-bogatiuk/metapus/internal/domain/printing"
@@ -165,6 +166,9 @@ func registerDocumentMetadata(factory documentMetadataRegistration, reg *metadat
 	def.Actions = documentActions(factory)
 	def.TableName = identity.Table
 	metadata.MustBindParts(&def, identity)
+	if err := metadata.BindStatuses(&def, identity, func(action string) string { return domain.StatusPermission(identity, action) }); err != nil {
+		panic(err)
+	}
 
 	def.SetRefEndpoints(refEndpoints)
 	if rls, ok := factory.(platform.RLSProvider); ok {

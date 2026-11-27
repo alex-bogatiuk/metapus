@@ -251,6 +251,13 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 		group.GET("/:id/movements", middleware.RequirePermission(permission+":read"), movHandler.GetMovements)
 	}
 
+	// The status history of a document with a status model.
+	if history, ok := handler.(DocumentStatusHistoryHandler); ok && caps.Read {
+		if serve := history.StatusHistory(); serve != nil {
+			group.GET("/:id/status-history", middleware.RequirePermission(permission+":read"), serve)
+		}
+	}
+
 	// Drafts filled from other documents (ввод на основании): creating one
 	// needs the right to create this document and to read the source.
 	if basis, ok := handler.(DocumentBasisHandler); ok && caps.Create {

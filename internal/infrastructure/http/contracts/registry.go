@@ -80,6 +80,8 @@ func Registry(bundles ...spec.Bundle) []Contract {
 		Response[dto.EffectiveAccessResponse]("EffectiveAccessResponse"),
 		Response[dto.EffectiveCELRule]("EffectiveCELRule"),
 		Response[dto.EffectiveFLSPolicy]("EffectiveFLSPolicy"),
+		Response[dto.DocumentStatusChange]("DocumentStatusChange"),
+		Response[dto.DocumentStatusHistoryResponse]("DocumentStatusHistoryResponse"),
 		Response[dto.ErrorResponse]("ErrorResponse"),
 		Response[dto.EventLogResponse]("EventLogResponse"),
 		Response[dto.EventLogStatsResponse]("EventLogStatsResponse"),

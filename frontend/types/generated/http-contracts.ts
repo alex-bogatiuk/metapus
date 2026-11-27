@@ -692,6 +692,20 @@ export type DocumentResponse = {
   "description"?: string
 }
 
+export type DocumentStatusChange = {
+  "status": string
+  "statusLabel": string
+  "previousStatus"?: string
+  "previousStatusLabel"?: string
+  "changedAt": string
+  "changedBy"?: string
+  "changedByName"?: string
+}
+
+export type DocumentStatusHistoryResponse = {
+  "items": Array<DocumentStatusChange>
+}
+
 export type DomainDeletedObjectResult = {
   "entityName": string
   "entityId": string
@@ -842,6 +856,7 @@ export type EntityMetadataResponse = {
   "capabilities"?: MetadataDocumentCapabilities
   "actions"?: Array<MetadataEntityActionDef>
   "createBasedOn"?: Array<MetadataCreateBasedOnDef>
+  "statuses"?: MetadataStatusModelDef
   "code"?: MetadataCodeAssignment
   "previewFields"?: Array<MetadataPreviewFieldDef>
 }
@@ -1502,6 +1517,19 @@ export type MetadataPreviewFieldDef = {
   "label": string
   "column": string
   "referenceType": string
+}
+
+export type MetadataStatusModelDef = {
+  "field": string
+  "initial": string
+  "values": Array<MetadataEnumValue>
+  "transitions"?: Array<MetadataStatusTransitionDef>
+}
+
+export type MetadataStatusTransitionDef = {
+  "from"?: Array<string>
+  "to": string
+  "permission"?: string
 }
 
 export type MetadataTablePartDef = {

@@ -166,14 +166,18 @@ type DocumentBasisHandler interface {
 	BasisRoutes() []BasisRoute
 }
 
-// basisDocumentHandler adds the basis routes to a document's handler; the
-// embedded handler keeps its optional interfaces.
-type basisDocumentHandler[PT, C, U any] struct {
+// autoDocumentHandler adds to a declared document's handler its basis
+// routes and the status history of its status model; the embedded handler
+// keeps its optional interfaces.
+type autoDocumentHandler[PT, C, U any] struct {
 	*handlers.BaseDocumentHandler[PT, C, U]
-	routes []BasisRoute
+	routes        []BasisRoute
+	statusHistory gin.HandlerFunc
 }
 
-func (h basisDocumentHandler[PT, C, U]) BasisRoutes() []BasisRoute { return h.routes }
+func (h autoDocumentHandler[PT, C, U]) BasisRoutes() []BasisRoute { return h.routes }
+
+func (h autoDocumentHandler[PT, C, U]) StatusHistory() gin.HandlerFunc { return h.statusHistory }
 
 // basisReader is how a built AutoDocument reads its documents for a rule.
 type basisReader struct {

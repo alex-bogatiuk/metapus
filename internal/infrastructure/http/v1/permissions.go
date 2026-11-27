@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
+	"github.com/alex-bogatiuk/metapus/internal/domain"
 	"github.com/alex-bogatiuk/metapus/internal/domain/auth"
 	"github.com/alex-bogatiuk/metapus/internal/metadata"
 	"github.com/alex-bogatiuk/metapus/internal/platform"
@@ -24,7 +26,7 @@ var permissionActionLabels = map[string]string{
 // require: the standard actions of each catalog (read, create, update,
 // delete), of each document as far as its capabilities expose them (read,
 // create, update, delete, post, unpost), the permissions of declared document
-// actions and the read permission of each dataset.
+// actions and of status transitions, and the read permission of each dataset.
 //
 // The list is derived from the same registry the router mounts, so adding an
 // entity to the registry is enough for its permissions to exist: migrations
@@ -53,6 +55,7 @@ func (r *FactoryRegistry) Permissions() []auth.Permission {
 			set.add(factory.Permission()+":"+action, label, "")
 		}
 		set.addActions(factory, label)
+		set.addStatusTransitions(factory.EntityDefinition(), label)
 	}
 	for _, factory := range r.customDocuments {
 		label := permissionEntityLabel(factory)
@@ -60,6 +63,7 @@ func (r *FactoryRegistry) Permissions() []auth.Permission {
 			set.add(factory.Permission()+":"+action, label, "")
 		}
 		set.addActions(factory, label)
+		set.addStatusTransitions(factory.EntityDefinition(), label)
 	}
 	for _, ds := range r.datasets {
 		if ds.Permission != "" {
@@ -108,6 +112,18 @@ func (s permissionSet) addActions(factory documentMetadataRegistration, label st
 		if action.Permission != "" {
 			s.add(action.Permission, label, strings.ToLower(action.Label))
 		}
+	}
+}
+
+// addStatusTransitions adds the permissions the transitions of a document's
+// status model need (entity.StatusTransition.Permission).
+func (s permissionSet) addStatusTransitions(def entity.Definition, label string) {
+	for _, t := range def.Statuses.Permissions() {
+		actionLabel := t.Label
+		if actionLabel == "" {
+			actionLabel = t.Permission
+		}
+		s.add(domain.StatusPermission(def, t.Permission), label, strings.ToLower(actionLabel))
 	}
 }
 

@@ -160,3 +160,41 @@ func StructToMap(v any) map[string]any {
 
 	return res
 }
+
+// StringField returns the value of v's string-kind field with the db tag
+// column, and whether v has one.
+func StringField(v any, column string) (string, bool) {
+	field, ok := fieldByDBTag(v, column)
+	if !ok {
+		return "", false
+	}
+	return field.String(), true
+}
+
+// SetStringField sets v's string-kind field with the db tag column to value;
+// v must be a pointer to a struct. It reports whether v has the field.
+func SetStringField(v any, column, value string) bool {
+	field, ok := fieldByDBTag(v, column)
+	if !ok || !field.CanSet() {
+		return false
+	}
+	field.SetString(value)
+	return true
+}
+
+func fieldByDBTag(v any, column string) (reflect.Value, bool) {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return reflect.Value{}, false
+	}
+	for _, fi := range getOrCreateFlatMetadata(rv.Type()).fields {
+		if fi.dbTag == column {
+			field := rv.FieldByIndex(fi.indexPath)
+			return field, field.Kind() == reflect.String
+		}
+	}
+	return reflect.Value{}, false
+}
