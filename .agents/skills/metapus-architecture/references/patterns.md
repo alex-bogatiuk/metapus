@@ -58,7 +58,7 @@ reg.RegisterCatalog(registry.Catalog[warehouse.Warehouse](registry.Presentation{
 
 **Когда.** Сущность выходит за автоправило: секреты только для записи, вычисляемые поля ответа, коллекции без своей таблицы, поле, задаваемое только при изменении, собственные маршруты.
 
-**Как.** `v1.CatalogRegistrationFor[Model, Create, Update, Read]` с `Build` — типизированные DTO и свой сервис, но тот же реестр, права и контракты. Промежуточный вариант — обернуть автоматическую регистрацию и добавить интерфейс: `goodsReceiptRegistration` в `autoparts/content/register.go` встраивает `*registry.AutoDocument` и реализует `MovementSourceProvider`.
+**Как.** `v1.CatalogRegistrationFor[Model, Create, Update, Read]` с `Build` — типизированные DTO и свой сервис, но тот же реестр, права и контракты. Промежуточный вариант — обернуть автоматическую регистрацию и добавить интерфейс: `goodsReceiptRegistration` в `automotive/content/register.go` встраивает `*registry.AutoDocument` и реализует `MovementSourceProvider`.
 
 **Где.** `internal/configuration/crypto/content/catalog_registrations.go`, `integration_registrations.go`.
 
@@ -209,7 +209,7 @@ func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Mo
 
 Надстройка — тоже одно значение: `configuration.AddOn` с `Base()` (значение базы) и `BaseVersion()`; база с надстройками объявляет `Version()` (`configuration.Versioned`). `cmd/<надстройка>-server` передаёт в `launch.Server` надстройку, платформа сама собирает её с базой (`configuration.Assemble`): база регистрируется, обслуживается и засевается первой.
 
-**Где.** `configurations/trade/content/configuration.go` (база), `configurations/autoparts/content/configuration.go` (надстройка), `internal/configuration/crypto/content` (полная), `internal/configuration/none`, `internal/configuration/stack.go` (сборка стека).
+**Где.** `configurations/trade/content/configuration.go` (база), `configurations/automotive/content/configuration.go` (надстройка), `internal/configuration/crypto/content` (полная), `internal/configuration/none`, `internal/configuration/stack.go` (сборка стека).
 
 **Ловушка.** Глобальные синглтоны и `init()` с регистрацией; чтение переменных окружения в глубине доменного пакета; сборка зависимостей в `cmd/`.
 

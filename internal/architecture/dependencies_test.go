@@ -3,8 +3,8 @@ package architecture_test
 import (
 	"go/parser"
 	"go/token"
-	"os"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"

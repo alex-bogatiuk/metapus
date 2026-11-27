@@ -3,7 +3,7 @@ name: trade-supplier-settlement-register
 expected_outcome: |
   Debts to suppliers are general trade, so the register lives entirely in the
   base configuration under configurations/trade and its migration under
-  db/configuration/trade, not in the autoparts add-on. It is a declarative register
+  db/configuration/trade, not in the automotive add-on. It is a declarative register
   (accumulation.New over a movement struct with supplier and currency
   dimensions, registered with RegisterAccumulation, tables as
   migration.AccumulationDDL prints them), the receipt adds its movements in a

@@ -19,7 +19,7 @@ import (
 // (github.com/alex-bogatiuk/metapus/pkg/sdk) alone, as a configuration in its own repository has to
 // be: their code and tests import no other platform package. An add-on
 // imports its base's packages too.
-var sdkConfigurations = []string{"autoparts", "crypto", "trade"}
+var sdkConfigurations = []string{"automotive", "crypto", "trade"}
 
 func TestSDKConfigurationsUseOnlyThePublicAPI(t *testing.T) {
 	t.Parallel()

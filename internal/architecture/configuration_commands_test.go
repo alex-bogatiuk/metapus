@@ -16,10 +16,10 @@ import (
 // configurations, and http-contracts, which generates the frontend files of
 // all of them. They may import configuration packages freely.
 var configurationCommands = []string{
-	"autoparts-seed",
-	"autoparts-server",
-	"autoparts-tenant",
-	"autoparts-worker",
+	"automotive-seed",
+	"automotive-server",
+	"automotive-tenant",
+	"automotive-worker",
 	"trade-seed",
 	"trade-server",
 	"trade-tenant",

@@ -17,7 +17,7 @@ import (
 func TestTradeRunsWithoutAnAddOn(t *testing.T) {
 	db := sdktest.NewTenantWithMigrations(t, migration.WithConfiguration(content.Name, content.Trade().Migrations()))
 	var addOn bool
-	require.NoError(t, db.Pool.QueryRow(db.AdminContext(), `SELECT to_regclass($1) IS NOT NULL`, migration.ConfigurationVersionTable("autoparts")).Scan(&addOn))
+	require.NoError(t, db.Pool.QueryRow(db.AdminContext(), `SELECT to_regclass($1) IS NOT NULL`, migration.ConfigurationVersionTable("automotive")).Scan(&addOn))
 	require.False(t, addOn)
 	_, versioned := content.Trade().(configuration.Versioned)
 	require.True(t, versioned, "add-ons are built for a version of the base")

@@ -21,7 +21,7 @@ type repositoryConfiguration struct {
 var repositoryConfigurations = []repositoryConfiguration{
 	{name: "crypto", dir: "internal/configuration/crypto"},
 	{name: "trade", dir: "configurations/trade"},
-	{name: "autoparts", dir: "configurations/autoparts", base: "trade"},
+	{name: "automotive", dir: "configurations/automotive", base: "trade"},
 }
 
 // pkg is the configuration's root import path.

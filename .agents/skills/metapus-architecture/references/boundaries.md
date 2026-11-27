@@ -37,7 +37,7 @@
 
 ## 2. Платформа, базовая конфигурация, надстройка
 
-**Слои приложения** (`docs/systems/configuration-layers.md`). Платформа → базовая конфигурация (самодостаточная: `configurations/trade`, `internal/configuration/crypto`) → не больше одной надстройки над конкретной базой (`configurations/autoparts` над `trade`). Все конфигурации репозитория — в списке `repositoryConfigurations` (`internal/architecture/configurations_test.go`): имя, каталог, база. Новая конфигурация начинается с записи туда.
+**Слои приложения** (`docs/systems/configuration-layers.md`). Платформа → базовая конфигурация (самодостаточная: `configurations/trade`, `internal/configuration/crypto`) → не больше одной надстройки над конкретной базой (`configurations/automotive` над `trade`). Все конфигурации репозитория — в списке `repositoryConfigurations` (`internal/architecture/configurations_test.go`): имя, каталог, база. Новая конфигурация начинается с записи туда.
 
 **Что такое платформа.** Всё в `internal/` и `pkg/`, кроме корней конфигураций из `repositoryConfigurations`. Сюда же относятся `internal/configuration` (контракт и стек: `stack.go`), `internal/configuration/none`, `internal/configuration/configurationtest`, `internal/platformcontent`.
 
@@ -64,7 +64,7 @@
 ## 3. Публичный API `pkg/sdk`
 
 **Правила.**
-- `TestSDKConfigurationsUseOnlyThePublicAPI` — конфигурации из `sdkConfigurations` (`autoparts`, `crypto`, `trade`) импортируют из `metapus/...` только свой корень и `github.com/alex-bogatiuk/metapus/pkg/sdk/...`; надстройка — ещё корень своей базы. Тесты тоже.
+- `TestSDKConfigurationsUseOnlyThePublicAPI` — конфигурации из `sdkConfigurations` (`automotive`, `crypto`, `trade`) импортируют из `metapus/...` только свой корень и `github.com/alex-bogatiuk/metapus/pkg/sdk/...`; надстройка — ещё корень своей базы. Тесты тоже.
 - `TestSDKIsAFacade` — в `pkg/sdk` только `type X = internal.X`, обёртки-функции и ограничения дженериков. Свой тип — только `sdktest.Tenant` (список `sdkOwnTypes`).
 - `TestSDKTestStaysInTests` — `pkg/sdk/sdktest` (фикстуры строят `TxManager` над сырым пулом и вручную привязывают тенанта) нельзя импортировать в рабочем коде конфигурации, кроме пакетов с именем `*test`.
 

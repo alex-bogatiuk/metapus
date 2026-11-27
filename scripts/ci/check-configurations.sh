@@ -3,8 +3,8 @@
 # are built: the Go commands of each configuration and the frontend assembled
 # for it (frontend/scripts/configure.cjs). "none" is the platform alone.
 #
-#   scripts/ci/check-configurations.sh            # none, crypto, trade, autoparts
-#   scripts/ci/check-configurations.sh autoparts  # one configuration (an add-on with its base)
+#   scripts/ci/check-configurations.sh            # none, crypto, trade, automotive
+#   scripts/ci/check-configurations.sh automotive # one configuration (an add-on with its base)
 #   SKIP_FRONTEND_BUILD=1 ...                     # typecheck only, no next build
 #
 # Go unit tests (configurationtest.Check per configuration) and the
@@ -14,7 +14,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 configurations=("$@")
 if [ ${#configurations[@]} -eq 0 ]; then
-  configurations=(none crypto trade autoparts)
+  configurations=(none crypto trade automotive)
 fi
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT

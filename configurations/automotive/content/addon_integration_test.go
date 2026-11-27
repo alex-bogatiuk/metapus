@@ -7,15 +7,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alex-bogatiuk/metapus/configurations/autoparts/content"
+	"github.com/alex-bogatiuk/metapus/configurations/automotive/content"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/migration"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/sdktest"
 )
 
 // A tenant of the add-on holds the platform's, the base's and the add-on's
 // migrations, each in a goose history of its own, and the base's tables.
-func TestAnAutoPartsTenantHoldsItsBase(t *testing.T) {
-	db := sdktest.NewTenant(t, content.AutoParts())
+func TestAnAutomotiveTenantHoldsItsBase(t *testing.T) {
+	db := sdktest.NewTenant(t, content.Automotive())
 	ctx := db.AdminContext()
 	for _, history := range []string{migration.PlatformVersionTable, migration.ConfigurationVersionTable("trade"), migration.ConfigurationVersionTable(content.Name)} {
 		var exists bool

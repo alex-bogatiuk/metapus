@@ -30,7 +30,7 @@ Metapus — open-source ERP-платформа для построения ко�
 | `none` | Платформа без отраслевой конфигурации, плюс клиентские расширения | [`internal/configuration/none`](internal/configuration/none), `cmd/server` | — |
 | `crypto` | Криптопроцессинг: приём платежей, учёт, свипы, вывод, AML, подписание через Vault | [`internal/configuration/crypto`](internal/configuration/crypto), `cmd/crypto-*` | [docs/crypto](docs/crypto), [обзор подсистемы](docs/systems/crypto-processing.md) |
 | `trade` | Базовая конфигурация «Торговля и сервис»: номенклатура, склады, заказы с резервами, накладные, цены, себестоимость, закрытие месяца | [`configurations/trade`](configurations/trade), `cmd/trade-*` | [docs/trade](docs/trade/README.md) |
-| `autoparts` | Надстройка «Автозапчасти» над `trade` | [`configurations/autoparts`](configurations/autoparts), `cmd/autoparts-*` | [docs/autoparts](docs/autoparts/README.md) |
+| `automotive` | Надстройка «Автобизнес» над `trade` | [`configurations/automotive`](configurations/automotive), `cmd/automotive-*` | [docs/automotive](docs/automotive/README.md) |
 
 Приложение — три слоя: платформа, базовая конфигурация и необязательная надстройка над ней ([слои приложения](docs/systems/configuration-layers.md)). Конфигурации не зависят друг от друга, надстройка видит только свою базу, и все видят платформу только через публичный API [`pkg/sdk`](docs/sdk/README.md). Эти границы проверяют тесты в [`internal/architecture`](internal/architecture).
 
@@ -120,7 +120,7 @@ npm run dev
 
 ### Другие конфигурации
 
-Платформа без конфигурации (`cmd/server`, `cmd/tenant`, `cmd/seed`), `trade` (`cmd/trade-*`) и `trade` с надстройкой `autoparts` (`cmd/autoparts-*`) запускаются напрямую через `go run`. Им нужны переменные `META_DATABASE_URL`, `TENANT_DB_USER`, `TENANT_DB_PASSWORD` и `JWT_SECRET`. Порядок команд — в [docs/trade/README.md](docs/trade/README.md#запуск) и [docs/autoparts/README.md](docs/autoparts/README.md#запуск).
+Платформа без конфигурации (`cmd/server`, `cmd/tenant`, `cmd/seed`), `trade` (`cmd/trade-*`) и `trade` с надстройкой `automotive` (`cmd/automotive-*`) запускаются напрямую через `go run`. Им нужны переменные `META_DATABASE_URL`, `TENANT_DB_USER`, `TENANT_DB_PASSWORD` и `JWT_SECRET`. Порядок команд — в [docs/trade/README.md](docs/trade/README.md#запуск) и [docs/automotive/README.md](docs/automotive/README.md#запуск).
 
 ---
 
@@ -140,7 +140,7 @@ metapus/
 │   ├── bootstrap/          # Сборка server, worker и tenant-команд
 │   ├── configuration/      # Контракт конфигураций, none и crypto
 │   └── architecture/       # Тесты архитектурных границ
-├── configurations/         # Базовые конфигурации и надстройки, которые могут импортировать другие репозитории: trade, autoparts
+├── configurations/         # Базовые конфигурации и надстройки, которые могут импортировать другие репозитории: trade, automotive
 ├── pkg/
 │   ├── sdk/                # Публичный API платформы для конфигураций и расширений
 │   └── logger/
@@ -169,7 +169,7 @@ metapus/
 
 | Команда | Что делает |
 |---|---|
-| `make build` | Собирает в `bin/` server, worker, tenant и seed платформы, `crypto`, `trade` и `autoparts` |
+| `make build` | Собирает в `bin/` server, worker, tenant и seed платформы, `crypto`, `trade` и `automotive` |
 | `make server` | Запускает API-сервер `crypto` (`go run ./cmd/crypto-server`) |
 | `make frontend` | Собирает фронтенд для `crypto` и запускает dev-сервер |
 | `make migrate` / `make seed` | Миграции всех тенантов `crypto` / seed `crypto` |
@@ -177,7 +177,7 @@ metapus/
 | `make test-integration` | Интеграционные тесты в новой базе явно заданного тестового кластера PostgreSQL |
 | `make lint` | golangci-lint и ESLint |
 | `make check` | build, lint, typecheck, юнит-тесты и проверка сгенерированных HTTP-контрактов |
-| `make check-configurations` | Сборка Go-команд и фронтенда для каждой конфигурации (`none`, `crypto`, `trade`, `autoparts`) |
+| `make check-configurations` | Сборка Go-команд и фронтенда для каждой конфигурации (`none`, `crypto`, `trade`, `automotive`) |
 | `make check-all` | `check`, проверка расширений и `check-configurations` |
 | `make generate-http-contracts` | Перегенерирует HTTP-контракты |
 

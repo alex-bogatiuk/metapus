@@ -10,7 +10,7 @@
 |---|---|---|
 | Платформа | Механизмы без бизнес-логики: построение форм и списков, проведение, регистры, права, отчёты, печать, загрузка данных | `internal/`, публичный API — `pkg/sdk` |
 | Базовая конфигурация | Самодостаточная бизнес-логика. Платформы и базы достаточно для автоматизации бизнеса | [`configurations/trade`](../../configurations/trade) («Торговля и сервис»), [`internal/configuration/crypto`](../../internal/configuration/crypto) (криптопроцессинг) |
-| Надстройка | Необязательная отраслевая специфика над одной конкретной базой: новые объекты, реквизиты и движения, изменение поведения базы в объявленных ею точках | [`configurations/autoparts`](../../configurations/autoparts) («Автозапчасти» над «Торговлей и сервисом») |
+| Надстройка | Необязательная отраслевая специфика над одной конкретной базой: новые объекты, реквизиты и движения, изменение поведения базы в объявленных ею точках | [`configurations/automotive`](../../configurations/automotive) («Автобизнес» над «Торговлей и сервисом») |
 
 `internal/configuration/none` — платформа без конфигурации.
 
@@ -25,8 +25,8 @@
 Надстройка — `configuration.AddOn`:
 
 ```go
-func (autoparts) Base() configuration.Configuration { return trade.Trade() }
-func (autoparts) BaseVersion() string               { return "1.0.0" }
+func (automotive) Base() configuration.Configuration { return trade.Trade() }
+func (automotive) BaseVersion() string               { return "1.0.0" }
 ```
 
 Платформа ([`internal/configuration/stack.go`](../../internal/configuration/stack.go)) на старте каждого процесса собирает стек (`Assemble`) и проверяет его (`CheckStack`):
@@ -54,13 +54,13 @@ func (autoparts) BaseVersion() string               { return "1.0.0" }
 
 ## Команды и фронтенд
 
-У базы и у надстройки свои команды: `cmd/trade-*` запускают «Торговлю и сервис» одну, `cmd/autoparts-*` — её с надстройкой. Манифест фронтенда надстройки называет базу:
+У базы и у надстройки свои команды: `cmd/trade-*` запускают «Торговлю и сервис» одну, `cmd/automotive-*` — её с надстройкой. Манифест фронтенда надстройки называет базу:
 
 ```json
-{ "register": "registerAutoPartsConfiguration", "base": "trade" }
+{ "register": "registerAutomotiveConfiguration", "base": "trade" }
 ```
 
-`npm run configure -- autoparts` собирает `app/` из базы и надстройки: база регистрируется первой, страницы базы подключаются, страница надстройки заменяет страницу базы с тем же маршрутом. `go run ./cmd/http-contracts` пишет фронтенд-файлы каждого слоя в его собственную папку.
+`npm run configure -- automotive` собирает `app/` из базы и надстройки: база регистрируется первой, страницы базы подключаются, страница надстройки заменяет страницу базы с тем же маршрутом. `go run ./cmd/http-contracts` пишет фронтенд-файлы каждого слоя в его собственную папку.
 
 ## Пока нет
 
@@ -77,7 +77,7 @@ internal/configuration/migrations.go
 internal/infrastructure/storage/postgres/migration/runner.go
 db/meta/00003_tenant_addon.sql
 configurations/trade/content/configuration.go
-configurations/autoparts/content/configuration.go
+configurations/automotive/content/configuration.go
 frontend/scripts/configure.cjs
 internal/architecture/configurations_test.go
 ```

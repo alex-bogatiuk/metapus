@@ -99,7 +99,7 @@ jobs:
       - name: Frontend lint
         working-directory: frontend
         run: npm run lint
-      # Go commands, typecheck and next build of none, crypto, trade and the autoparts add-on,
+      # Go commands, typecheck and next build of none, crypto, trade and the automotive add-on,
       # then the HTTP contracts of every configuration.
       - name: Build every configuration
         run: bash scripts/ci/check-configurations.sh

@@ -146,7 +146,7 @@ myExtension.Register(factoryReg)
 
 ## 4. Модули конфигурации
 
-Конфигурация подключается к платформе модулями, а не правками ядра ([слои приложения](configuration-layers.md)). В репозитории две базовые конфигурации — криптопроцессинг (`internal/configuration/crypto`) и «Торговля и сервис» (`configurations/trade`, [описание](../trade/README.md)) — и надстройка «Автозапчасти» над «Торговлей и сервисом» (`configurations/autoparts`, [описание](../autoparts/README.md)). Конфигурации не импортируют друг друга; надстройка импортирует только свою базу. `make check-configurations` (`scripts/ci/check-configurations.sh`) собирает команды и фронтенд каждой из них и пустой, а `go run ./cmd/http-contracts` генерирует фронтенд-файлы всех конфигураций и проверяет, что платформенные файлы у всех одинаковые.
+Конфигурация подключается к платформе модулями, а не правками ядра ([слои приложения](configuration-layers.md)). В репозитории две базовые конфигурации — криптопроцессинг (`internal/configuration/crypto`) и «Торговля и сервис» (`configurations/trade`, [описание](../trade/README.md)) — и надстройка «Автобизнес» над «Торговлей и сервисом» (`configurations/automotive`, [описание](../automotive/README.md)). Конфигурации не импортируют друг друга; надстройка импортирует только свою базу. `make check-configurations` (`scripts/ci/check-configurations.sh`) собирает команды и фронтенд каждой из них и пустой, а `go run ./cmd/http-contracts` генерирует фронтенд-файлы всех конфигураций и проверяет, что платформенные файлы у всех одинаковые.
 
 Конфигурация в целом передаётся платформе значением `configuration.Configuration` (`internal/configuration`):
 
@@ -236,7 +236,7 @@ go run cmd/scaffold/main.go --name waybill --type document
 
 Общее `entity.Definition` связывает identity, таблицу, маршрут и hierarchy. `contracts/spec.Entity` выводит стандартные HTTP-контракты из Definition и конкретных DTO, `spec.EntityOf` — из типов, построенных во время выполнения (декларативная регистрация). После добавления модуля в `extensions/register.go` выполните `go run ./cmd/http-contracts`; отдельные правки registry/routes для расширения не нужны. Права других ролей, бизнес-поля, локализация, движения и новый worker workflow требуют явной настройки.
 
-Модули `extensions/` компилируются внутри Metapus. Публичный API платформы — `pkg/sdk` ([описание и правила версий](../sdk/README.md)): на нём целиком построена конфигурация «Автозапчасти», а метод `Configuration.APIVersion` проверяется при старте каждой платформенной команды.
+Модули `extensions/` компилируются внутри Metapus. Публичный API платформы — `pkg/sdk` ([описание и правила версий](../sdk/README.md)): на нём целиком построены «Торговля и сервис» и надстройка «Автобизнес», а метод `Configuration.APIVersion` проверяется при старте каждой платформенной команды.
 
 ## 6. Единый контракт встроенных сущностей и расширений
 

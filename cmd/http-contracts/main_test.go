@@ -26,7 +26,7 @@ func TestEveryConfigurationGeneratesTheSamePlatformFiles(t *testing.T) {
 				own++
 			}
 		}
-		if cfg.Name() == "none" || cfg.Name() == "autoparts" {
+		if cfg.Name() == "none" || cfg.Name() == "automotive" {
 			require.Zero(t, own, cfg.Name())
 		} else {
 			require.Equalf(t, 3, own, "%s's own files", cfg.Name())

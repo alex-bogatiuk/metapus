@@ -4,7 +4,8 @@
 // receipts and issues, item prices, the cost of goods sold and the month
 // closing — its migrations (db/configuration/trade) and its part of the
 // server. Add-ons (configuration.AddOn) build industry specifics on it,
-// such as the auto parts store (configurations/autoparts).
+// such as the auto parts shop and service «Автобизнес»
+// (configurations/automotive).
 //
 // The packages of configurations/trade/domain are the base's public API for
 // its add-ons: Version grows its minor version with additions to them and

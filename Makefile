@@ -8,7 +8,7 @@ LDFLAGS := -ldflags="-X main.Version=$(VERSION) -X main.BuildTime=$(shell date -
 
 # Build
 build:
-	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker ./cmd/tenant ./cmd/seed ./cmd/crypto-server ./cmd/crypto-worker ./cmd/crypto-tenant ./cmd/crypto-seed ./cmd/trade-server ./cmd/trade-worker ./cmd/trade-tenant ./cmd/trade-seed ./cmd/autoparts-server ./cmd/autoparts-worker ./cmd/autoparts-tenant ./cmd/autoparts-seed
+	go build $(LDFLAGS) -o bin/ ./cmd/server ./cmd/worker ./cmd/tenant ./cmd/seed ./cmd/crypto-server ./cmd/crypto-worker ./cmd/crypto-tenant ./cmd/crypto-seed ./cmd/trade-server ./cmd/trade-worker ./cmd/trade-tenant ./cmd/trade-seed ./cmd/automotive-server ./cmd/automotive-worker ./cmd/automotive-tenant ./cmd/automotive-seed
 
 # Lint
 lint:
@@ -77,7 +77,7 @@ test-http-contracts:
 	go run ./cmd/http-contracts -check
 
 # Full check including extensions
-# Build every configuration (none, crypto, trade, the autoparts add-on): Go commands and frontend
+# Build every configuration (none, crypto, trade, the automotive add-on): Go commands and frontend
 check-configurations:
 	bash scripts/ci/check-configurations.sh
 
