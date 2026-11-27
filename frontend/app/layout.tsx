@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next"
+import { headers } from "next/headers"
 import { Toaster } from "sonner"
 import { StepUpDialog } from "@/components/auth/step-up-dialog"
 import { ScopedDataProvider } from "@/components/scoped-data-provider"
@@ -9,12 +10,16 @@ export const metadata: Metadata = {
   description: "Modern ERP platform for business management",
 }
 
+// The Graphite --background of each theme, so the browser frame matches the page.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "hsl(220 23% 97%)" },
-    { media: "(prefers-color-scheme: dark)", color: "hsl(218 19% 12%)" },
+    { media: "(prefers-color-scheme: light)", color: "hsl(240 4% 95.5%)" },
+    { media: "(prefers-color-scheme: dark)", color: "hsl(240 7% 6%)" },
   ],
 }
+
+/** Inter files every page renders with: fetched with the HTML, not after the CSS. */
+const PRELOADED_FONTS = ["/fonts/inter-latin.woff2", "/fonts/inter-cyrillic.woff2"]
 
 /**
  * Inline script that runs before React hydration to set the `dark` class
@@ -46,15 +51,20 @@ const themeScript = `
 })();
 `
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // The per-request CSP nonce set by proxy.ts; Next.js stamps its own scripts with it.
+  const nonce = (await headers()).get("x-nonce") ?? undefined
   return (
     <html lang="ru" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {PRELOADED_FONTS.map((href) => (
+          <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ))}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="font-sans antialiased">
         <ScopedDataProvider>{children}</ScopedDataProvider>

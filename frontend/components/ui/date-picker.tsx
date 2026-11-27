@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/popover"
 import { useUserPrefsStore } from "@/stores/useUserPrefsStore"
 import { applyDateMask, parseSmartDate, tryParse, fmtDateStr } from "@/lib/date-parser"
+import { isImeComposing } from "@/lib/keyboard-utils"
 
 export type DateShortcutContext = "past" | "future" | "any"
 
@@ -120,7 +121,7 @@ export function DatePicker({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !isImeComposing(e)) {
       e.preventDefault()
       handleCommit()
     }

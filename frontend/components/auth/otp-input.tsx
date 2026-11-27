@@ -1,8 +1,7 @@
 "use client"
 
-import { useRef, type ClipboardEvent, type KeyboardEvent } from "react"
+import type { ClipboardEvent, SyntheticEvent } from "react"
 
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 interface OtpInputProps {
@@ -15,6 +14,11 @@ interface OtpInputProps {
   onComplete?: (value: string) => void
 }
 
+/**
+ * A one-time code in one text field drawn as separate cells. A single field
+ * is what one-time-code autofill (iOS, macOS, password managers), paste and
+ * screen readers expect; split fields lose all but the first digit.
+ */
 export function OtpInput({
   value,
   onChange,
@@ -24,113 +28,74 @@ export function OtpInput({
   autoFocus = false,
   onComplete,
 }: OtpInputProps) {
-  const inputsRef = useRef<Array<HTMLInputElement | null>>([])
   const digits = Array.from({ length }, (_, index) => value[index] ?? "")
+  // The cell the next digit goes to; the last one once the code is full.
+  const activeIndex = Math.min(value.length, length - 1)
 
-  function focusIndex(index: number) {
-    const clamped = Math.max(0, Math.min(length - 1, index))
-    inputsRef.current[clamped]?.focus()
-    inputsRef.current[clamped]?.select()
-  }
-
-  function commit(nextValue: string) {
-    const normalized = nextValue.replace(/\D/g, "").slice(0, length)
+  function commit(rawValue: string) {
+    const normalized = rawValue.replace(/\D/g, "").slice(0, length)
     onChange(normalized)
-
-    if (normalized.length === length) {
-      onComplete?.(normalized)
-    }
+    if (normalized.length === length) onComplete?.(normalized)
   }
 
-  function handleChange(index: number, rawValue: string) {
-    const digit = rawValue.replace(/\D/g, "").slice(-1)
-    if (!digit) return
-
-    const nextDigits = digits.slice()
-    nextDigits[index] = digit
-    commit(nextDigits.join(""))
-
-    if (index < length - 1) {
-      focusIndex(index + 1)
-    }
-  }
-
-  function handleKeyDown(index: number, event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Backspace") {
-      event.preventDefault()
-
-      const nextDigits = digits.slice()
-      if (nextDigits[index]) {
-        nextDigits[index] = ""
-        commit(nextDigits.join(""))
-        return
-      }
-
-      if (index > 0) {
-        nextDigits[index - 1] = ""
-        commit(nextDigits.join(""))
-        focusIndex(index - 1)
-      }
-    }
-
-    if (event.key === "ArrowLeft") {
-      event.preventDefault()
-      focusIndex(index - 1)
-    }
-
-    if (event.key === "ArrowRight") {
-      event.preventDefault()
-      focusIndex(index + 1)
-    }
-  }
-
+  // Pasted text may carry spaces or dashes ("123 456"): keep its digits, which
+  // maxLength would otherwise cut before they are cleaned.
   function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
     event.preventDefault()
-    const pastedValue = event.clipboardData.getData("text")
+    commit(event.clipboardData.getData("text"))
+  }
 
-    if (!pastedValue) return
-
-    commit(pastedValue)
-    focusIndex(pastedValue.replace(/\D/g, "").length)
+  // The text itself is invisible, so the caret always stays at its end.
+  function keepCaretAtEnd(event: SyntheticEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const end = input.value.length
+    if (input.selectionStart !== end || input.selectionEnd !== end) input.setSelectionRange(end, end)
   }
 
   return (
     <div
-      className={cn(
-        "flex items-center justify-between gap-2 sm:gap-3",
-        hasError && "animate-shake"
-      )}
-      role="group"
-      aria-label="Шестизначный код подтверждения"
+      className={cn("group relative", hasError && "animate-shake")}
       data-invalid={hasError || undefined}
     >
-      {digits.map((digit, index) => (
-        <Input
-          key={index}
-          ref={(element) => {
-            inputsRef.current[index] = element
-          }}
-          type="text"
-          inputMode="numeric"
-          autoComplete={index === 0 ? "one-time-code" : "off"}
-          pattern="[0-9]*"
-          maxLength={1}
-          value={digit}
-          disabled={disabled}
-          autoFocus={autoFocus && index === 0}
-          aria-label={`Цифра ${index + 1}`}
-          aria-invalid={hasError}
-          onChange={(event) => handleChange(index, event.target.value)}
-          onKeyDown={(event) => handleKeyDown(index, event)}
-          onPaste={handlePaste}
-          onFocus={(event) => event.target.select()}
-          className={cn(
-            "h-14 min-w-0 rounded-xl bg-card p-0 text-center font-mono text-2xl font-semibold tabular-nums caret-primary sm:h-16 sm:text-3xl",
-            "hover:border-muted-foreground/40",
-            hasError && "border-destructive text-destructive focus-visible:border-destructive focus-visible:ring-destructive/30"
-          )}
-        />
-      ))}
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern={`\\d{${length}}`}
+        maxLength={length}
+        spellCheck={false}
+        value={value}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        aria-label="Код подтверждения"
+        aria-invalid={hasError}
+        onChange={(event) => commit(event.target.value)}
+        onPaste={handlePaste}
+        onSelect={keepCaretAtEnd}
+        // 16px keeps iOS from zooming in; the text is transparent over the cells.
+        className="absolute inset-0 z-10 h-full w-full cursor-text bg-transparent text-base text-transparent caret-transparent outline-none selection:bg-transparent disabled:cursor-not-allowed"
+      />
+      <div className="flex items-center justify-between gap-2 sm:gap-3" aria-hidden="true">
+        {digits.map((digit, index) => (
+          <div
+            key={index}
+            data-active={index === activeIndex || undefined}
+            className={cn(
+              "relative flex h-14 min-w-0 flex-1 items-center justify-center rounded-xl border border-input bg-card font-mono text-2xl font-semibold tabular-nums transition-colors sm:h-16 sm:text-3xl",
+              "group-hover:border-muted-foreground/40",
+              "group-focus-within:data-[active]:border-ring group-focus-within:data-[active]:ring-2 group-focus-within:data-[active]:ring-ring/30",
+              hasError && "border-destructive text-destructive group-focus-within:data-[active]:border-destructive group-focus-within:data-[active]:ring-destructive/30",
+              disabled && "opacity-50"
+            )}
+          >
+            {digit}
+            {/* The caret of the empty cell the next digit goes to. */}
+            {!digit && index === activeIndex && (
+              <span className="hidden h-7 w-0.5 rounded-full bg-primary group-focus-within:block motion-safe:animate-pulse" />
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

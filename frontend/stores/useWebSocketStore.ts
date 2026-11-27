@@ -23,6 +23,23 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined
 let reconnectAttempts = 0
 
+/** Upper bound of the reconnect delay, ms. */
+const MAX_RECONNECT_DELAY = 30_000
+
+/**
+ * Exponential backoff with jitter: after a backend restart every client
+ * picks its own moment, so the reconnects arrive spread out, not as one burst.
+ */
+function scheduleReconnect(connect: () => Promise<void>): void {
+    const ceiling = Math.min(1000 * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY)
+    reconnectAttempts += 1
+    clearTimeout(reconnectTimer)
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined
+        void connect()
+    }, ceiling / 2 + Math.random() * (ceiling / 2))
+}
+
 function buildWsUrl(ticket: string): string {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1"
     const TENANT_ID = useAuthStore.getState().cacheScope?.tenantId ?? process.env.NEXT_PUBLIC_TENANT_ID ?? ""
@@ -61,14 +78,9 @@ export const useWebSocketStore = create<WebSocketState & WebSocketActions>()(
                 const res = await api.auth.webSocketTicket()
                 if (!isCurrentSession(generation)) return
                 ticket = res.ticket
-            } catch (err) {
-                if (!isCurrentSession(generation)) return
-                console.error("[WebSocket] Failed to obtain ticket:", err)
-                // Schedule reconnect
-                const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000)
-                reconnectAttempts += 1
-                clearTimeout(reconnectTimer)
-                reconnectTimer = setTimeout(() => get().connect(), timeout)
+            } catch {
+                // The backend may be restarting: try again later.
+                if (isCurrentSession(generation)) scheduleReconnect(get().connect)
                 return
             }
 
@@ -82,7 +94,6 @@ export const useWebSocketStore = create<WebSocketState & WebSocketActions>()(
                 if (!isCurrentSession(generation) || ws !== socket) return
                 set({ isConnected: true })
                 reconnectAttempts = 0
-                console.log("[WebSocket] Connected")
             }
 
             socket.onmessage = (event) => {
@@ -100,29 +111,15 @@ export const useWebSocketStore = create<WebSocketState & WebSocketActions>()(
                 if (!isCurrentSession(generation) || ws !== socket) return
                 set({ isConnected: false })
                 ws = null
-                console.log(`[WebSocket] Closed: ${event.code} ${event.reason}`)
-
-                // Auto-reconnect unless intentional close
-                if (event.code !== 1000) {
-                    if (useAuthStore.getState().isAuthenticated) {
-                        const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000)
-                        reconnectAttempts += 1
-                        clearTimeout(reconnectTimer)
-                        reconnectTimer = setTimeout(() => get().connect(), timeout)
-                    }
-                }
-            }
-
-            socket.onerror = () => {
-                // onerror is always followed by onclose (per spec).
-                // Browser hides error details for security — the Event is always {}.
-                // Reconnect logic is in onclose, so this is purely informational.
-                console.warn("[WebSocket] Connection error (reconnect handled by onclose)")
+                // Reconnect unless the close was intentional. An error event
+                // carries no details and is always followed by this close.
+                if (event.code !== 1000 && useAuthStore.getState().isAuthenticated) scheduleReconnect(get().connect)
             }
         },
 
         disconnect: () => {
             clearTimeout(reconnectTimer)
+            reconnectTimer = undefined
             reconnectAttempts = 0
             if (ws) {
                 ws.close(1000, "Manual disconnect")
@@ -141,3 +138,20 @@ useAuthStore.subscribe((state, prevState) => {
 })
 
 onScopeReset(() => useWebSocketStore.getState().disconnect())
+
+// Back online or back in view with the socket down: reconnect now instead of
+// waiting out a backoff that grew while the network or the device slept.
+if (typeof window !== "undefined") {
+    const reconnectNow = () => {
+        // Only a pending retry is pulled forward; a connect in flight is left alone.
+        if (reconnectTimer === undefined || !useAuthStore.getState().isAuthenticated) return
+        clearTimeout(reconnectTimer)
+        reconnectTimer = undefined
+        reconnectAttempts = 0
+        void useWebSocketStore.getState().connect()
+    }
+    window.addEventListener("online", reconnectNow)
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reconnectNow()
+    })
+}

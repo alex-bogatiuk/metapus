@@ -8,6 +8,7 @@ import { useState, useCallback } from "react"
 import { apiFetchBlob } from "@/lib/api"
 import { toast } from "sonner"
 import type { AdvancedFilterItem } from "@/types/common"
+import { downloadBlob } from "@/lib/download"
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -68,19 +69,7 @@ export function useListExport({ basePath }: UseListExportOptions): UseListExport
                     }
                 )
 
-                // Trigger browser download via <a> element
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement("a")
-                a.href = url
-                a.download = filename
-                document.body.appendChild(a)
-                a.click()
-
-                // Cleanup
-                setTimeout(() => {
-                    document.body.removeChild(a)
-                    URL.revokeObjectURL(url)
-                }, 100)
+                downloadBlob(blob, filename)
 
                 toast.success("Экспорт завершён")
             } catch (err) {

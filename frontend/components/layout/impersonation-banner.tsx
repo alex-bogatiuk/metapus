@@ -25,7 +25,8 @@ export function ImpersonationBanner() {
           router.push("/")
           router.refresh()
         }}
-        className="flex items-center gap-1.5 rounded bg-white/20 px-2.5 py-1 text-[11px] font-semibold hover:bg-white/30 transition-colors"
+        type="button"
+        className="flex items-center gap-1.5 rounded bg-warning-foreground/15 px-2.5 py-1 text-[11px] font-semibold hover:bg-warning-foreground/25 transition-colors"
       >
         <LogOut className="h-3 w-3" />
         Завершить сеанс имитации

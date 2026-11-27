@@ -5,6 +5,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { toast } from "sonner"
 import { z } from "zod"
 import {
   AlertCircle,
@@ -217,8 +218,15 @@ export function LoginForm() {
     }
   }
 
-  function copyText(text: string) {
-    void navigator.clipboard?.writeText(text)
+  function copySecret(secret: string) {
+    if (!navigator.clipboard) {
+      toast.error("Браузер не дал доступа к буферу обмена. Выделите и скопируйте секрет вручную.")
+      return
+    }
+    navigator.clipboard.writeText(secret).then(
+      () => toast.success("Секрет скопирован"),
+      () => toast.error("Не удалось скопировать. Выделите и скопируйте секрет вручную."),
+    )
   }
 
   return (
@@ -283,7 +291,7 @@ export function LoginForm() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => copyText(enrollment.manualSecret)}
+                        onClick={() => copySecret(enrollment.manualSecret)}
                         aria-label="Скопировать секрет"
                       >
                         <Copy />
@@ -358,9 +366,12 @@ export function LoginForm() {
                   <Input
                     id="email"
                     type="email"
-                    autoComplete="email"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     autoFocus
                     aria-invalid={Boolean(errors.email)}
+                    aria-describedby={errors.email ? "email-error" : undefined}
                     placeholder="you@company.com"
                     className={cn(
                       "h-11 rounded-xl bg-background pl-10 pr-3.5 text-[15px] placeholder:text-muted-foreground/60",
@@ -370,7 +381,7 @@ export function LoginForm() {
                   />
                 </div>
                 {errors.email && (
-                  <p className="text-xs text-destructive">{errors.email.message}</p>
+                  <p id="email-error" className="text-xs text-destructive">{errors.email.message}</p>
                 )}
               </div>
 
@@ -386,6 +397,7 @@ export function LoginForm() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     aria-invalid={Boolean(errors.password)}
+                    aria-describedby={errors.password ? "password-error" : undefined}
                     placeholder="Введите пароль"
                     className={cn(
                       "h-11 rounded-xl bg-background pl-10 pr-11 text-[15px] placeholder:text-muted-foreground/60",
@@ -397,7 +409,6 @@ export function LoginForm() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    tabIndex={-1}
                     className="absolute right-1.5 top-1/2 size-8 -translate-y-1/2 rounded-lg text-muted-foreground hover:text-foreground"
                     onClick={() => setShowPassword((previous) => !previous)}
                     aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
@@ -406,7 +417,7 @@ export function LoginForm() {
                   </Button>
                 </div>
                 {errors.password && (
-                  <p className="text-xs text-destructive">{errors.password.message}</p>
+                  <p id="password-error" className="text-xs text-destructive">{errors.password.message}</p>
                 )}
               </div>
             </CardContent>

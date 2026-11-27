@@ -418,8 +418,10 @@ export function useEntityListPage<T extends { id: string }>(
   // ── Toggle show deleted ──────────────────────────────────────────────
   const toggleShowDeleted = useCallback(() => {
     const current = useUserPrefsStore.getState().interface.showDeletedEntities ?? {}
+    // The request must not wait for a re-render to see the new flag.
+    showDeletedRef.current = !showDeleted
     updateInterface({ showDeletedEntities: { ...current, [entityKey]: !showDeleted } })
-    setTimeout(() => fetchData(filterValuesRef.current), 0)
+    void fetchData(filterValuesRef.current)
   }, [entityKey, showDeleted, updateInterface, fetchData])
 
   // ── Load more (forward cursor) ──────────────────────────────────────

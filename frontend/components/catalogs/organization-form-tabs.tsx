@@ -230,7 +230,7 @@ export function OrganizationFormTabs({ f, update, onChange }: OrganizationFormTa
           <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/40">
             {f.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={f.logoUrl} alt="Логотип" className="h-full w-full rounded-lg object-contain" />
+              <img src={f.logoUrl} alt="Логотип" width={80} height={80} decoding="async" className="h-full w-full rounded-lg object-contain" />
             ) : (
               <Building2 className="h-8 w-8 text-muted-foreground/50" />
             )}

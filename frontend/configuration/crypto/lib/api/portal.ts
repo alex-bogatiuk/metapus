@@ -10,6 +10,7 @@ import type {
     UpdateMerchantUserRoleRequest,
 } from "@/configuration/crypto/types/merchant-api"
 import { apiFetch, createScopedClient } from "@/lib/api/core"
+import { downloadBlob } from "@/lib/download"
 
 // The merchant portal is the configuration's own backend surface, /portal/v1.
 const { fetch: portalFetch, fetchBlob: portalFetchBlob } = createScopedClient("portal")
@@ -86,19 +87,7 @@ export const portalApi = {
 
         const { blob, filename } = await portalFetchBlob(`/invoices/export${qs}`)
 
-        // Trigger browser download via <a> element
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = filename
-        document.body.appendChild(a)
-        a.click()
-
-        // Cleanup
-        setTimeout(() => {
-            document.body.removeChild(a)
-            URL.revokeObjectURL(url)
-        }, 100)
+        downloadBlob(blob, filename)
     },
 
     apiKeys: {

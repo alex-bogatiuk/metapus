@@ -57,6 +57,7 @@ const MONTH_LABELS = [
 ]
 
 import { applyDateMask, fmtDateStr, parseSmartDate, tryParse } from "@/lib/date-parser"
+import { isImeComposing } from "@/lib/keyboard-utils"
 
 /** Convert year + monthIndex to a comparable number (e.g. 2026*12 + 1 = 24313) */
 function monthKey(year: number, monthIndex: number): number {
@@ -144,7 +145,7 @@ function DateInputField({ value, onChange, onClear, placeholder, dateFormat }: D
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !isImeComposing(e)) {
       e.preventDefault()
       handleCommit()
     }

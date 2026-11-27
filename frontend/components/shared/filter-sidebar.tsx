@@ -51,6 +51,7 @@ import { toast } from "sonner"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { canEditSavedView } from "@/lib/saved-view-policy"
 import { exactFilterEntryError } from "@/lib/filter-numbers"
+import { isImeComposing } from "@/lib/keyboard-utils"
 
 interface FilterSidebarProps {
   showGroups?: boolean
@@ -488,7 +489,7 @@ export function FilterSidebar({
             <div
               className="flex flex-col gap-3"
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); applyFilters() }
+                if (e.key === "Enter" && !isImeComposing(e)) { e.preventDefault(); applyFilters() }
               }}
             >
               {/* ── Saved Views dropdown ──────────────────────────────── */}
@@ -593,6 +594,7 @@ export function FilterSidebar({
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => {
+                          if (isImeComposing(e)) return
                           if (e.key === "Enter" && renameValue.trim()) {
                             e.preventDefault()
                             onRenameView(renamingViewId, renameValue.trim())

@@ -1,10 +1,8 @@
 import { z } from "zod"
 import { requireHTTPContract, validateHTTPBody } from "@/lib/http-contracts"
-import * as wireSchemas from "@/lib/generated/http-contract-schemas"
-import { jsonObjectSchema, type JsonValue } from "@/lib/json-value"
+import { jsonObjectSchema } from "@/lib/json-value"
 import { assertCurrentSession, getSessionGeneration, isCurrentSession, onScopeReset, sessionSignal } from "@/lib/auth-scope"
 import { tokenResponseSchema } from "@/lib/schemas/auth"
-import { cursorListSchema } from "@/lib/schemas/documents"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { requestStepUp } from "@/lib/step-up"
 import type { TokenResponse } from "@/types/auth"
@@ -116,7 +114,7 @@ export function refreshAccessToken(): Promise<TokenResponse | null> {
         const pending = withCrossTabRefreshLock(() => {
             if (!isCurrentSession(generation)) return Promise.resolve(null)
             const currentTokens = useAuthStore.getState().tokens
-            // Another tab may have supplied a rotated token while this tab
+            // A sign-in in this tab may have supplied a new token while it
             // waited for the shared cookie lock.
             if (currentTokens && currentTokens.accessToken !== previousToken) return Promise.resolve(currentTokens)
             return doRefreshToken(generation)
@@ -279,7 +277,13 @@ async function requestResponse(base: string, path: string, options: RequestInit,
     return res
 }
 
-async function scopedJSON<T>(scope: string, base: string, path: string, options?: RequestInit, stepUpRetried = false): Promise<T> {
+/**
+ * Every JSON exchange is checked against its route contract: the body before
+ * it is sent, the response before it is returned. A caller's `decode` schema
+ * replaces the contract's response check when it is the same schema, so no
+ * response is validated twice.
+ */
+async function scopedJSON<T>(scope: string, base: string, path: string, options?: RequestInit, stepUpRetried = false, decode?: z.ZodType<T>): Promise<T> {
     const generation = getSessionGeneration()
     const contract = requireHTTPContract(scope, (options?.method ?? "GET").toUpperCase(), path)
     validateHTTPBody(contract, options?.body)
@@ -291,9 +295,10 @@ async function scopedJSON<T>(scope: string, base: string, path: string, options?
         const res = await requestResponse(base, path, stable.options, stepUpRetried, generation)
         const value: T = res.status === 204 || res.headers.get("content-length") === "0" ? undefined as T : await res.json()
         assertCurrentSession(generation)
-        if (contract?.response) contract.response.parse(value)
+        if (contract.response && contract.response !== decode) contract.response.parse(value)
+        const result = decode ? decode.parse(value) : value
         release()
-        return value
+        return result
     } catch (err) {
         if (!shouldRetainMutationKey(err)) release()
         throw err
@@ -345,8 +350,9 @@ export function createScopedClient(scope: string): ScopedClient {
     }
 }
 
+/** apiFetch whose result is parsed by `schema` (an app schema over the wire contract). */
 export function checkedJSON<T>(path: string, schema: z.ZodType<T>, options?: RequestInit): Promise<T> {
-    return apiFetch<JsonValue>(path, options).then(value => schema.parse(value))
+    return scopedJSON<T>("api", API_BASE, path, options, false, schema)
 }
 
 export function buildListQS(params?: CursorListParams): string {
@@ -377,28 +383,25 @@ export interface CatalogApi<TRes, TCreate, TUpdate> {
     _basePath: string
 }
 
-export function createCatalogApi<TRes, TCreate, TUpdate>(
-    basePath: string,
-    schema: z.ZodType<TRes>,
-    createSchema: z.ZodType<object>,
-    updateSchema: z.ZodType<object>
-): CatalogApi<TRes, TCreate, TUpdate> {
-    const decode = (value: JsonValue) => schema.parse(value)
-    const listSchema = cursorListSchema(schema)
+/**
+ * CRUD client of a catalog. Bodies and responses are checked by the route
+ * contracts (generated from the Go DTOs), so the factory needs no schemas.
+ */
+export function createCatalogApi<TRes, TCreate, TUpdate>(basePath: string): CatalogApi<TRes, TCreate, TUpdate> {
     return {
         _basePath: basePath,
         list: (params?: CursorListParams) =>
-            apiFetch<JsonValue>(`${basePath}${buildListQS(params)}`).then(value => listSchema.parse(value)),
+            apiFetch<CursorListResponse<TRes>>(`${basePath}${buildListQS(params)}`),
         get: (id: string) =>
-            apiFetch<JsonValue>(`${basePath}/${id}`).then(decode),
-        create: async (data: TCreate) =>
-            apiFetch<JsonValue>(basePath, { method: "POST", body: JSON.stringify(createSchema.parse(data)) }).then(decode),
-        update: async (id: string, data: TUpdate) =>
-            apiFetch<JsonValue>(`${basePath}/${id}`, { method: "PUT", body: JSON.stringify(updateSchema.parse(data)) }).then(decode),
+            apiFetch<TRes>(`${basePath}/${id}`),
+        create: (data: TCreate) =>
+            apiFetch<TRes>(basePath, { method: "POST", body: JSON.stringify(data) }),
+        update: (id: string, data: TUpdate) =>
+            apiFetch<TRes>(`${basePath}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
         delete: (id: string) =>
             apiFetch<void>(`${basePath}/${id}`, { method: "DELETE" }),
-        setDeletionMark: async (id: string, data: SetDeletionMarkRequest) =>
-            apiFetch<void>(`${basePath}/${id}/deletion-mark`, { method: "POST", body: JSON.stringify(wireSchemas.SetDeletionMarkRequestSchema.parse(data)) }),
+        setDeletionMark: (id: string, data: SetDeletionMarkRequest) =>
+            apiFetch<void>(`${basePath}/${id}/deletion-mark`, { method: "POST", body: JSON.stringify(data) }),
     }
 }
 
@@ -416,21 +419,16 @@ export interface DocumentApi<TRes, TCreate, TUpdate> extends CatalogApi<TRes, TC
     _basePath: string
 }
 
-export function createDocumentApi<TRes, TCreate, TUpdate>(
-    basePath: string,
-    schema: z.ZodType<TRes>,
-    createSchema: z.ZodType<object>,
-    updateSchema: z.ZodType<object>
-): DocumentApi<TRes, TCreate, TUpdate> {
+export function createDocumentApi<TRes, TCreate, TUpdate>(basePath: string): DocumentApi<TRes, TCreate, TUpdate> {
     return {
-        ...createCatalogApi<TRes, TCreate, TUpdate>(basePath, schema, createSchema, updateSchema),
+        ...createCatalogApi<TRes, TCreate, TUpdate>(basePath),
         _basePath: basePath,
         post: (id: string) =>
             apiFetch<void>(`${basePath}/${id}/post`, { method: "POST" }),
         unpost: (id: string) =>
             apiFetch<void>(`${basePath}/${id}/unpost`, { method: "POST" }),
         updateAndRepost: async (id: string, data: TUpdate) =>
-            apiFetch<JsonValue>(`${basePath}/${id}/repost`, { method: "PUT", body: JSON.stringify(updateSchema.parse(data)) }).then(value => schema.parse(value)),
+            apiFetch<TRes>(`${basePath}/${id}/repost`, { method: "PUT", body: JSON.stringify(data) }),
         getRelatedDocuments: (id: string) =>
             apiFetch<import("@/types/common").RelatedDocumentsResponse>(`${basePath}/${id}/related-documents`),
         getMovements: (id: string) =>

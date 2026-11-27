@@ -5,16 +5,19 @@ import { useShortcut } from "@/hooks/useShortcut"
 import { resolveTitleFromUrl } from "@/lib/tab-utils"
 import { useMetadataStore } from "@/stores/useMetadataStore"
 import { useTabsStore } from "@/stores/useTabsStore"
+import dynamic from "next/dynamic"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { AppSidebar } from "./app-sidebar"
-import { CommandPalette } from "./command-palette"
 import { ImpersonationBanner } from "./impersonation-banner"
 import { MFAEnrollmentBanner } from "./mfa-enrollment-banner"
-import { ShortcutHelpDialog } from "./shortcut-help-dialog"
 import { ShortcutManager } from "./shortcut-manager"
 import { SiteHeader } from "./site-header"
+
+// Closed until summoned: they load beside the shell instead of delaying its first paint.
+const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette), { ssr: false })
+const ShortcutHelpDialog = dynamic(() => import("./shortcut-help-dialog").then((m) => m.ShortcutHelpDialog), { ssr: false })
 
 /**
  * RouteSync — ensures that if the user navigates via browser back/forward
@@ -77,6 +80,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
+      {/* First in tab order: keyboard users skip the sidebar and the tab bar. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Перейти к содержимому
+      </a>
       <ShortcutManager />
       <ShortcutHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
       <CommandPalette />
@@ -86,7 +96,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <MFAEnrollmentBanner />
         <RouteSync />
         <SiteHeader />
-        <div className="flex flex-1 flex-col min-h-0 overflow-hidden bg-workspace-surface">
+        <div id="main-content" tabIndex={-1} className="flex flex-1 flex-col min-h-0 overflow-hidden bg-workspace-surface outline-none">
           {children}
         </div>
       </SidebarInset>

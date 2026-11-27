@@ -70,6 +70,7 @@ import type {
 } from "@/configuration/crypto/types/portal-api"
 
 import { cryptoApi } from "@/configuration/crypto/lib/api"
+import { isImeComposing } from "@/lib/keyboard-utils"
 const PAGE_SIZES = [10, 20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
 const PORTAL_ROLE_MANAGER = 2
@@ -761,6 +762,7 @@ export default function PortalDepositAddressesPage() {
                     onKeyDown={(e) => {
                       if (
                         e.key === "Enter" &&
+                        !isImeComposing(e) &&
                         customerIdInput.trim() &&
                         selectedNetworkId &&
                         !creating &&

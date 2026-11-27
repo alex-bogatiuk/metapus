@@ -115,6 +115,7 @@ const CLIENT_GROUPING_THRESHOLD = 5000
 const MAX_INTERACTIVE_ROWS = 50000
 
 import type { ReportVariant } from "@/types/report-variant"
+import { downloadBlob } from "@/lib/download"
 
 /** View mode for report display. */
 export type ReportViewMode = "table" | "chart"
@@ -859,16 +860,7 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             const exportPromise = apiFetchBlob(
                 `/reports/${reportKey}/export`,
                 { method: "POST", body: JSON.stringify(body) }
-            ).then(({ blob, filename }) => {
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement("a")
-                a.href = url
-                a.download = filename
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-                URL.revokeObjectURL(url)
-            })
+            ).then(({ blob, filename }) => downloadBlob(blob, filename))
             toast.promise(exportPromise, {
                 loading: "Экспорт отчёта…",
                 success: "Файл скачан",

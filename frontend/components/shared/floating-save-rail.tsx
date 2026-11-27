@@ -17,18 +17,29 @@ const RESPONSE = 0.42
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
-/** The vertical span of the element that is actually on screen: clipped by the window and every clipping ancestor. */
-function visibleSpan(element: HTMLElement): { top: number; bottom: number } {
+/** The ancestors that clip the element vertically. Looked up once: styles are read outside the animation frames. */
+function clippingAncestors(element: HTMLElement): HTMLElement[] {
+  const clips: HTMLElement[] = []
+  for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+    if (getComputedStyle(parent).overflowY !== "visible") clips.push(parent)
+  }
+  return clips
+}
+
+/**
+ * The vertical span of the element that is actually on screen, clipped by the
+ * window and the clipping ancestors, and the element's own top.
+ */
+function visibleSpan(element: HTMLElement, clips: readonly HTMLElement[]): { top: number; bottom: number; elementTop: number } {
   const box = element.getBoundingClientRect()
   let top = Math.max(box.top, 0)
   let bottom = Math.min(box.bottom, window.innerHeight)
-  for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
-    if (getComputedStyle(parent).overflowY === "visible") continue
-    const clip = parent.getBoundingClientRect()
-    top = Math.max(top, clip.top)
-    bottom = Math.min(bottom, clip.bottom)
+  for (const clip of clips) {
+    const rect = clip.getBoundingClientRect()
+    top = Math.max(top, rect.top)
+    bottom = Math.min(bottom, rect.bottom)
   }
-  return { top, bottom }
+  return { top, bottom, elementTop: box.top }
 }
 
 /**
@@ -91,18 +102,23 @@ export function FloatingSaveRail({
     let frame = 0
     let lastFrame = 0
     let rest = 0
+    let room: boolean | null = null
+    const clips = clippingAncestors(rail)
 
     const bounds = () => {
-      const span = visibleSpan(rail)
+      const span = visibleSpan(rail, clips)
       const half = item.offsetHeight / 2
-      return { top: span.top + EDGE + half, bottom: span.bottom - EDGE - half, half, railTop: rail.getBoundingClientRect().top }
+      return { top: span.top + EDGE + half, bottom: span.bottom - EDGE - half, half, railTop: span.elementTop }
     }
     // Scroll and layout apply at once, without the spring, so the button never lags behind the page.
     const render = () => {
       const b = bounds()
-      const room = b.bottom >= b.top
-      setHasRoom(room)
-      if (!room) return
+      const fits = b.bottom >= b.top
+      if (fits !== room) {
+        room = fits
+        setHasRoom(fits)
+      }
+      if (!fits) return
       if (y == null) y = target = clamp(pointer.current?.y ?? (b.top + b.bottom) / 2, b.top, b.bottom)
       item.style.transform = `translateY(${clamp(y, b.top, b.bottom) - b.half - b.railTop}px)`
     }

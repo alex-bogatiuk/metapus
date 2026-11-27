@@ -12,6 +12,7 @@ import {
   Settings,
   User,
 } from "lucide-react"
+import dynamic from "next/dynamic"
 import { usePathname, useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 
@@ -23,7 +24,6 @@ import {
   type ResolvedNavSection,
 } from "@/components/layout/section-panel"
 import { getNavigation } from "@/lib/navigation"
-import { UserPreferencesDialog } from "@/components/shared/user-preferences-dialog"
 import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
@@ -55,6 +55,7 @@ import { buildEntityUrlByRoute } from "@/lib/entity-url"
 import { allowed, entityReadPermission } from "@/lib/navigation-access"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMetadataStore } from "@/stores/useMetadataStore"
+import type { EntityMeta } from "@/types/metadata"
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useTabsStore } from "@/stores/useTabsStore"
 import {
@@ -63,6 +64,10 @@ import {
   CollapsibleTrigger,
 } from "@radix-ui/react-collapsible"
 
+const UserPreferencesDialog = dynamic(
+  () => import("@/components/shared/user-preferences-dialog").then((m) => m.UserPreferencesDialog),
+  { ssr: false },
+)
 
 // ── Navigation structure ────────────────────────────────────────────────
 
@@ -87,8 +92,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navBottom = navigation.systemLinks.filter((item) => !item.permission || permissions.has(item.permission))
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
-  const getEntity = useMetadataStore((s) => s.getEntity)
   const entities = useMetadataStore((s) => s.entities)
+  const entitiesByKey = useMetadataStore((s) => s.byKey)
   const metaLoaded = useMetadataStore((s) => s.loaded)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<ResolvedNavSection | null>(null)
@@ -111,7 +116,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 if (!allowed(item.permission, permissions.has)) return []
                 return [{ title: item.fallback, url: item.url, description: item.description, icon: getEntityIcon(item.entityKey) }]
               }
-              const entity = entities.find((entity) => entity.key === item.entityKey)
+              const entity: EntityMeta | undefined = entitiesByKey[item.entityKey]
               if (!allowed(item.permission ?? entityReadPermission(entity), permissions.has)) return []
               const title = entity?.presentation.plural ?? item.fallback
               const routePrefix = entity?.routePrefix ?? item.entityKey
@@ -125,7 +130,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           .filter((group) => group.items.length > 0),
       }))
       .filter((section) => section.groups.length > 0)
-  }, [navigation, entities, permissions])
+  }, [navigation, entitiesByKey, permissions])
 
   // ── Dynamic extension items from metadata ─────────────────────────────
   // Entities not covered by the registered navigation appear here

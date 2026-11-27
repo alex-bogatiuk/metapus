@@ -69,7 +69,7 @@ function SettingsPageContent() {
         </div>
 
         {/* General sections */}
-        <nav className="flex flex-col gap-0.5 px-2">
+        <nav aria-label="Общие настройки" className="flex flex-col gap-0.5 px-2">
           {generalSections.map((section) => (
             <SidebarItem
               key={section.id}
@@ -88,7 +88,7 @@ function SettingsPageContent() {
                 Модули
               </span>
             </div>
-            <nav className="flex flex-col gap-0.5">
+            <nav aria-label="Модули" className="flex flex-col gap-0.5">
               {moduleSections.map((section) => (
                 <SidebarItem
                   key={section.id}
@@ -109,7 +109,7 @@ function SettingsPageContent() {
                 {group}
               </span>
             </div>
-            <nav className="flex flex-col gap-0.5">
+            <nav aria-label={group} className="flex flex-col gap-0.5">
               {pages.map((page) => (
                 <SidebarItem
                   key={page.id}
@@ -202,7 +202,9 @@ function SidebarItem({ section, isActive, onClick }: SidebarItemProps) {
   const Icon = section.icon
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
         "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1",
         isActive

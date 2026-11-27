@@ -4,6 +4,8 @@
 // Cross-platform: "mod" alias → Ctrl on Windows/Linux, Cmd (⌘) on macOS.
 // Cyrillic-safe: uses e.code for letter keys so shortcuts work regardless of keyboard layout.
 
+import type { KeyboardEvent as ReactKeyboardEvent } from "react"
+
 /** Detect macOS platform */
 export function isMac(): boolean {
   if (typeof navigator === "undefined") return false
@@ -200,4 +202,17 @@ export function formatCombo(combo: string): string {
   }
   // Windows style: Ctrl+Shift+S
   return [...modifiers, keyLabel].join("+")
+}
+
+// ── IME ─────────────────────────────────────────────────────────────────
+
+/**
+ * True while an input method (Chinese, Japanese, Korean, …) is composing
+ * text: its Enter confirms a candidate and is not the app's Enter. keyCode
+ * 229 covers Safari, which reports the confirming keydown after the
+ * composition has ended.
+ */
+export function isImeComposing(event: KeyboardEvent | ReactKeyboardEvent): boolean {
+  const native = "nativeEvent" in event ? event.nativeEvent : event
+  return native.isComposing || native.keyCode === 229
 }

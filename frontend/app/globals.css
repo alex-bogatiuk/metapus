@@ -16,6 +16,17 @@
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
 }
 
+/* Arial sized to Inter's metrics (computed as next/font does), so text keeps
+   its place when Inter replaces it. */
+@font-face {
+  font-family: "Inter Fallback";
+  src: local("Arial");
+  ascent-override: 89.79%;
+  descent-override: 22.36%;
+  line-gap-override: 0%;
+  size-adjust: 107.89%;
+}
+
 @font-face {
   font-family: "Geist Mono Local";
   font-style: normal;
@@ -44,7 +55,7 @@
      panel sits on top of it; cards and popovers rise above the workspace.
      Status hues are tuned so that text-{status} on bg-{status}/10 passes 4.5:1. */
   :root {
-    --font-inter: "Inter Local", Arial, sans-serif;
+    --font-inter: "Inter Local", "Inter Fallback", Arial, sans-serif;
     --font-geist-mono: "Geist Mono Local", ui-monospace, monospace;
     --background: 240 4% 95.5%;
     --foreground: 240 8% 5%;
@@ -66,6 +77,8 @@
     --destructive-foreground: 0 0% 100%;
     --border: 240 7% 91%;
     --input: 240 6% 86%;
+    /* At least 3:1 against the workspace, for overlay scrollbars without a track. */
+    --scrollbar-thumb: 240 4% 56%;
     --ring: 221 83% 53%;
     --radius: 0.625rem;
     --chart-1: 221 83% 53%;
@@ -142,6 +155,7 @@
     --destructive-foreground: 240 7% 6%;
     --border: 240 5% 16%;
     --input: 240 5% 22%;
+    --scrollbar-thumb: 240 5% 42%;
     --ring: 218 100% 65%;
     --chart-1: 218 100% 65%;
     --chart-2: 170 60% 45%;
@@ -205,9 +219,12 @@
   }
 
   /* Native scrollbars look like the ScrollArea thumb and follow the theme,
-     so a plain overflow container never shows the browser's default bar. */
+     so a plain overflow container never shows the browser's default bar.
+     scrollbar-color is inherited, so the root sets it for every scroller;
+     scrollbar-width is not, so each element gets it. */
   :root {
     color-scheme: light;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
   }
 
   .dark {
@@ -216,33 +233,31 @@
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--input)) transparent;
   }
 
-  *:hover {
-    scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
-  }
+  /* Browsers without scrollbar-color style the bar through the WebKit
+     pseudo-elements, which scrollbar-width: thin would switch off. */
+  @supports not (scrollbar-color: auto) {
+    * {
+      scrollbar-width: auto;
+    }
 
-  /* Safari still styles scrollbars through the WebKit pseudo-elements. */
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
 
-  ::-webkit-scrollbar-track,
-  ::-webkit-scrollbar-corner {
-    background: transparent;
-  }
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-corner {
+      background: transparent;
+    }
 
-  ::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 9999px;
-    background-color: hsl(var(--input));
-    background-clip: content-box;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.45);
+    ::-webkit-scrollbar-thumb {
+      border: 2px solid transparent;
+      border-radius: 9999px;
+      background-color: hsl(var(--scrollbar-thumb));
+      background-clip: content-box;
+    }
   }
 
   /* A bordered block that holds a table clips it to its own rounded padding box,
@@ -344,16 +359,29 @@
     }
   }
 
+  /* Reduced motion: nothing slides, scales or rotates on its way. Fades and
+     color changes keep their timing, so state changes still read. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
     *::after {
       scroll-behavior: auto !important;
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
+      transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, opacity, box-shadow !important;
+      /* tailwindcss-animate enter/exit (dialogs, sheets, menus): fade only. */
+      --tw-enter-translate-x: 0 !important;
+      --tw-enter-translate-y: 0 !important;
+      --tw-enter-scale: 1 !important;
+      --tw-enter-rotate: 0 !important;
+      --tw-exit-translate-x: 0 !important;
+      --tw-exit-translate-y: 0 !important;
+      --tw-exit-scale: 1 !important;
+      --tw-exit-rotate: 0 !important;
     }
 
+    /* A loading indicator keeps turning, gently. */
+    .animate-spin {
+      animation-duration: 2.5s !important;
+    }
   }
 
   @media (prefers-contrast: more) {
@@ -361,12 +389,14 @@
       --border: 240 5% 62%;
       --input: 240 5% 55%;
       --ring: 224 76% 40%;
+      --scrollbar-thumb: 240 4% 40%;
     }
 
     .dark {
       --border: 240 5% 40%;
       --input: 240 5% 48%;
       --ring: 218 100% 75%;
+      --scrollbar-thumb: 240 5% 63%;
     }
 
     .bg-brand-glow {
@@ -411,41 +441,23 @@
     display: none;
   }
 
-  /* Thin styled scrollbar (shadcn-consistent: muted colors, rounded) */
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--input)) transparent;
-  }
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--input));
-    border-radius: 9999px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.4);
-  }
-
-  /* Badge appear animation (status badges, counters) */
+  /* Badge appear animation (status badges, counters): scales in, or with
+     reduced motion only fades in. */
   .animate-badge-in {
     animation: badge-in 200ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-badge-in {
+      animation-name: fade-in;
+    }
   }
   @keyframes badge-in {
     from { opacity: 0; transform: scale(0.8); }
     to { opacity: 1; transform: scale(1); }
   }
-
-  /* Row slide-in (new document line added) */
-  .animate-row-in {
-    animation: row-in 200ms ease-out;
-  }
-  @keyframes row-in {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   /* Search matches in a table part: a tint laid over the cell's own
@@ -457,9 +469,12 @@
     background-image: linear-gradient(hsl(var(--primary) / 0.3), hsl(var(--primary) / 0.3));
   }
 
-  /* Shake for validation error feedback */
-  .animate-shake {
-    animation: shake 300ms ease-in-out;
+  /* Shake for validation error feedback; with reduced motion the error
+     color alone carries it. */
+  @media (prefers-reduced-motion: no-preference) {
+    .animate-shake {
+      animation: shake 300ms ease-in-out;
+    }
   }
   @keyframes shake {
     0%, 100% { transform: translateX(0); }

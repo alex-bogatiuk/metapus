@@ -70,6 +70,7 @@ import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
 import { cryptoApi } from "@/configuration/crypto/lib/api"
+import { isImeComposing } from "@/lib/keyboard-utils"
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface MerchantUsersTabProps {
@@ -429,6 +430,7 @@ function AddRow({ row, saving, onChange, onCommit, onCancel }: AddRowProps) {
   const roleSelectRef = useRef<HTMLButtonElement>(null)
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isImeComposing(e)) return
     if (e.key === "Escape") { onCancel(); return }
     if (e.key === "Enter")  { onCommit(); return }
   }

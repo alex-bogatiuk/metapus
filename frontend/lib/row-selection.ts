@@ -50,18 +50,20 @@ export const ROW_MOVE_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDow
  * The row index a key moves the current row to, clamped to the rows; null for
  * a key that does not move rows or a grid without rows. With no current row
  * (index -1) a step down starts at the first row and a step up at the last.
+ * A pageSize function is called only for PageUp/PageDown, so a caller can
+ * measure the viewport lazily instead of on every key.
  */
-export function rowMoveTarget(key: string, index: number, length: number, pageSize: number): number | null {
+export function rowMoveTarget(key: string, index: number, length: number, pageSize: number | (() => number)): number | null {
     if (length === 0 || !ROW_MOVE_KEYS.has(key)) return null
-    const page = Math.max(1, pageSize)
+    const page = () => Math.max(1, typeof pageSize === "function" ? pageSize() : pageSize)
     const clamp = (value: number) => Math.min(length - 1, Math.max(0, value))
     switch (key) {
         case "Home": return 0
         case "End": return length - 1
         case "ArrowDown": return index === -1 ? 0 : clamp(index + 1)
         case "ArrowUp": return index === -1 ? length - 1 : clamp(index - 1)
-        case "PageDown": return index === -1 ? clamp(page - 1) : clamp(index + page)
-        default: return index === -1 ? 0 : clamp(index - page)
+        case "PageDown": return index === -1 ? clamp(page() - 1) : clamp(index + page())
+        default: return index === -1 ? 0 : clamp(index - page())
     }
 }
 

@@ -87,7 +87,11 @@ server {
         proxy_pass http://metapus-app:8080;
     }
 
+    # The frontend sends its own security headers (CSP with a per-request
+    # nonce and its companions). A location-level add_header stops the
+    # server-level ones from being added on top, so only HSTS is repeated.
     location / {
+        add_header Strict-Transport-Security "max-age=86400" always;
         include /opt/metapus/proxy-common.conf;
         proxy_pass http://frontend:3000;
     }

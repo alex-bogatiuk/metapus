@@ -13,6 +13,23 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Companions of the Content-Security-Policy set per page in proxy.ts.
+  // HSTS belongs to the TLS terminator (nginx) and is set there.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()" },
+        ],
+      },
+    ]
+  },
   async rewrites() {
     const backendUrl = process.env.API_PROXY_URL || "http://localhost:8080";
     return [

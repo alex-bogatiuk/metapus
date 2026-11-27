@@ -15,6 +15,7 @@ import {
 import { assertCurrentSession, getSessionGeneration, onScopeReset } from "@/lib/auth-scope"
 import { usePrintForms } from "@/hooks/usePrintForms"
 import type { PrintFormSummary } from "@/types/print"
+import { downloadBlob } from "@/lib/download"
 
 // ── Print execution ────────────────────────────────────────────────────
 
@@ -46,17 +47,12 @@ async function executePrint(
   if (output === "html") {
     const html = await res.text()
     assertCurrentSession(generation)
-    // Use sandboxed iframe instead of document.write to prevent XSS
-    // from unescaped user data in print templates.
+    // A sandboxed iframe without scripts, not document.write: user data in
+    // print templates cannot run. It stays invisible, since only the print
+    // dialog shows it, and leaves once printing ends.
     const iframe = document.createElement("iframe")
-    iframe.style.position = "fixed"
-    iframe.style.top = "0"
-    iframe.style.left = "0"
-    iframe.style.width = "100%"
-    iframe.style.height = "100%"
-    iframe.style.zIndex = "99999"
-    iframe.style.border = "none"
-    iframe.style.background = "white"
+    iframe.title = "Печатная форма"
+    iframe.style.cssText = "position: fixed; width: 0; height: 0; border: 0; visibility: hidden"
     iframe.setAttribute("sandbox", "allow-same-origin allow-modals")
     iframe.srcdoc = html
     document.body.appendChild(iframe)
@@ -70,9 +66,12 @@ async function executePrint(
     disposeReset = onScopeReset(cleanup)
     iframe.onload = () => {
       assertCurrentSession(generation)
-      iframe.contentWindow?.print()
-      // Remove iframe after print dialog closes
+      const frame = iframe.contentWindow
+      if (!frame) return cleanup()
+      frame.addEventListener("afterprint", cleanup, { once: true })
+      // Browsers that skip afterprint still hand focus back to the page.
       window.addEventListener("focus", cleanup)
+      frame.print()
     }
   } else {
     const blob = await res.blob()
@@ -85,11 +84,7 @@ async function executePrint(
       ? decodeURIComponent(rfc5987[1])
       : plain?.[1] ?? `document.${output}`
 
-    const a = document.createElement("a")
-    a.href = URL.createObjectURL(blob)
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(a.href)
+    downloadBlob(blob, filename)
   }
 }
 
@@ -98,11 +93,14 @@ async function executePrint(
 function FormatButton({
   icon,
   title,
+  formLabel,
   loading,
   onClick,
 }: {
   icon: React.ReactNode
   title: string
+  /** The print form, so each row's buttons have distinct names. */
+  formLabel: string
   loading: boolean
   onClick: () => void
 }) {
@@ -111,6 +109,7 @@ function FormatButton({
       type="button"
       className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
       title={title}
+      aria-label={`${title}: ${formLabel}`}
       disabled={loading}
       onClick={(e) => {
         e.stopPropagation()
@@ -142,18 +141,21 @@ function PrintFormRow({
         <FormatButton
           icon={<Printer className="h-3 w-3" />}
           title="Открыть для печати"
+          formLabel={form.label}
           loading={loadingKey === `${form.name}:html`}
           onClick={() => onPrint(form.name, "html")}
         />
         <FormatButton
           icon={<FileDown className="h-3 w-3" />}
           title="Скачать PDF"
+          formLabel={form.label}
           loading={loadingKey === `${form.name}:pdf`}
           onClick={() => onPrint(form.name, "pdf")}
         />
         <FormatButton
           icon={<FileText className="h-3 w-3" />}
           title="Скачать Word"
+          formLabel={form.label}
           loading={loadingKey === `${form.name}:docx`}
           onClick={() => onPrint(form.name, "docx")}
         />
@@ -200,6 +202,7 @@ export function PrintMenuButton({
           className="px-2.5"
           disabled={formsLoading}
           title="Печать"
+          aria-label="Печать"
         >
           {formsLoading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />

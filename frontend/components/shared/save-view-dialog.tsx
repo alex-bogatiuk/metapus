@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ViewVisibility } from "@/types/list-view"
+import { isImeComposing } from "@/lib/keyboard-utils"
 
 interface SaveViewDialogProps {
     open: boolean
@@ -70,7 +71,7 @@ export function SaveViewDialog({ open, onOpenChange, onSave }: SaveViewDialogPro
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter") {
+                                if (e.key === "Enter" && !isImeComposing(e)) {
                                     e.preventDefault()
                                     handleSave()
                                 }

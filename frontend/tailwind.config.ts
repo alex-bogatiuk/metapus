@@ -138,23 +138,12 @@ const config = {
           to: {
             opacity: '1'
           }
-        },
-        'apple-fade-in': {
-          from: {
-            opacity: '0.88',
-            transform: 'scale(0.997)'
-          },
-          to: {
-            opacity: '1',
-            transform: 'scale(1)'
-          }
         }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'skeleton-fade-in': 'skeleton-fade-in 150ms ease-out',
-        'apple-fade-in': 'apple-fade-in 160ms cubic-bezier(0.32, 0.72, 0, 1)'
+        'skeleton-fade-in': 'skeleton-fade-in 150ms ease-out'
       }
     }
   },

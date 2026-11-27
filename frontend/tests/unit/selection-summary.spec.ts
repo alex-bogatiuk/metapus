@@ -76,6 +76,12 @@ test("arrow, page and Home/End keys move the current row within the rows", () =>
     expect(rowMoveTarget("ArrowUp", -1, 5, 3)).toBe(4)
     expect(rowMoveTarget("ArrowLeft", 2, 5, 3)).toBeNull()
     expect(rowMoveTarget("ArrowDown", -1, 0, 3)).toBeNull()
+    let measured = 0
+    const measure = () => { measured++; return 3 }
+    expect(rowMoveTarget("ArrowDown", 1, 5, measure)).toBe(2)
+    expect(measured).toBe(0)
+    expect(rowMoveTarget("PageDown", 1, 5, measure)).toBe(4)
+    expect(measured).toBe(1)
 
     const keys = ["a", "b", "c", "d"]
     expect(rowRange(keys, "b", "d")).toEqual(["b", "c", "d"])

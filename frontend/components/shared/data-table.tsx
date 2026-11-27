@@ -138,14 +138,149 @@ function SortIcon({
     sortDirection: "asc" | "desc"
 }) {
     if (sortColumn !== colKey) {
-        return <ArrowUpDown className="ml-1 inline h-3 w-3 shrink-0 opacity-0 group-hover:opacity-40" />
+        return <ArrowUpDown aria-hidden="true" className="ml-1 inline h-3 w-3 shrink-0 opacity-0 group-hover:opacity-40 group-focus-visible:opacity-40" />
     }
     return sortDirection === "asc" ? (
-        <ArrowUp className="ml-1 inline h-3 w-3 shrink-0 text-primary" />
+        <ArrowUp aria-hidden="true" className="ml-1 inline h-3 w-3 shrink-0 text-primary" />
     ) : (
-        <ArrowDown className="ml-1 inline h-3 w-3 shrink-0 text-primary" />
+        <ArrowDown aria-hidden="true" className="ml-1 inline h-3 w-3 shrink-0 text-primary" />
     )
 }
+
+function alignClass(align?: "left" | "right" | "center"): string {
+    if (align === "right") return "text-right"
+    if (align === "center") return "text-center"
+    return "text-left"
+}
+
+/** Row interactions, stable across renders so unchanged rows skip re-rendering. */
+interface RowEvents<T> {
+    click: (item: T) => void
+    doubleClick: (item: T) => void
+    toggle: (id: string, shiftKey: boolean) => void
+    cellClick: (item: T, columnKey: string, event: React.MouseEvent) => void
+    dismissSummary: () => void
+}
+
+interface DataTableRowProps<T extends { id: string }> {
+    item: T
+    columns: Column<T>[]
+    isSelected: boolean
+    isFocused: boolean
+    /** The current column, given to the current row only. */
+    currentColumnKey: string | null
+    /** Selection totals shown at the current cell, given to the current row only. */
+    summary: ReturnType<typeof summarize> | null
+    /** Shift+click extends the selection, so it must not select text. */
+    rangeSelect: boolean
+    compact: boolean
+    renderPrefix?: (item: T) => React.ReactNode
+    rowClassName?: (item: T) => string | undefined
+    events: RowEvents<T>
+}
+
+function DataTableRowImpl<T extends { id: string }>({
+    item,
+    columns,
+    isSelected,
+    isFocused,
+    currentColumnKey,
+    summary,
+    rangeSelect,
+    compact,
+    renderPrefix,
+    rowClassName,
+    events,
+}: DataTableRowProps<T>) {
+    const rowH = compact ? "h-7" : "h-9"
+    const cellPx = compact ? "px-2" : "px-4"
+    return (
+        <tr
+            data-row-id={item.id}
+            tabIndex={-1}
+            data-focused={isFocused ? "true" : undefined}
+            data-selected={isSelected ? "true" : undefined}
+            aria-current={isFocused ? "true" : undefined}
+            className={cn(
+                // The sticky header and the bottom banner must not cover a row revealed by the keyboard.
+                "cursor-pointer border-b border-border/60 transition-colors scroll-mt-10 scroll-mb-12",
+                rowH,
+                (isFocused || isSelected) && "shadow-[inset_2px_0_0_hsl(var(--ring))]",
+                isFocused
+                    ? "bg-accent ring-1 ring-inset ring-ring/55"
+                    : isSelected
+                        ? "bg-accent/85"
+                        : "hover:bg-accent/65",
+                rowClassName?.(item)
+            )}
+            onClick={() => events.click(item)}
+            onDoubleClick={() => events.doubleClick(item)}
+        >
+            {/* Checkbox cell — same fixed width as header, centered */}
+            <td className="w-[40px] min-w-[40px] max-w-[40px] px-0 py-0">
+                <div className={cn("flex items-center justify-center", rowH)}>
+                    <Checkbox
+                        checked={isSelected}
+                        tabIndex={-1}
+                        aria-label="Выбрать строку"
+                        onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation()
+                            events.toggle(item.id, e.shiftKey)
+                        }}
+                        onCheckedChange={() => {
+                            /* handled by onClick to capture shiftKey */
+                        }}
+                    />
+                </div>
+            </td>
+
+            {/* Optional prefix cell */}
+            {renderPrefix && (
+                <td className="w-[32px] min-w-[32px] max-w-[32px] px-1 py-0">
+                    <div className={cn("flex items-center", rowH)}>
+                        {renderPrefix(item)}
+                    </div>
+                </td>
+            )}
+
+            {/* Data cells — fixed height, horizontally clipped */}
+            {columns.map((col) => {
+                const isCurrentCell = currentColumnKey === col.key
+                const cell = (
+                    <td
+                        key={col.key}
+                        data-column-key={col.key}
+                        data-current-cell={isCurrentCell ? "true" : undefined}
+                        className={cn(
+                            "py-0 scroll-mt-10 scroll-mb-12",
+                            cellPx, rowH,
+                            alignClass(col.align),
+                            isCurrentCell && "relative z-[1] shadow-[inset_0_0_0_1px_hsl(var(--ring))]",
+                            col.className
+                        )}
+                        onMouseDown={(event) => { if (event.shiftKey && rangeSelect) event.preventDefault() }}
+                        onClick={(event) => events.cellClick(item, col.key, event)}
+                    >
+                        <div className={cn("flex items-center min-w-0 whitespace-nowrap overflow-hidden text-ellipsis", rowH,
+                            col.align === "right" && "justify-end", col.align === "center" && "justify-center")}>
+                            {col.render
+                                ? col.render(item)
+                                : String((item as JsonObject)[col.key] ?? "")}
+                        </div>
+                    </td>
+                )
+                return isCurrentCell && summary ? (
+                    <SelectionSummaryPopover key={col.key} summary={summary} label={col.label} onDismiss={events.dismissSummary}>
+                        {cell}
+                    </SelectionSummaryPopover>
+                ) : cell
+            })}
+        </tr>
+    )
+}
+
+// memo() drops the type parameter; the cast restores it.
+const DataTableRow = React.memo(DataTableRowImpl) as typeof DataTableRowImpl
 
 /** The list page (marked data-list-page) whose toolbar hands focus back to the table. */
 const LIST_PAGE_SELECTOR = "[data-list-page]"
@@ -189,7 +324,6 @@ export function DataTable<T extends { id: string }>({
 }: DataTableProps<T>) {
 
     const compact = useCompactMode()
-    const rowH = compact ? "h-7" : "h-9"
     const cellPx = compact ? "px-2" : "px-4"
     const thPy = compact ? "py-1" : "py-2"
     const fontSize = compact ? "text-xs" : "text-sm"
@@ -225,6 +359,43 @@ export function DataTable<T extends { id: string }>({
     }, [summaryColumn, focusedId, selectedSet, data])
     const summaryKey = summary ? `${focusedColumnKey}|${selectedIds.length}|${focusedId}` : ""
     const [dismissedSummary, setDismissedSummary] = useState("")
+    const shownSummary = summary && dismissedSummary !== summaryKey ? summary : null
+
+    // Rows receive one stable set of handlers that call the latest props, so
+    // moving the current row re-renders only the two rows whose state changed.
+    const latestRef = useRef({ onRowClick, onRowDoubleClick, onToggleItem, handleCellClick, summaryKey })
+    useEffect(() => {
+        latestRef.current = { onRowClick, onRowDoubleClick, onToggleItem, handleCellClick, summaryKey }
+    })
+    const rowEvents = useMemo<RowEvents<T>>(() => ({
+        click: (item) => latestRef.current.onRowClick?.(item),
+        doubleClick: (item) => latestRef.current.onRowDoubleClick?.(item),
+        toggle: (id, shiftKey) => latestRef.current.onToggleItem(id, shiftKey),
+        cellClick: (item, columnKey, event) => latestRef.current.handleCellClick(item, columnKey, event),
+        dismissSummary: () => setDismissedSummary(latestRef.current.summaryKey),
+    }), [])
+
+    // One context menu serves the whole body: the row under the pointer when
+    // it opens becomes its subject (1C / Windows Explorer pattern: a row in
+    // the selection targets the whole selection, any other row only itself).
+    const [menuRowId, setMenuRowId] = useState<string | null>(null)
+    const menuRow = menuRowId === null ? undefined : data.find((row) => row.id === menuRowId)
+    const menuTargets = useMemo(() => {
+        if (!menuRow) return []
+        return selectedSet.has(menuRow.id) ? data.filter((row) => selectedSet.has(row.id)) : [menuRow]
+    }, [menuRow, selectedSet, data])
+    const rowIdAt = (target: EventTarget) =>
+        target instanceof Element ? target.closest<HTMLElement>("tr[data-row-id]")?.dataset.rowId ?? null : null
+    const noteMenuRow = (event: React.MouseEvent) => {
+        const id = rowIdAt(event.target)
+        // Prevented, the event opens no menu: there is no row to act on.
+        if (id === null) event.preventDefault()
+        else setMenuRowId(id)
+    }
+    // A touch long-press opens the menu without a contextmenu event.
+    const noteTouchMenuRow = (event: React.PointerEvent) => {
+        if (event.pointerType !== "mouse") setMenuRowId(rowIdAt(event.target))
+    }
 
     // 1C-style copy: Cmd/Ctrl+C (or Edit → Copy) with no text selected puts
     // the current cell's value on the clipboard. A real text selection,
@@ -311,7 +482,7 @@ export function DataTable<T extends { id: string }>({
                 return
             }
 
-            const target = rowMoveTarget(event.key, index, data.length, visibleRowCount(table))
+            const target = rowMoveTarget(event.key, index, data.length, () => visibleRowCount(table))
             if (target === null) return
             event.preventDefault()
             const item = data[target]
@@ -376,11 +547,25 @@ export function DataTable<T extends { id: string }>({
             ? ("indeterminate" as const)
             : false
 
-    const alignClass = (align?: "left" | "right" | "center") => {
-        if (align === "right") return "text-right"
-        if (align === "center") return "text-center"
-        return "text-left"
-    }
+    const rows = data.map((item) => {
+        const isFocused = focusedId === item.id
+        return (
+            <DataTableRow
+                key={item.id}
+                item={item}
+                columns={columns}
+                isSelected={selectedSet.has(item.id)}
+                isFocused={isFocused}
+                currentColumnKey={isFocused ? focusedColumnKey : null}
+                summary={isFocused ? shownSummary : null}
+                rangeSelect={Boolean(onSelectRows)}
+                compact={compact}
+                renderPrefix={renderPrefix}
+                rowClassName={rowClassName}
+                events={rowEvents}
+            />
+        )
+    })
 
     return (
         <table
@@ -411,178 +596,101 @@ export function DataTable<T extends { id: string }>({
             <thead className="sticky top-0 z-10">
                 <tr className="border-b border-border/70 bg-muted/85 backdrop-blur-sm">
                     {/* Checkbox column — fixed width, centered */}
-                    <th className={cn("w-[40px] min-w-[40px] max-w-[40px] px-0", thPy)}>
+                    <th scope="col" className={cn("w-[40px] min-w-[40px] max-w-[40px] px-0", thPy)}>
                         <div className="flex items-center justify-center">
                             <Checkbox
                                 checked={headerChecked}
                                 onCheckedChange={onToggleAll}
+                                aria-label="Выбрать все строки"
                             />
                         </div>
                     </th>
 
                     {/* Optional prefix column (status icon, etc.) */}
                     {renderPrefix && (
-                        <th className={cn("w-[32px] min-w-[32px] max-w-[32px] px-1", thPy)} />
+                        <th scope="col" className={cn("w-[32px] min-w-[32px] max-w-[32px] px-1", thPy)}>
+                            <span className="sr-only">Состояние</span>
+                        </th>
                     )}
 
                     {/* Data columns with resize handles */}
-                    {columns.map((col, colIndex) => (
-                        <th
-                            key={col.key}
-                            data-column-key={col.key}
-                            data-focused-column={focusedColumnKey === col.key ? "true" : undefined}
-                            className={cn(
-                                "relative text-xs font-medium text-muted-foreground select-none",
-                                cellPx, thPy,
-                                alignClass(col.align),
-                                col.sortable && "cursor-pointer group hover:text-foreground transition-colors",
-                                focusedColumnKey === col.key && "text-foreground",
-                                col.className
-                            )}
-                            onClick={col.sortable && onSort ? () => { if (!isResizing) onSort(col.key) } : undefined}
-                        >
-                            <div className="truncate">
-                                {col.label}
-                                {col.sortable && (
+                    {columns.map((col, colIndex) => {
+                        const sortable = Boolean(col.sortable && onSort)
+                        const sorted = sortable && sortColumn === col.key
+                        const label = (
+                            <>
+                                <span className="truncate">{col.label}</span>
+                                {sortable && (
                                     <SortIcon
                                         colKey={col.key}
                                         sortColumn={sortColumn}
                                         sortDirection={sortDirection}
                                     />
                                 )}
-                            </div>
+                            </>
+                        )
+                        return (
+                            <th
+                                key={col.key}
+                                scope="col"
+                                aria-sort={sorted ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}
+                                data-column-key={col.key}
+                                data-focused-column={focusedColumnKey === col.key ? "true" : undefined}
+                                className={cn(
+                                    "relative text-xs font-medium text-muted-foreground select-none",
+                                    alignClass(col.align),
+                                    sortable ? "p-0" : [cellPx, thPy],
+                                    focusedColumnKey === col.key && "text-foreground",
+                                    col.className
+                                )}
+                            >
+                                {sortable ? (
+                                    // The button fills the cell, so the whole header stays the click target.
+                                    <button
+                                        type="button"
+                                        className={cn(
+                                            "group flex w-full min-h-6 min-w-0 items-center font-medium transition-colors hover:text-foreground",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                                            cellPx, thPy,
+                                            col.align === "right" && "justify-end",
+                                            col.align === "center" && "justify-center"
+                                        )}
+                                        onClick={() => { if (!isResizing) onSort?.(col.key) }}
+                                    >
+                                        {label}
+                                    </button>
+                                ) : (
+                                    <div className="truncate">{col.label}</div>
+                                )}
 
-                            {/* Resize handle */}
-                            {onResizeStart && (
-                                <div
-                                    className="absolute right-0 top-0 h-full w-[5px] cursor-col-resize z-20 group/resize hover:bg-primary/30 active:bg-primary/50"
-                                    onMouseDown={(e) => onResizeStart(colIndex, e)}
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <div className="absolute right-0 top-1/4 h-1/2 w-[1px] bg-border group-hover/resize:bg-primary/60" />
-                                </div>
-                            )}
-                        </th>
-                    ))}
+                                {/* Resize handle */}
+                                {onResizeStart && (
+                                    <div
+                                        aria-hidden="true"
+                                        className="absolute right-0 top-0 h-full w-[5px] cursor-col-resize z-20 group/resize hover:bg-primary/30 active:bg-primary/50"
+                                        onMouseDown={(e) => onResizeStart(colIndex, e)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="absolute right-0 top-1/4 h-1/2 w-[1px] bg-border group-hover/resize:bg-primary/60" />
+                                    </div>
+                                )}
+                            </th>
+                        )
+                    })}
                 </tr>
             </thead>
-            <tbody className="bg-workspace-surface">
-                {data.map((item) => {
-                    const isSelected = selectedSet.has(item.id)
-
-                    const isFocused = focusedId === item.id
-                    const hasSelectionIndicator = isFocused || isSelected
-
-                    const row = (
-                        <tr
-                            key={item.id}
-                            data-row-id={item.id}
-                            tabIndex={-1}
-                            data-focused={isFocused ? "true" : undefined}
-                            data-selected={isSelected ? "true" : undefined}
-                            aria-current={isFocused ? "true" : undefined}
-                            aria-selected={isSelected}
-                            className={cn(
-                                // The sticky header and the bottom banner must not cover a row revealed by the keyboard.
-                                "cursor-pointer border-b border-border/60 transition-colors scroll-mt-10 scroll-mb-12",
-                                rowH,
-                                hasSelectionIndicator && "shadow-[inset_2px_0_0_hsl(var(--ring))]",
-                                isFocused
-                                    ? "bg-accent ring-1 ring-inset ring-ring/55"
-                                    : isSelected
-                                        ? "bg-accent/85"
-                                        : "hover:bg-accent/65",
-                                rowClassName?.(item)
-                            )}
-                            onClick={() => onRowClick?.(item)}
-                            onDoubleClick={() => onRowDoubleClick?.(item)}
-                        >
-                            {/* Checkbox cell — same fixed width as header, centered */}
-                            <td className="w-[40px] min-w-[40px] max-w-[40px] px-0 py-0">
-                                <div className={cn("flex items-center justify-center", rowH)}>
-                                    <Checkbox
-                                        checked={isSelected}
-                                        tabIndex={-1}
-                                        onClick={(e: React.MouseEvent) => {
-                                            e.stopPropagation()
-                                            onToggleItem(item.id, e.shiftKey)
-                                        }}
-                                        onCheckedChange={() => {
-                                            /* handled by onClick to capture shiftKey */
-                                        }}
-                                    />
-                                </div>
-                            </td>
-
-                            {/* Optional prefix cell */}
-                            {renderPrefix && (
-                                <td className="w-[32px] min-w-[32px] max-w-[32px] px-1 py-0">
-                                    <div className={cn("flex items-center", rowH)}>
-                                        {renderPrefix(item)}
-                                    </div>
-                                </td>
-                            )}
-
-                            {/* Data cells — fixed height, horizontally clipped */}
-                            {columns.map((col) => {
-                                const isCurrentCell = isFocused && focusedColumnKey === col.key
-                                const cell = (
-                                <td
-                                    key={col.key}
-                                    data-column-key={col.key}
-                                    data-current-cell={isCurrentCell ? "true" : undefined}
-                                    className={cn(
-                                        "py-0 scroll-mt-10 scroll-mb-12",
-                                        cellPx, rowH,
-                                        `max-${rowH}`,
-                                        alignClass(col.align),
-                                        isCurrentCell && "relative z-[1] shadow-[inset_0_0_0_1px_hsl(var(--ring))]",
-                                        col.className
-                                    )}
-                                    onMouseDown={(event) => { if (event.shiftKey && onSelectRows) event.preventDefault() }}
-                                    onClick={(event) => handleCellClick(item, col.key, event)}
-                                >
-                                    <div className={cn("flex items-center min-w-0 whitespace-nowrap overflow-hidden text-ellipsis", rowH,
-                                        col.align === "right" && "justify-end", col.align === "center" && "justify-center")}>
-                                        {col.render
-                                            ? col.render(item)
-                                            : String((item as JsonObject)[col.key] ?? "")}
-                                    </div>
-                                </td>
-                                )
-                                return isCurrentCell && summary && dismissedSummary !== summaryKey ? (
-                                    <SelectionSummaryPopover key={col.key} summary={summary} label={col.label} onDismiss={() => setDismissedSummary(summaryKey)}>
-                                        {cell}
-                                    </SelectionSummaryPopover>
-                                ) : cell
-                            })}
-                        </tr>
-                    )
-
-                    if (renderContextMenu) {
-                        // 1C / Windows Explorer pattern:
-                        // If the right-clicked row is part of the current
-                        // selection, all selected rows become the targets;
-                        // otherwise only the clicked row is targeted.
-                        const targets = selectedSet.has(item.id)
-                            ? data.filter((d) => selectedSet.has(d.id))
-                            : [item]
-
-                        return (
-                            <ContextMenu key={item.id}>
-                                <ContextMenuTrigger asChild>
-                                    {row}
-                                </ContextMenuTrigger>
-                                <ContextMenuContent className="w-56">
-                                    {renderContextMenu(item, targets)}
-                                </ContextMenuContent>
-                            </ContextMenu>
-                        )
-                    }
-
-                    return row
-                })}
-            </tbody>
+            {renderContextMenu ? (
+                <ContextMenu onOpenChange={(open) => { if (!open) setMenuRowId(null) }}>
+                    <ContextMenuTrigger asChild onContextMenu={noteMenuRow} onPointerDown={noteTouchMenuRow}>
+                        <tbody className="bg-workspace-surface">{rows}</tbody>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-56">
+                        {menuRow && renderContextMenu(menuRow, menuTargets)}
+                    </ContextMenuContent>
+                </ContextMenu>
+            ) : (
+                <tbody className="bg-workspace-surface">{rows}</tbody>
+            )}
         </table>
     )
 }

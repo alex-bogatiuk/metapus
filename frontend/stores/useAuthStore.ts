@@ -24,9 +24,6 @@ interface AuthActions {
   stopImpersonation: () => void
 }
 
-export function isAdminPrincipal(user: AuthUserResponse | null | undefined): boolean {
-  return Boolean(user && (user.isAdmin || (user.roles ?? []).some((r) => r.code === "admin" || r.code === "security_admin")))
-}
 export function isSystemAdmin(user: AuthUserResponse | null | undefined): boolean {
   return Boolean(user && (user.isAdmin || (user.roles ?? []).some((r) => r.code === "admin")))
 }
@@ -72,8 +69,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(persist((set, get)
   },
 }), {
   name: "metapus-auth",
+  // Access tokens stay in memory: script that can read storage could carry
+  // them away. A reload restores one from the httpOnly refresh cookie.
   partialize: (state) => state.isImpersonating ? anonymous : {
-    tokens: !state.user || isAdminPrincipal(state.user) ? null : state.tokens, user: state.user,
+    tokens: null, user: state.user,
     cacheScope: state.cacheScope, isAuthenticated: state.isAuthenticated,
     originalSession: null, isImpersonating: false,
   },
@@ -91,8 +90,8 @@ function validSnapshot(state: z.infer<typeof persistedAuthSchema>): boolean {
     (state.tokens === null || scopeKey(state.tokens.cacheScope) === scopeKey(state.cacheScope))
 }
 
-// storage events are the shared auth coordination channel. Sanitized admin
-// snapshots carry their scope even though the access token stays volatile.
+// storage events are the shared auth coordination channel. Snapshots carry
+// the session scope; each tab keeps its own access token in memory.
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (event) => {
     if (event.key !== "metapus-auth") return

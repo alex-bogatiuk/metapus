@@ -1,5 +1,3 @@
-import type * as contracts from "@/types/generated/http-contracts"
-import * as wireSchemas from "@/lib/generated/http-contract-schemas"
 import type {
     CounterpartyResponse,
     CreateCounterpartyRequest,
@@ -17,31 +15,11 @@ import type {
 import { createCatalogApi } from "./core"
 
 export const catalogsApi = {
-    counterparties: createCatalogApi<CounterpartyResponse, CreateCounterpartyRequest, UpdateCounterpartyRequest>(
-        "/catalog/counterparties",
-        wireSchemas.CounterpartyResponseSchema,
-        wireSchemas.CreateCounterpartyRequestSchema,
-        wireSchemas.UpdateCounterpartyRequestSchema
-    ),
+    counterparties: createCatalogApi<CounterpartyResponse, CreateCounterpartyRequest, UpdateCounterpartyRequest>("/catalog/counterparties"),
 
-    organizations: createCatalogApi<OrganizationResponse, CreateOrganizationRequest, UpdateOrganizationRequest>(
-        "/catalog/organizations",
-        wireSchemas.OrganizationResponseSchema,
-        wireSchemas.CreateOrganizationRequestSchema,
-        wireSchemas.UpdateOrganizationRequestSchema
-    ),
+    organizations: createCatalogApi<OrganizationResponse, CreateOrganizationRequest, UpdateOrganizationRequest>("/catalog/organizations"),
 
-    currencies: createCatalogApi<CurrencyResponse, CreateCurrencyRequest, UpdateCurrencyRequest>(
-        "/catalog/currencies",
-        wireSchemas.CurrencyResponseSchema,
-        wireSchemas.CreateCurrencyRequestSchema,
-        wireSchemas.UpdateCurrencyRequestSchema
-    ),
+    currencies: createCatalogApi<CurrencyResponse, CreateCurrencyRequest, UpdateCurrencyRequest>("/catalog/currencies"),
 
-    contracts: createCatalogApi<ContractResponse, CreateContractRequest, UpdateContractRequest>(
-        "/catalog/contracts",
-        wireSchemas.ContractResponseSchema,
-        wireSchemas.CreateContractRequestSchema,
-        wireSchemas.UpdateContractRequestSchema
-    ),
+    contracts: createCatalogApi<ContractResponse, CreateContractRequest, UpdateContractRequest>("/catalog/contracts"),
 }

@@ -38,6 +38,7 @@ import {
 } from "@/lib/pick-lines"
 import { buildGroupTree, groupPath, visibleGroups, type GroupFolder } from "@/lib/group-tree"
 import type { AdvancedFilterItem, CursorListResponse } from "@/types/common"
+import { isImeComposing } from "@/lib/keyboard-utils"
 
 type ItemRow = JsonObject & { id: string }
 
@@ -528,6 +529,7 @@ export function TablePartPickDialog({ open, onOpenChange, title, target, endpoin
                                                         className="h-7 w-14 border-x bg-transparent text-center text-sm tabular-nums outline-none focus:bg-accent"
                                                         onBlur={(event) => onCartQuantity(line.id, event.target.value.replace(/\s/g, ""))}
                                                         onKeyDown={(event) => {
+                                                            if (isImeComposing(event)) return
                                                             if (event.key === "Enter" || event.key === "Escape") {
                                                                 event.preventDefault()
                                                                 event.stopPropagation()

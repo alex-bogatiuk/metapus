@@ -41,6 +41,7 @@ import { applyFormulas, formulaLabel, hasFormulas } from "@/lib/formula"
 import { apiFetch } from "@/lib/api"
 import { withReferenceListParams } from "@/lib/reference-utils"
 import type { CursorListResponse } from "@/types/common"
+import { isImeComposing } from "@/lib/keyboard-utils"
 
 export interface TablePartEditorProps {
     part: { name: string; label?: string; columns: MetadataField[] }
@@ -232,6 +233,11 @@ function NumberCellInput({ value, integer, disabled, money = null, onValue }: {
             }}
             onBlur={commit}
             onKeyDown={(event) => {
+                // Keys that confirm an IME candidate belong to the IME, not the grid.
+                if (isImeComposing(event)) {
+                    event.stopPropagation()
+                    return
+                }
                 // Worked out here; in cell mode the grid then closes the cell. (The
                 // form has no <form> element, so Enter submits nothing.)
                 if (event.key === "Enter" || event.key === "Tab") {
