@@ -131,7 +131,9 @@ func Main(build Build, app configuration.Configuration, opts ...launch.Option) {
 	// The same composition as the server's: scheduled reports see every
 	// dataset the HTTP reports do, the extensions' included.
 	factories := configuration.Compose(app, extensions...)
-	worker := NewMultiTenantWorker(manager, log, factories, part)
+	// Browsers are connected to the API servers: the worker's in-app
+	// notifications reach them through the meta-database.
+	worker := NewMultiTenantWorker(manager, log, factories, part, ws.NewNotifyBroadcaster(metaPool))
 
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -169,23 +171,35 @@ type MultiTenantWorker struct {
 	factories *v1.FactoryRegistry
 	log       *logger.Logger
 	part      configuration.Worker
-	ready     metric.Int64Gauge
-	restarts  metric.Int64Counter
+	// broadcaster carries in-app notifications to the API servers' hubs.
+	broadcaster automation.Broadcaster
+	ready       metric.Int64Gauge
+	restarts    metric.Int64Counter
 }
 
 // NewMultiTenantWorker builds the worker of the application factories
 // describe, with the configuration's part.
-func NewMultiTenantWorker(manager *tenantdb.Manager, log *logger.Logger, factories *v1.FactoryRegistry, part configuration.Worker) *MultiTenantWorker {
+// broadcaster pushes in-app notifications to the users' browsers; nil
+// pushes nothing (the clients still see them on their next poll).
+func NewMultiTenantWorker(manager *tenantdb.Manager, log *logger.Logger, factories *v1.FactoryRegistry, part configuration.Worker, broadcaster automation.Broadcaster) *MultiTenantWorker {
+	if broadcaster == nil {
+		broadcaster = discardBroadcaster{}
+	}
 	ready, _ := otel.Meter("github.com/alex-bogatiuk/metapus/worker").Int64Gauge("worker.component.ready")
 	restarts, _ := otel.Meter("github.com/alex-bogatiuk/metapus/worker").Int64Counter("worker.component.restarts")
 	return &MultiTenantWorker{
 		manager:   manager,
 		factories: factories,
 		ready:     ready, restarts: restarts,
-		log:  log.WithComponent("worker"),
-		part: part,
+		log:         log.WithComponent("worker"),
+		part:        part,
+		broadcaster: broadcaster,
 	}
 }
+
+type discardBroadcaster struct{}
+
+func (discardBroadcaster) BroadcastToUser(string, string, string, any) {}
 
 // Run starts worker goroutines for all active tenants.
 func (w *MultiTenantWorker) Run(ctx context.Context) {
@@ -258,16 +272,13 @@ func (w *MultiTenantWorker) refreshTenants(ctx context.Context, wg *sync.WaitGro
 func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenant) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	mp, err := w.manager.GetPool(ctx, t.ID)
+	// Hold a reference so the eviction loop doesn't close our pool.
+	mp, release, err := w.manager.Acquire(ctx, t.ID)
 	if err != nil {
 		w.log.Errorw("failed to get pool for tenant", "tenant_id", t.ID, "error", err)
 		return err
 	}
-
-	// Hold a reference so the eviction loop doesn't close our pool.
-	// evictIdlePools() skips pools with refCount > 0.
-	mp.AcquireRef()
-	defer mp.ReleaseRef()
+	defer release()
 	if err := validateWorkerSchema(ctx, mp.Pool()); err != nil {
 		return err
 	}
@@ -317,7 +328,7 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 	ctx = tenant.WithTenant(ctx, t)
 
 	// subsWg tracks goroutines (scheduler, crypto processor) that use the
-	// tenant pool. We must wait for them to exit BEFORE defer mp.ReleaseRef()
+	// tenant pool. We must wait for them to exit BEFORE the deferred release()
 	// fires — otherwise the eviction loop can close the pool under them.
 	// The goroutines all receive the same ctx and will stop on ctx.Done().
 	var subsWg sync.WaitGroup
@@ -407,6 +418,11 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 			recorder.Record(ctx, "cleanup.notifications", "cleanup", func(ctx context.Context) (int, error) {
 				return w.cleanupNotifications(ctx, mp.Pool(), t.ID)
 			})
+			// Messages whose retry policy gave up leave the live outbox.
+			recorder.RecordIfWork(ctx, "outbox.dead_letter", "outbox", func(ctx context.Context) (int, error) {
+				n, err := recoveryRelay.MoveToDLQ(ctx)
+				return int(n), err
+			})
 			recorder.Record(ctx, "cleanup.worker_jobs", "cleanup", func(ctx context.Context) (int, error) {
 				n, err := jobRepo.CleanupOld(ctx, 7*24*time.Hour)
 				return int(n), err
@@ -431,7 +447,7 @@ func (w *MultiTenantWorker) buildAutomationEngine(policies *security.PolicyEngin
 		"webhook":                             automationdelivery.NewWebhookAdapter(),
 		"telegram":                            automationdelivery.NewTelegramAdapter(),
 		"email":                               automationdelivery.NewEmailAdapter(),
-		adapters.InternalNotificationProvider: adapters.NewInternalNotificationAdapter(postgres.NewNotificationRepo(), ws.GlobalHub),
+		adapters.InternalNotificationProvider: adapters.NewInternalNotificationAdapter(postgres.NewNotificationRepo(), w.broadcaster),
 	}
 
 	// Resolve user/role subscribers to user IDs for internal notifications.

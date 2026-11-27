@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/auth_repo"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/security_repo"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
+	ws "github.com/alex-bogatiuk/metapus/internal/infrastructure/websocket"
 	platformtelemetry "github.com/alex-bogatiuk/metapus/internal/platform/telemetry"
 	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
@@ -99,6 +101,12 @@ func run(ctx context.Context, cfg config, build Build, app configuration.Configu
 		return fmt.Errorf("ping meta database: %w", err)
 	}
 	log.Info("meta database connection established")
+
+	// --- Worker events for this server's WebSocket clients ---
+	relayCtx, stopRelay := context.WithCancel(ctx)
+	var relay sync.WaitGroup
+	relay.Go(func() { ws.RunRelay(relayCtx, metaPool.Config().ConnConfig, ws.GlobalHub) })
+	defer func() { stopRelay(); relay.Wait() }()
 
 	// --- Tenant Registry and Manager ---
 	registry := tenantdb.NewPostgresRegistry(metaPool)

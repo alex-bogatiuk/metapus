@@ -20,10 +20,12 @@ func registerAuthRoutes(rg *gin.RouterGroup, cfg RouterConfig, eventWriter *post
 	authHandler := handlers.NewAuthHandler(baseHandler, cfg.AuthSvc, profileRepo, eventWriter, cfg.WSTicketStore)
 
 	// Public auth endpoints (no JWT required, but need tenant for DB access)
-	// Rate limit login/register/refresh to prevent brute-force and credential stuffing.
+	// Rate limit login/register/refresh to prevent brute-force and credential
+	// stuffing. The limiter runs first: a flood of made-up tenant IDs must not
+	// reach the tenant registry in the meta-database.
 	publicAuth := rg.Group("/auth")
-	publicAuth.Use(middleware.TenantDB(cfg.TenantManager))
 	publicAuth.Use(middleware.RateLimit(1, 5)) // 1 req/sec sustained, burst 5
+	publicAuth.Use(middleware.TenantDB(cfg.TenantManager))
 
 	// Protected auth endpoints (JWT required)
 	protectedAuth := rg.Group("/auth")

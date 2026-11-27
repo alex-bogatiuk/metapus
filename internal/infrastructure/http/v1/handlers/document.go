@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
 // BaseDocumentHandler provides generic HTTP handlers for document entities.
@@ -644,8 +646,7 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) executeBatchConcurrent(
 					<-sem // release worker slot
 					wg.Done()
 				}()
-				err := h.executeAction(ctx, did, action)
-				results <- batchWorkerResult{idx: idx, id: did, err: err}
+				results <- batchWorkerResult{idx: idx, id: did, err: h.executeBatchItem(ctx, did, action)}
 			}(i, docID)
 		}
 
@@ -912,6 +913,26 @@ func writeSSE(c *gin.Context, event sseEvent) {
 }
 
 // executeAction runs a single batch action on one document.
+// executeBatchItem runs one document's action on a batch worker goroutine.
+// gin's Recovery covers only the request goroutine, so a panic here would
+// take the whole process down: it becomes this document's error instead.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) executeBatchItem(
+	ctx context.Context, docID id.ID, action string,
+) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.Error(ctx, "panic recovered in batch action",
+				"action", action,
+				"document_id", docID,
+				"error", recovered,
+				"stack", string(debug.Stack()),
+			)
+			err = apperror.NewInternal(fmt.Errorf("batch action panic: %v", recovered))
+		}
+	}()
+	return h.executeAction(ctx, docID, action)
+}
+
 func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) executeAction(
 	ctx context.Context, docID id.ID, action string,
 ) error {

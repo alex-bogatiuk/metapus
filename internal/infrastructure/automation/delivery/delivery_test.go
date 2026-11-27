@@ -60,6 +60,9 @@ func TestPinnedAutomationWebhookClientUsesResolvedIP(t *testing.T) {
 		ResolvedIP: "127.0.0.1",
 		Host:       "unresolvable.invalid",
 	})
+	if transport, ok := client.Transport.(*http.Transport); !ok || !transport.DisableKeepAlives {
+		t.Fatal("pinned transport keeps idle connections; want one connection per delivery")
+	}
 
 	req, err := http.NewRequest(http.MethodPost, parsed.String(), strings.NewReader(`{"ok":true}`))
 	if err != nil {

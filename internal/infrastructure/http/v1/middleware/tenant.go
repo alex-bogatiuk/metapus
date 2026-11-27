@@ -26,15 +26,14 @@ const (
 // work on ctx is done. A route that finds its tenant itself (an API key, a
 // public link) binds it with this instead of TenantDB.
 func BindTenant(ctx context.Context, manager *tenantdb.Manager, tenantID string) (bound context.Context, release func(), err error) {
-	managedPool, err := manager.GetPool(ctx, tenantID)
+	managedPool, release, err := manager.Acquire(ctx, tenantID)
 	if err != nil {
 		return ctx, func() {}, err
 	}
-	managedPool.AcquireRef()
 	bound = tenantdb.WithPool(ctx, managedPool.Pool())
 	bound = tenant.WithTxManager(bound, postgres.NewTxManagerFromRawPool(managedPool.Pool()))
 	bound = tenant.WithTenant(bound, managedPool.Tenant())
-	return bound, managedPool.ReleaseRef, nil
+	return bound, release, nil
 }
 
 // TenantDB middleware resolves tenant from header and injects database pool into context.

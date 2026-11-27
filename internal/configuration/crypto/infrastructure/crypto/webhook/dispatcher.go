@@ -91,9 +91,11 @@ func createPinnedClient(resolved *urlsafe.ResolvedURL) *http.Client {
 				ServerName: resolved.Host, // SNI must match the certificate
 				MinVersion: tls.VersionTLS12,
 			},
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          1,
-			IdleConnTimeout:       30 * time.Second,
+			ForceAttemptHTTP2: true,
+			// The transport serves one request to one pinned address: keeping
+			// its connection idle would only hold a socket (and, on HTTP/2,
+			// its reader goroutines) until IdleConnTimeout.
+			DisableKeepAlives:     true,
 			TLSHandshakeTimeout:   5 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
@@ -236,6 +238,7 @@ func (d *HTTPDispatcher) Dispatch(
 		clientFor = createPinnedClient
 	}
 	pinnedClient := clientFor(resolved)
+	defer pinnedClient.CloseIdleConnections()
 
 	// Measure response time.
 	start := time.Now()

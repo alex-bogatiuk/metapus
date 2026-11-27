@@ -394,6 +394,10 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 			attribute.String("business.causation_id", msg.CausationID),
 		))
 	defer span.End()
+	// handled records that the handler delivered the message. WithLease joins
+	// the context's cause into its result, so after a shutdown or a lost
+	// lease renewal its error alone no longer says whether delivery happened.
+	handled := false
 	err := workerjob.WithLease(workCtx, time.Minute, func(renewCtx context.Context) error {
 		result, renewErr := r.pool.Exec(renewCtx, `UPDATE sys_outbox
    SET lease_until=clock_timestamp()+INTERVAL '5 minutes'
@@ -412,8 +416,21 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 			return handlerCtx.Err()
 		}
 		defer func() { <-r.slots }()
-		return r.handler.Handle(handlerCtx, msg)
+		if err := r.handler.Handle(handlerCtx, msg); err != nil {
+			return err
+		}
+		handled = true
+		return nil
 	})
+	// The outcome is recorded even when the relay is stopping: a delivered
+	// message left in 'processing' would be sent again once its lease ran out.
+	// The claim token and lease in each UPDATE still guard against a lease
+	// that another relay has taken over.
+	finalCtx, cancelFinal := context.WithTimeout(context.WithoutCancel(ctx), outboxFinalizeTimeout)
+	defer cancelFinal()
+	if handled {
+		return r.markPublished(finalCtx, msg)
+	}
 	if errors.Is(err, workerjob.ErrLeaseLost) || ctx.Err() != nil {
 		return err
 	}
@@ -452,7 +469,7 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 		}
 		errStr := err.Error()
 
-		result, updateErr := r.pool.Exec(ctx, `
+		result, updateErr := r.pool.Exec(finalCtx, `
 			UPDATE sys_outbox 
 			SET status = CASE WHEN $1 THEN $2::outbox_status ELSE $3::outbox_status END,
 			    retry_count = retry_count + 1,
@@ -470,8 +487,15 @@ func (r *OutboxRelay) processMessage(ctx context.Context, msg *OutboxMessage) er
 		}
 		return err
 	}
+	return nil
+}
 
-	// Mark as published
+// outboxFinalizeTimeout bounds recording a message's outcome after the
+// relay's own context has ended.
+const outboxFinalizeTimeout = 5 * time.Second
+
+// markPublished records a delivered message.
+func (r *OutboxRelay) markPublished(ctx context.Context, msg *OutboxMessage) error {
 	now := time.Now().UTC()
 	result, err := r.pool.Exec(ctx, `
 		UPDATE sys_outbox 
@@ -504,12 +528,14 @@ func (r *OutboxRelay) RecoverStuck(ctx context.Context, timeout time.Duration) (
 	return result.RowsAffected(), nil
 }
 
-// MoveToDLQ moves failed messages to dead letter queue.
+// MoveToDLQ moves failed messages to dead letter queue. 'failed' is
+// terminal: a message gets there only after its retry policy gave up, which
+// may be before five attempts (a policy's MaxAttempts or Deadline).
 func (r *OutboxRelay) MoveToDLQ(ctx context.Context) (int64, error) {
 	result, err := r.pool.Exec(ctx, `
 		WITH moved AS (
 			DELETE FROM sys_outbox
-			WHERE status = $1 AND retry_count >= 5
+			WHERE status = $1
 			RETURNING *
 		)
 		INSERT INTO sys_outbox_dlq (

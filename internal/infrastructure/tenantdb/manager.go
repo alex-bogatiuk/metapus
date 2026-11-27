@@ -59,6 +59,11 @@ type ManagedPool struct {
 	refCount atomic.Int32 // Active requests using this pool
 	// unhealthySince is set when health check fails (unix timestamp). 0 means healthy/unknown.
 	unhealthySince atomic.Int64
+
+	// mu orders taking a reference against closing: a pool is closed only
+	// with no references, and no reference is taken on a closed pool.
+	mu     sync.Mutex
+	closed bool
 }
 
 // Touch updates last used timestamp.
@@ -76,15 +81,24 @@ func (mp *ManagedPool) Tenant() *tenantcore.Tenant {
 	return mp.tenant
 }
 
-// AcquireRef increments reference count (for tracking active requests).
-func (mp *ManagedPool) AcquireRef() {
+// acquire takes a reference unless the pool is already closed.
+func (mp *ManagedPool) acquire() bool {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+	if mp.closed {
+		return false
+	}
 	mp.refCount.Add(1)
+	return true
 }
 
-// ReleaseRef decrements reference count.
-func (mp *ManagedPool) ReleaseRef() {
+func (mp *ManagedPool) release() {
 	mp.refCount.Add(-1)
 }
+
+// errPoolClosing is returned when the tenant's pool kept closing under
+// Acquire: each lookup found a pool that was being evicted.
+var errPoolClosing = errors.New("tenant pool is closing")
 
 // Manager manages database connections for multiple tenants.
 // Thread-safe for concurrent access.
@@ -155,29 +169,54 @@ func (m *Manager) GetPool(ctx context.Context, tenantID string) (*ManagedPool, e
 	return m.createPool(ctx, tenantID)
 }
 
+// Acquire returns tenantID's pool with a reference held: the pool is not
+// closed by eviction or a failed health check until release is called
+// (release is safe to call more than once). Unlike GetPool followed by a
+// separate reference, it never hands out a pool that is being closed.
+func (m *Manager) Acquire(ctx context.Context, tenantID string) (*ManagedPool, func(), error) {
+	for range 3 {
+		mp, err := m.GetPool(ctx, tenantID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if mp.acquire() {
+			return mp, sync.OnceFunc(mp.release), nil
+		}
+		// Closed between the lookup and the reference; the map no longer
+		// holds it, so the next lookup creates a fresh pool.
+	}
+	return nil, nil, fmt.Errorf("acquire pool for tenant %s: %w", tenantID, errPoolClosing)
+}
+
 // createPool creates a new connection pool for tenant.
 func (m *Manager) createPool(ctx context.Context, tenantID string) (*ManagedPool, error) {
 	v, err, _ := m.sf.Do(tenantID, func() (any, error) {
+		// Every caller waiting on this tenant shares the result, so the
+		// creation must not end when the first caller's request does: it keeps
+		// that request's values (trace, logger) but not its cancellation.
+		createCtx := context.WithoutCancel(ctx)
+		if m.config.ConnectTimeout > 0 {
+			var cancel context.CancelFunc
+			createCtx, cancel = context.WithTimeout(createCtx, m.config.ConnectTimeout)
+			defer cancel()
+		}
+
 		// Reserve pool slot (pre-increment to prevent TOCTOU race).
 		// If we fail to create the pool or another goroutine wins LoadOrStore,
 		// we rollback by decrementing.
-		if m.config.MaxTotalPools > 0 {
-			newCount := m.poolCount.Add(1)
-			if int(newCount) > m.config.MaxTotalPools {
-				m.poolCount.Add(-1)
-				return nil, fmt.Errorf("%w (%d)", tenantcore.ErrMaxPoolLimit, m.config.MaxTotalPools)
-			}
+		newCount := m.poolCount.Add(1)
+		if m.config.MaxTotalPools > 0 && int(newCount) > m.config.MaxTotalPools {
+			m.poolCount.Add(-1)
+			return nil, fmt.Errorf("%w (%d)", tenantcore.ErrMaxPoolLimit, m.config.MaxTotalPools)
 		}
 
-		// rollbackSlot decrements poolCount if we reserved a slot but failed to use it.
+		// rollbackSlot releases the reserved slot if we failed to use it.
 		rollbackSlot := func() {
-			if m.config.MaxTotalPools > 0 {
-				m.poolCount.Add(-1)
-			}
+			m.poolCount.Add(-1)
 		}
 
 		// Get tenant info from registry
-		tenant, err := m.registry.GetByID(ctx, tenantID)
+		tenant, err := m.registry.GetByID(createCtx, tenantID)
 		if err != nil {
 			rollbackSlot()
 			if errors.Is(err, tenantcore.ErrTenantNotFound) {
@@ -211,10 +250,6 @@ func (m *Manager) createPool(ctx context.Context, tenantID string) (*ManagedPool
 		if m.config.ConfigurePool != nil {
 			m.config.ConfigurePool(poolCfg)
 		}
-
-		// Create pool with timeout
-		createCtx, cancel := context.WithTimeout(ctx, m.config.ConnectTimeout)
-		defer cancel()
 
 		pool, err := pgxpool.NewWithConfig(createCtx, poolCfg)
 		if err != nil {
@@ -285,19 +320,20 @@ func (m *Manager) evictIdlePools() {
 		tenantID := key.(string)
 		mp := value.(*ManagedPool)
 
-		// Don't evict if actively in use
+		// Don't evict if actively in use (closeIdlePool re-checks under the
+		// pool's lock).
 		if mp.refCount.Load() > 0 {
 			return true
 		}
 
 		// If pool was marked unhealthy and is not in use, close it ASAP.
 		if mp.unhealthySince.Load() > 0 {
-			m.closePool(tenantID, mp, "unhealthy pool (no active refs)")
+			m.closeIdlePool(tenantID, mp, "unhealthy pool (no active refs)")
 			return true
 		}
 
 		if mp.lastUsed.Load() < threshold {
-			m.closePool(tenantID, mp, "idle timeout")
+			m.closeIdlePool(tenantID, mp, "idle timeout")
 		}
 
 		return true
@@ -341,9 +377,7 @@ func (m *Manager) checkPoolsHealth() {
 			)
 			// Never close pools that are currently used by active requests.
 			// Close as soon as refCount reaches zero (see eviction loop).
-			if mp.refCount.Load() == 0 {
-				m.closePool(tenantID, mp, "health check failed")
-			}
+			m.closeIdlePool(tenantID, mp, "health check failed")
 			return true
 		}
 
@@ -355,17 +389,32 @@ func (m *Manager) checkPoolsHealth() {
 	})
 }
 
-// closePool safely closes a managed pool.
-func (m *Manager) closePool(tenantID string, mp *ManagedPool, reason string) {
-	m.pools.Delete(tenantID)
+// closeIdlePool closes mp if nobody holds a reference to it. Eviction and
+// the health check may both reach the same pool: only the first closes it
+// and gives its slot back.
+func (m *Manager) closeIdlePool(tenantID string, mp *ManagedPool, reason string) bool {
+	mp.mu.Lock()
+	if mp.closed || mp.refCount.Load() > 0 {
+		mp.mu.Unlock()
+		return false
+	}
+	mp.closed = true
+	// Removed under the lock, so an Acquire that saw the closed pool finds
+	// the map without it when it looks again.
+	removed := m.pools.CompareAndDelete(tenantID, mp)
+	mp.mu.Unlock()
+
 	mp.pool.Close()
-	m.poolCount.Add(-1)
+	if removed {
+		m.poolCount.Add(-1)
+	}
 
 	m.log.Info("closed pool",
 		"tenant_id", tenantID,
 		"reason", reason,
 		"total_pools", m.poolCount.Load(),
 	)
+	return true
 }
 
 // Close shuts down manager and all pools gracefully.
@@ -385,6 +434,9 @@ func (m *Manager) Close() {
 	var poolsClosed int
 	m.pools.Range(func(key, value any) bool {
 		mp := value.(*ManagedPool)
+		mp.mu.Lock()
+		mp.closed = true
+		mp.mu.Unlock()
 		mp.pool.Close()
 		m.pools.Delete(key)
 		poolsClosed++

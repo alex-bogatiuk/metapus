@@ -317,6 +317,9 @@ func TestPinnedWebhookClientIgnoresAReboundDialAddressAndBlocksRedirects(t *test
 	if transport.TLSClientConfig == nil || transport.TLSClientConfig.MinVersion != tls.VersionTLS12 {
 		t.Fatalf("TLS minimum = %#x, want TLS 1.2", transport.TLSClientConfig.MinVersion)
 	}
+	if !transport.DisableKeepAlives {
+		t.Fatal("pinned transport keeps idle connections; want one connection per delivery")
+	}
 
 	accepted := make(chan struct{}, 1)
 	go func() {

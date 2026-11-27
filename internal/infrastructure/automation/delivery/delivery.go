@@ -86,7 +86,9 @@ func (a *WebhookAdapter) Deliver(ctx context.Context, destination map[string]any
 		}
 	}
 
-	resp, err := a.webhookHTTPClient(resolved).Do(req)
+	client := a.webhookHTTPClient(resolved)
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("do request: %w", err)
 	}
@@ -141,9 +143,11 @@ func newPinnedAutomationWebhookClient(resolved *urlsafe.ResolvedURL) *http.Clien
 				ServerName: resolved.Host,
 				MinVersion: tls.VersionTLS12,
 			},
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          1,
-			IdleConnTimeout:       30 * time.Second,
+			ForceAttemptHTTP2: true,
+			// The transport serves one request to one pinned address: keeping
+			// its connection idle would only hold a socket (and, on HTTP/2,
+			// its reader goroutines) until IdleConnTimeout.
+			DisableKeepAlives:     true,
 			TLSHandshakeTimeout:   5 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},

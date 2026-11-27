@@ -64,7 +64,7 @@ func TestWorkerReliabilityTenantStartsAfterTransientInitializationFailure(t *tes
 	// The empty configuration's part: the platform's jobs alone, no Vault.
 	part, err := none.New().Worker(t.Context(), configuration.WorkerEnv{Logger: log})
 	require.NoError(t, err)
-	worker := NewMultiTenantWorker(manager, log, configuration.Compose(none.New()), part)
+	worker := NewMultiTenantWorker(manager, log, configuration.Compose(none.New()), part, nil)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan struct{})
