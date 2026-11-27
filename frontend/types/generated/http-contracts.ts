@@ -857,6 +857,7 @@ export type EntityMetadataResponse = {
   "actions"?: Array<MetadataEntityActionDef>
   "createBasedOn"?: Array<MetadataCreateBasedOnDef>
   "statuses"?: MetadataStatusModelDef
+  "restoresSequence"?: string
   "code"?: MetadataCodeAssignment
   "previewFields"?: Array<MetadataPreviewFieldDef>
 }
@@ -1852,6 +1853,15 @@ export type SecurityProfileResponse = {
   "fieldPolicies"?: Array<FieldPolicyResponse>
   "policyRules"?: Array<PolicyRuleResponse>
   "userCount": number
+}
+
+export type SequenceStateResponse = {
+  "sequence": string
+  "periodFrom": string
+  "periodTo": string
+  "boundary"?: string
+  "outdated": boolean
+  "earlierBroken": boolean
 }
 
 export type SetDeletionMarkRequest = {

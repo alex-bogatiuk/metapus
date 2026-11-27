@@ -209,6 +209,9 @@ func (r *AutoDocument[T, PT]) HTTPContracts() spec.Bundle {
 	if def.Statuses.Declared() {
 		bundle.AddRoute(def, "GET", "/:id/status-history", "", "DocumentStatusHistoryResponse")
 	}
+	if def.Sequence.Restores != "" {
+		bundle.AddRoute(def, "GET", "/:id/sequence", "", "SequenceStateResponse")
+	}
 	for _, part := range shape.parts {
 		bundle.Contracts = append(bundle.Contracts,
 			spec.Contract{Name: def.Name + part.contract + "LineRequest", Type: part.create, Direction: spec.Input},
@@ -264,7 +267,10 @@ func (r *AutoDocument[T, PT]) Build(deps DocumentDeps) DocumentRouteHandler {
 	if def.Statuses.Declared() {
 		wrapped.statusHistory = statusHistoryHandler(def, service.GetByID)
 	}
-	if len(wrapped.routes) == 0 && wrapped.statusHistory == nil {
+	if def.Sequence.Restores != "" {
+		wrapped.sequence = sequenceStateHandler(def, service.GetByID)
+	}
+	if len(wrapped.routes) == 0 && wrapped.statusHistory == nil && wrapped.sequence == nil {
 		return handler
 	}
 	return wrapped

@@ -17,6 +17,8 @@ type (
 	StatusModel        = core.StatusModel
 	StatusValue        = core.StatusValue
 	StatusTransition   = core.StatusTransition
+	SequenceRule       = core.SequenceRule
+	SequencePeriod     = core.SequencePeriod
 	CatalogMeta        = core.CatalogMeta
 	HierarchyType      = core.HierarchyType
 )

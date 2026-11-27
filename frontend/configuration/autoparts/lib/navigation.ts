@@ -3,16 +3,16 @@
  * the sidebar and the command palette, and the route icons, labels and
  * entity keys the tabs need before metadata loads.
  */
-import { ClipboardList, ListChecks, PackageCheck, PackageOpen, Plus, Tags, Warehouse, Wrench } from "lucide-react"
+import { CalendarCheck, ClipboardList, ListChecks, PackageCheck, PackageOpen, Plus, Tags, Warehouse, Wrench } from "lucide-react"
 import { registerIcons } from "@/lib/entity-icon"
 import { registerRouteEntities } from "@/lib/entity-url"
 import { registerNavigation } from "@/lib/navigation"
 import { registerRouteLabels } from "@/lib/tab-utils"
 
 export function registerAutopartsNavigation(): void {
-  registerIcons({ entities: { item: Wrench, warehouse: Warehouse, goods_receipt: PackageOpen, goods_issue: PackageCheck, customer_order: ClipboardList, customer_order_state: ListChecks, price_setting: Tags } })
+  registerIcons({ entities: { item: Wrench, warehouse: Warehouse, goods_receipt: PackageOpen, goods_issue: PackageCheck, customer_order: ClipboardList, customer_order_state: ListChecks, price_setting: Tags, month_closing: CalendarCheck } })
 
-  registerRouteEntities({ items: "item", warehouses: "warehouse", "goods-receipts": "goods_receipt", "goods-issues": "goods_issue", "customer-orders": "customer_order", "customer-order-states": "customer_order_state", "price-settings": "price_setting" })
+  registerRouteEntities({ items: "item", warehouses: "warehouse", "goods-receipts": "goods_receipt", "goods-issues": "goods_issue", "customer-orders": "customer_order", "customer-order-states": "customer_order_state", "price-settings": "price_setting", "month-closings": "month_closing" })
 
   registerRouteLabels({
     entities: {
@@ -29,6 +29,8 @@ export function registerAutopartsNavigation(): void {
       "customer-order-states": "Состояния заказов покупателей",
       "price-settings": "Установки цен номенклатуры",
       "price-setting": "Установки цен номенклатуры",
+      "month-closings": "Закрытия месяца",
+      "month-closing": "Закрытия месяца",
     },
   })
 
@@ -48,6 +50,10 @@ export function registerAutopartsNavigation(): void {
               { entityKey: "goods_issue", fallback: "Расходные накладные" },
               { entityKey: "price_setting", fallback: "Установки цен номенклатуры" },
             ],
+          },
+          {
+            label: "Закрытие периода",
+            items: [{ entityKey: "month_closing", fallback: "Закрытия месяца" }],
           },
         ],
       },
@@ -76,6 +82,7 @@ export function registerAutopartsNavigation(): void {
       { id: "nav:price-settings", label: "Установки цен номенклатуры", url: "/documents/price-settings", keywords: "установка цен прайс цены продажи price", section: "navigate" },
       { id: "nav:goods-issues", label: "Расходные накладные", url: "/documents/goods-issues", keywords: "расходная накладная продажа отгрузка покупатель goods issue", section: "navigate" },
       { id: "create:goods-issue", label: "Создать расходную накладную", url: "/documents/goods-issues/new", icon: Plus, keywords: "создать расходная накладная продажа отгрузка", section: "create" },
+      { id: "nav:month-closings", label: "Закрытия месяца", url: "/documents/month-closings", keywords: "закрытие месяца себестоимость средняя валовая прибыль month closing cost", section: "navigate" },
       { id: "create:goods-receipt", label: "Создать приходную накладную", url: "/documents/goods-receipts/new", icon: Plus, keywords: "создать приходная накладная поступление", section: "create" },
     ],
   })

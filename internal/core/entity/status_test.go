@@ -86,3 +86,18 @@ func TestDefinitionRefusesAnInconsistentStatusModel(t *testing.T) {
 	catalog.Kind, catalog.Table = CatalogKind, "cat_orders"
 	require.Error(t, catalog.Validate(), "only documents declare statuses")
 }
+
+func TestDefinitionChecksItsSequences(t *testing.T) {
+	t.Parallel()
+	document := func(rule SequenceRule) Definition {
+		return Definition{Key: "issue", Name: "Issue", Route: "issues", Table: "doc_issues", Kind: DocumentKind, Sequence: rule}
+	}
+	require.NoError(t, document(SequenceRule{In: []string{"cost"}}).Validate())
+	require.NoError(t, document(SequenceRule{Restores: "cost"}).Validate())
+	require.Error(t, document(SequenceRule{In: []string{"cost", "cost"}}).Validate(), "a sequence is listed once")
+	require.Error(t, document(SequenceRule{In: []string{"Cost"}}).Validate())
+	require.Error(t, document(SequenceRule{In: []string{"cost"}, Restores: "cost"}).Validate(), "a closing is not in the sequence it restores")
+	catalog := document(SequenceRule{In: []string{"cost"}})
+	catalog.Kind, catalog.Table = CatalogKind, "cat_issues"
+	require.Error(t, catalog.Validate(), "only documents are in sequences")
+}

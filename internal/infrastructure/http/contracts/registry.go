@@ -83,6 +83,7 @@ func Registry(bundles ...spec.Bundle) []Contract {
 		Response[dto.DocumentStatusChange]("DocumentStatusChange"),
 		Response[dto.DocumentStatusHistoryResponse]("DocumentStatusHistoryResponse"),
 		Response[dto.ErrorResponse]("ErrorResponse"),
+		Response[dto.SequenceStateResponse]("SequenceStateResponse"),
 		Response[dto.EventLogResponse]("EventLogResponse"),
 		Response[dto.EventLogStatsResponse]("EventLogStatsResponse"),
 		Response[dto.ExportColumn]("ExportColumn"),

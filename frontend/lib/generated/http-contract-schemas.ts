@@ -861,6 +861,7 @@ export const EntityMetadataResponseSchema: z.ZodType<Wire.EntityMetadataResponse
   "actions": z.array(MetadataEntityActionDefSchema).optional(),
   "createBasedOn": z.array(MetadataCreateBasedOnDefSchema).optional(),
   "statuses": MetadataStatusModelDefSchema.optional(),
+  "restoresSequence": z.string().optional(),
   "code": MetadataCodeAssignmentSchema.optional(),
   "previewFields": z.array(MetadataPreviewFieldDefSchema).optional(),
 }))
@@ -1856,6 +1857,15 @@ export const SecurityProfileResponseSchema: z.ZodType<Wire.SecurityProfileRespon
   "fieldPolicies": z.array(FieldPolicyResponseSchema).optional(),
   "policyRules": z.array(PolicyRuleResponseSchema).optional(),
   "userCount": z.number().int(),
+}))
+
+export const SequenceStateResponseSchema: z.ZodType<Wire.SequenceStateResponse> = z.lazy(() => z.object({
+  "sequence": z.string(),
+  "periodFrom": z.string(),
+  "periodTo": z.string(),
+  "boundary": z.string().optional(),
+  "outdated": z.boolean(),
+  "earlierBroken": z.boolean(),
 }))
 
 export const SetDeletionMarkRequestSchema: z.ZodType<Wire.SetDeletionMarkRequest> = z.lazy(() => z.strictObject({

@@ -162,6 +162,10 @@ type EntityDef struct {
 	// Statuses is a document's status model (entity.StatusModel); nil when
 	// it declares none.
 	Statuses *StatusModelDef `json:"statuses,omitempty"`
+	// RestoresSequence is the sequence of documents a document closing a
+	// period restores (entity.SequenceRule.Restores); the form shows how far
+	// it is restored.
+	RestoresSequence string `json:"restoresSequence,omitempty"`
 
 	// Code is how the server fills a catalog's code (see BindCode); nil for
 	// documents.

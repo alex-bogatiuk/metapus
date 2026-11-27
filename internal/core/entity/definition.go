@@ -36,6 +36,9 @@ type Definition struct {
 	// Statuses declares a document's statuses and the changes allowed
 	// between them (see StatusModel); the zero value declares none.
 	Statuses StatusModel
+	// Sequence places a document in sequences of documents and says which
+	// one it restores (see SequenceRule); the zero value places it in none.
+	Sequence SequenceRule
 }
 
 // PartSeparator joins a header table name and a part key. It is reserved for
@@ -127,6 +130,12 @@ func (d Definition) Validate() error {
 		return fmt.Errorf("entity %q: only documents declare statuses", d.Name)
 	}
 	if err := d.Statuses.validate(d.Name); err != nil {
+		return err
+	}
+	if d.Sequence.Declared() && d.Kind != DocumentKind {
+		return fmt.Errorf("entity %q: only documents are in sequences", d.Name)
+	}
+	if err := d.Sequence.validate(d.Name); err != nil {
 		return err
 	}
 	return d.validateNumber()

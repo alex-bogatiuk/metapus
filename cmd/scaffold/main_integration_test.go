@@ -756,6 +756,96 @@ func TestDeclaredDocumentFollowsItsStatusModel(t *testing.T) {
 	require.Equal(t, 404, status, "the history of a missing document is not found")
 }
 
+// A ledger entry in the sequence "ledger" and the period close that
+// restores it, one calendar month per close.
+var (
+	entryDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "ledger_record", Name: "LedgerRecord", Route: "ledger-record", Table: "doc_ledger_records",
+		Sequence: entity.SequenceRule{In: []string{"ledger"}}}
+	closeDefinition = entity.Definition{Kind: entity.DocumentKind, Key: "ledger_close", Name: "LedgerClose", Route: "ledger-close", Table: "doc_ledger_closes",
+		Sequence: entity.SequenceRule{Restores: "ledger"}}
+)
+
+type ledgerEntry struct{ entity.Document }
+
+func (ledgerEntry) EntityDefinition() entity.Definition { return entryDefinition }
+func (*ledgerEntry) GetDocumentType() string            { return entryDefinition.Name }
+
+type ledgerClose struct{ entity.Document }
+
+func (ledgerClose) EntityDefinition() entity.Definition { return closeDefinition }
+func (*ledgerClose) GetDocumentType() string            { return closeDefinition.Name }
+func (c *ledgerClose) SequencePeriod() (time.Time, time.Time) {
+	from := time.Date(c.Date.Year(), c.Date.Month(), 1, 0, 0, 0, 0, time.UTC)
+	return from, from.AddDate(0, 1, 0)
+}
+
+// Posting a document of a sequence before the sequence's boundary moves the
+// boundary back; a close posts only while the boundary is not before its
+// period, and the form reads whether a posted close is outdated.
+func TestDeclaredSequenceIsRestoredByItsClosesInOrder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tenant := testsupport.NewSecurityTenants(t)[0]
+	ctx := context.Background()
+	db, err := sql.Open("pgx", tenant.Pool.Config().ConnConfig.ConnString())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	root := t.TempDir()
+	for _, name := range []string{"ledger_record", "ledger_close"} {
+		require.NoError(t, run([]string{"--name", name, "--type", "document"}, root, io.Discard))
+		provider, err := goose.NewProvider(goose.DialectPostgres, db, os.DirFS(filepath.Join(root, "db", "extensions", name)), goose.WithTableName(migration.ExtensionsVersionTable), goose.WithAllowOutofOrder(true))
+		require.NoError(t, err)
+		_, err = provider.Up(ctx)
+		require.NoError(t, err)
+	}
+	reg := v1.NewFactoryRegistry()
+	reg.RegisterDocument(v1.Document[ledgerEntry](metadata.Presentation{Singular: "Запись", Plural: "Записи"}))
+	reg.RegisterDocument(v1.Document[ledgerClose](metadata.Presentation{Singular: "Закрытие", Plural: "Закрытия"}))
+	call := serveDeclared(t, tenant, reg, []declaredModel{{ledgerEntry{}, entryDefinition}, {ledgerClose{}, closeDefinition}})
+	post := func(route, date string) (int, map[string]any) {
+		return call("POST", "/document/"+route, `{"number":"L-`+id.New().String()[24:]+`","date":"`+date+`","postImmediately":true}`)
+	}
+	boundary := func() time.Time {
+		var at time.Time
+		require.NoError(t, tenant.Pool.QueryRow(ctx, "SELECT boundary FROM sys_sequence_boundaries WHERE sequence = 'ledger'").Scan(&at))
+		return at.UTC()
+	}
+
+	status, body := post("ledger-record", "2026-10-10T10:00:00Z")
+	require.Equal(t, 201, status, body)
+	status, october := post("ledger-close", "2026-10-31T12:00:00Z")
+	require.Equal(t, 201, status, october)
+	require.Equal(t, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), boundary())
+	status, november := post("ledger-close", "2026-11-30T12:00:00Z")
+	require.Equal(t, 201, status, november)
+	require.Equal(t, time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), boundary())
+
+	status, body = post("ledger-record", "2026-10-20T10:00:00Z")
+	require.Equal(t, 201, status, body)
+	require.Equal(t, time.Date(2026, 10, 20, 10, 0, 0, 0, time.UTC), boundary(), "a posting before the boundary moves it back")
+	status, state := call("GET", "/document/ledger-close/"+october["id"].(string)+"/sequence", "")
+	require.Equal(t, 200, status, state)
+	require.Equal(t, true, state["outdated"])
+	require.Equal(t, false, state["earlierBroken"])
+	status, state = call("GET", "/document/ledger-close/"+november["id"].(string)+"/sequence", "")
+	require.Equal(t, 200, status, state)
+	require.Equal(t, true, state["earlierBroken"])
+
+	status, body = call("POST", "/document/ledger-close/"+november["id"].(string)+"/post", "")
+	require.Equal(t, 422, status, body)
+	require.Equal(t, posting.CodeSequenceNotRestored, body["code"])
+	status, body = call("POST", "/document/ledger-close/"+october["id"].(string)+"/post", "")
+	require.Equal(t, 200, status, body)
+	status, body = call("POST", "/document/ledger-close/"+november["id"].(string)+"/post", "")
+	require.Equal(t, 200, status, body)
+	status, state = call("GET", "/document/ledger-close/"+november["id"].(string)+"/sequence", "")
+	require.Equal(t, 200, status, state)
+	require.Equal(t, false, state["outdated"])
+
+	status, body = post("ledger-record", "2026-12-05T10:00:00Z")
+	require.Equal(t, 201, status, body)
+	require.Equal(t, time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), boundary(), "a posting after the boundary leaves it")
+}
+
 // The period lock refuses every change of a document dated in the closed
 // period, through the one repository every document write takes: creating
 // it, changing it, moving it into the period, posting, unposting and

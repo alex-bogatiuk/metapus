@@ -16,8 +16,11 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/price_setting"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/inventory_cost"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/item_prices"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/order_state_history"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/purchases"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/sales"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/order_state_repo"
@@ -55,7 +58,7 @@ func newStockFixture(t *testing.T) *stockFixture {
 		engine:   posting.NewEngine(),
 		supplier: id.New(), currency: id.New(), warehouse: id.New(), oil: id.New(), pads: id.New(),
 	}
-	declared := []accumulation.Declared{warehouse_stock.Register, stock.Register, customer_orders.Register}
+	declared := []accumulation.Declared{warehouse_stock.Register, stock.Register, customer_orders.Register, purchases.Register, sales.Register, inventory_cost.Register}
 	for _, r := range declared {
 		r.Bind(registers.NewAccumulationStore())
 	}

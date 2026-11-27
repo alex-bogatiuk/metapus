@@ -71,6 +71,7 @@ import { majorToMinor, minorUnitsSchema } from "@/lib/money"
 import type { EntityMetadata, MetadataField } from "@/lib/schemas/metadata"
 import { withReachableStatuses } from "@/lib/document-status"
 import { DocumentStatusHistoryDialog } from "@/components/shared/document-status-history-dialog"
+import { SequenceStateAlert } from "@/components/shared/sequence-state-alert"
 import { parseEntityValues } from "@/lib/schemas/entity-values"
 import { formRequestFieldNames, formRequestParts, projectFormRequest } from "@/lib/http-contracts"
 import { displayValue, isWideField, isWritableField, planFormLayout } from "@/lib/form-layout"
@@ -1022,6 +1023,9 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                     <AlertTitle>Данные на сервере изменились</AlertTitle>
                     <AlertDescription>Ваш ввод сохранён. Перезагрузите карточку, чтобы принять серверную версию; несохранённые изменения будут удалены после подтверждения.</AlertDescription>
                 </Alert>
+            )}
+            {meta?.restoresSequence && !isNew && id && (
+                <SequenceStateAlert key={`${id}:${String(formData.version)}:${String(formData.posted)}`} documentPath={`${basePath}/${id}`} />
             )}
             {refreshing && (
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px bg-primary/60" />

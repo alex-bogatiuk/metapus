@@ -7,10 +7,14 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/customer_order"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_issue"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/goods_receipt"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/month_closing"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/documents/price_setting"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/inventory_cost"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/item_prices"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/order_state_history"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/purchases"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/sales"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/storage/postgres/order_state_repo"
@@ -37,6 +41,9 @@ func register(reg *registry.Registry) {
 	reg.RegisterAccumulation(warehouse_stock.Register)
 	reg.RegisterAccumulation(stock.Register)
 	reg.RegisterAccumulation(customer_orders.Register)
+	reg.RegisterAccumulation(purchases.Register)
+	reg.RegisterAccumulation(sales.Register)
+	reg.RegisterAccumulation(inventory_cost.Register)
 	reg.RegisterInformation(order_state_history.Register)
 	reg.RegisterInformation(item_prices.Register)
 	reg.RegisterDocument(customerOrderRegistration{registry.Document[customer_order.CustomerOrder](registry.Presentation{
@@ -56,6 +63,9 @@ func register(reg *registry.Registry) {
 	})})
 	reg.RegisterDocument(registry.Document[price_setting.PriceSetting](registry.Presentation{
 		Singular: "Установка цен", Plural: "Установки цен номенклатуры", NewLabel: "Новая установка цен", Genitive: "установку цен",
+	}))
+	reg.RegisterDocument(registry.Document[month_closing.MonthClosing](registry.Presentation{
+		Singular: "Закрытие месяца", Plural: "Закрытия месяца", NewLabel: "Новое закрытие месяца", Genitive: "закрытие месяца",
 	}))
 	reg.RegisterBasis(registry.Basis("Расходная накладная", goods_issue.FromCustomerOrder))
 	reg.RegisterBasis(registry.Basis("Приходная накладная под заказ", goods_receipt.ForCustomerOrder))

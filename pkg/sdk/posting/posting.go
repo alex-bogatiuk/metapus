@@ -51,3 +51,8 @@ type (
 	// checks it before opening a transaction or reversing any register movements.
 	UnpostGuard = core.UnpostGuard
 )
+
+// CodeSequenceNotRestored is the error code of a closing posted while its
+// sequence of documents is not restored up to its period
+// (entity.SequenceRule).
+const CodeSequenceNotRestored = core.CodeSequenceNotRestored

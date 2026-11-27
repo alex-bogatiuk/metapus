@@ -66,6 +66,17 @@ export type CreateItemRequest = {
   "unit"?: string
 }
 
+export type CreateMonthClosingRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
+  "attributes"?: Record<string, JsonValue>
+  "currencyId": string
+  "postImmediately"?: boolean
+}
+
 export type CreatePriceSettingRequest = {
   "number"?: string
   "date": string
@@ -294,6 +305,32 @@ export type ItemResponse = {
 
 export type ItemTreeResponse = Array<ItemResponse>
 
+export type MonthClosingCursorResponse = {
+  "items": Array<MonthClosingResponse>
+  "nextCursor"?: string
+  "prevCursor"?: string
+  "hasMore": boolean
+  "hasPrev": boolean
+  "targetIndex"?: number
+  "totalCount": number | null
+}
+
+export type MonthClosingResponse = {
+  "id": string
+  "version": number
+  "deletionMark": boolean
+  "posted": boolean
+  "postedVersion": number
+  "number": string
+  "date": string
+  "description"?: string
+  "basisType"?: string
+  "basisId"?: string
+  "attributes"?: Record<string, JsonValue>
+  "currencyId": string
+  "currency"?: Platform.PostgresRefDisplay
+}
+
 export type PriceSettingCursorResponse = {
   "items": Array<PriceSettingResponse>
   "nextCursor"?: string
@@ -396,6 +433,17 @@ export type UpdateItemRequest = {
   "article"?: string
   "manufacturer"?: string
   "unit"?: string
+  "version": number
+}
+
+export type UpdateMonthClosingRequest = {
+  "number"?: string
+  "date": string
+  "description"?: string
+  "basisType"?: string
+  "basisId"?: string | null
+  "attributes"?: Record<string, JsonValue>
+  "currencyId": string
   "version": number
 }
 

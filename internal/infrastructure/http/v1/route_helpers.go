@@ -258,6 +258,13 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 		}
 	}
 
+	// The state of the sequence a closing document restores.
+	if sequence, ok := handler.(DocumentSequenceHandler); ok && caps.Read {
+		if serve := sequence.SequenceState(); serve != nil {
+			group.GET("/:id/sequence", middleware.RequirePermission(permission+":read"), serve)
+		}
+	}
+
 	// Drafts filled from other documents (ввод на основании): creating one
 	// needs the right to create this document and to read the source.
 	if basis, ok := handler.(DocumentBasisHandler); ok && caps.Create {

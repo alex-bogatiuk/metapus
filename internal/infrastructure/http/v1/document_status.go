@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -77,5 +78,56 @@ func statusHistoryHandler[PT any](def entity.Definition, get func(context.Contex
 			items[i] = item
 		}
 		c.JSON(http.StatusOK, dto.DocumentStatusHistoryResponse{Items: items})
+	}
+}
+
+// DocumentSequenceHandler serves GET /:id/sequence of a document that
+// restores a sequence (entity.SequenceRule.Restores); nil for the others.
+type DocumentSequenceHandler interface {
+	SequenceState() gin.HandlerFunc
+}
+
+// sequenceStateHandler answers with how far the sequence a closing of def
+// restores is restored, seen from the closing read through get.
+func sequenceStateHandler[PT any](def entity.Definition, get func(context.Context, id.ID) (PT, error)) gin.HandlerFunc {
+	key := def.Sequence.Restores
+	return func(c *gin.Context) {
+		ctx := c.Request.Context()
+		docID, err := id.Parse(c.Param("id"))
+		if err != nil {
+			_ = c.Error(apperror.NewValidation("invalid id format"))
+			c.Abort()
+			return
+		}
+		doc, err := get(ctx, docID)
+		if err != nil {
+			_ = c.Error(err)
+			c.Abort()
+			return
+		}
+		closing, ok := any(doc).(entity.SequencePeriod)
+		if !ok {
+			_ = c.Error(apperror.NewInternal(fmt.Errorf("document %s restores sequence %s but has no period", def.Name, key)))
+			c.Abort()
+			return
+		}
+		boundary, restored, err := postgres.SequenceBoundary(ctx, key)
+		if err != nil {
+			_ = c.Error(err)
+			c.Abort()
+			return
+		}
+		from, to := closing.SequencePeriod()
+		response := dto.SequenceStateResponse{Sequence: key, PeriodFrom: from, PeriodTo: to}
+		if restored {
+			posted := false
+			if postable, ok := any(doc).(interface{ IsPosted() bool }); ok {
+				posted = postable.IsPosted()
+			}
+			response.Boundary = &boundary
+			response.Outdated = posted && boundary.Before(to)
+			response.EarlierBroken = boundary.Before(from)
+		}
+		c.JSON(http.StatusOK, response)
 	}
 }

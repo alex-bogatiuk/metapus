@@ -38,6 +38,9 @@ func registerDocumentRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *F
 		recorders := posting.DefaultRecorders(settlementSvc)
 		postingEngine = posting.NewEngine(docLocker, recorders...)
 	}
+	// Sequences of documents (entity.SequenceRule) lock before a posting
+	// reads anything.
+	postingEngine.AddRecorder(postgres.NewSequenceLocker())
 
 	// Configuration registers extend the engine and expose their movements.
 	movementProviders := []entity.MovementProvider{settlementSvc}
@@ -166,6 +169,7 @@ func registerDocumentMetadata(factory documentMetadataRegistration, reg *metadat
 	def.Actions = documentActions(factory)
 	def.TableName = identity.Table
 	metadata.MustBindParts(&def, identity)
+	def.RestoresSequence = identity.Sequence.Restores
 	if err := metadata.BindStatuses(&def, identity, func(action string) string { return domain.StatusPermission(identity, action) }); err != nil {
 		panic(err)
 	}

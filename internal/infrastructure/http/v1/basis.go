@@ -167,17 +167,21 @@ type DocumentBasisHandler interface {
 }
 
 // autoDocumentHandler adds to a declared document's handler its basis
-// routes and the status history of its status model; the embedded handler
+// routes, the status history of its status model and the state of the
+// sequence it restores; the embedded handler
 // keeps its optional interfaces.
 type autoDocumentHandler[PT, C, U any] struct {
 	*handlers.BaseDocumentHandler[PT, C, U]
 	routes        []BasisRoute
 	statusHistory gin.HandlerFunc
+	sequence      gin.HandlerFunc
 }
 
 func (h autoDocumentHandler[PT, C, U]) BasisRoutes() []BasisRoute { return h.routes }
 
 func (h autoDocumentHandler[PT, C, U]) StatusHistory() gin.HandlerFunc { return h.statusHistory }
+
+func (h autoDocumentHandler[PT, C, U]) SequenceState() gin.HandlerFunc { return h.sequence }
 
 // basisReader is how a built AutoDocument reads its documents for a rule.
 type basisReader struct {

@@ -12,6 +12,8 @@ import (
 	"fmt"
 
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/customer_orders"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/inventory_cost"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/sales"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
@@ -28,6 +30,8 @@ var Definition = entity.Definition{
 	// A document without a number gets the next one of its yearly series (РН-2026-00001).
 	Number: entity.NumberRule{Prefix: "РН"},
 	Parts:  []entity.Part{{Key: "goods", Field: "goods"}},
+	// An issue changed in a closed month moves the cost sequence back.
+	Sequence: entity.SequenceRule{In: []string{inventory_cost.Sequence}},
 }
 
 // GoodsIssue is one sale of parts to a customer.
@@ -95,7 +99,8 @@ func (e *GoodsIssue) CanPost(ctx context.Context) error {
 
 // RegisterMovements takes every line's quantity from the warehouse's stock:
 // its reserve from the order's, the rest from the free stock; under an order
-// it also takes the quantity from the order.
+// it also takes the quantity from the order. The line is a sale: its
+// quantity and revenue, costed by the month closing.
 func (e *GoodsIssue) RegisterMovements(_ context.Context, out *accumulation.Movements) error {
 	order := stock.OrderOf(e.CustomerOrderID)
 	for _, line := range e.Goods {
@@ -121,6 +126,10 @@ func (e *GoodsIssue) RegisterMovements(_ context.Context, out *accumulation.Move
 				CustomerOrderID: order, ItemID: line.ItemID, Quantity: line.Quantity,
 			})
 		}
+		sales.Register.Turnover(out, sales.Movement{
+			WarehouseID: e.WarehouseID, ItemID: line.ItemID, CustomerID: e.CustomerID, CurrencyID: e.CurrencyID,
+			Quantity: line.Quantity, Revenue: line.Amount,
+		})
 	}
 	return nil
 }

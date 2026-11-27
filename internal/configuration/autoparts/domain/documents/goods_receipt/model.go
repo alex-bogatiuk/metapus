@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/inventory_cost"
+	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/purchases"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/stock"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/domain/registers/warehouse_stock"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/apperror"
@@ -24,6 +26,8 @@ var Definition = entity.Definition{
 	// A document without a number gets the next one of its yearly series (ПН-2026-00001).
 	Number: entity.NumberRule{Prefix: "ПН"},
 	Parts:  []entity.Part{{Key: "goods", Field: "goods"}},
+	// A receipt changed in a closed month moves the cost sequence back.
+	Sequence: entity.SequenceRule{In: []string{inventory_cost.Sequence}},
 }
 
 // GoodsReceipt is one delivery from a supplier.
@@ -82,7 +86,8 @@ func (e *GoodsReceipt) CanPost(ctx context.Context) error {
 }
 
 // RegisterMovements adds every line's quantity to the warehouse's stock,
-// free or reserved for the line's customer order.
+// free or reserved for the line's customer order, and records the line as
+// a purchase, which the month closing takes into the stock's cost.
 func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Movements) error {
 	for _, line := range e.Goods {
 		warehouse_stock.Register.Receipt(out, warehouse_stock.Movement{
@@ -90,6 +95,10 @@ func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Mo
 		})
 		stock.Register.Receipt(out, stock.Movement{
 			WarehouseID: e.WarehouseID, ItemID: line.ItemID, CustomerOrderID: stock.OrderOf(line.CustomerOrderID), Quantity: line.Quantity,
+		})
+		purchases.Register.Turnover(out, purchases.Movement{
+			WarehouseID: e.WarehouseID, ItemID: line.ItemID, SupplierID: e.SupplierID, CurrencyID: e.CurrencyID,
+			Quantity: line.Quantity, Amount: line.Amount,
 		})
 	}
 	return nil

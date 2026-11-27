@@ -36,12 +36,10 @@ func NewDocumentRepoForDefinition[T any](def entity.Definition, selectCols []str
 	}
 	repo := NewBaseDocumentRepo(def.Table, selectCols, newFn)
 	repo.SetEntityName(def.Key)
-	if def.Statuses.Declared() {
-		if !slices.Contains(selectCols, def.Statuses.Column) {
-			panic(fmt.Sprintf("document %q: status column %q is not a column of the document", def.Name, def.Statuses.Column))
-		}
-		repo.definition = def
+	if def.Statuses.Declared() && !slices.Contains(selectCols, def.Statuses.Column) {
+		panic(fmt.Sprintf("document %q: status column %q is not a column of the document", def.Name, def.Statuses.Column))
 	}
+	repo.definition = def
 	return repo
 }
 
@@ -67,9 +65,9 @@ type BaseDocumentRepo[T any] struct {
 	// uses this map to inject WHERE conditions for matching dimensions.
 	rlsDimensions map[string]string // e.g. {"organization": "organization_id"}
 
-	// definition is the document's Definition when it declares statuses
-	// (entity.StatusModel): writes check its transitions and record the
-	// status history.
+	// definition is the document's Definition (NewDocumentRepoForDefinition):
+	// writes check its statuses (entity.StatusModel) and keep its sequences
+	// (entity.SequenceRule).
 	definition entity.Definition
 }
 
@@ -273,9 +271,51 @@ func (r *BaseDocumentRepo[T]) Create(ctx context.Context, entity T) error {
 		return fmt.Errorf("insert %s: %w", r.tableName, err)
 	}
 	if changed {
-		return postgres.RecordDocumentStatus(ctx, r.definition.Key, data["id"], status, "")
+		if err := postgres.RecordDocumentStatus(ctx, r.definition.Key, data["id"], status, ""); err != nil {
+			return err
+		}
 	}
-	return nil
+	return r.keepSequences(ctx, entity, data, nil)
+}
+
+// keepSequences keeps the boundaries of the document's sequences after a
+// write (postgres.KeepSequences); stored is the document as it was before
+// an update, nil for a new one.
+func (r *BaseDocumentRepo[T]) keepSequences(ctx context.Context, doc T, data map[string]any, stored *storedForSequence) error {
+	if !r.definition.Sequence.Declared() {
+		return nil
+	}
+	write := postgres.SequenceWrite{}
+	write.Date, _ = data["date"].(time.Time)
+	write.Posted, _ = data["posted"].(bool)
+	if stored != nil {
+		write.Stored, write.StoredDate, write.StoredPosted = true, stored.date, stored.posted
+	}
+	return postgres.KeepSequences(ctx, r.definition, any(doc), write)
+}
+
+// storedForSequence is a stored document as its sequences see it.
+type storedForSequence struct {
+	date   time.Time
+	posted bool
+}
+
+// storedSequenceState reads the stored date and posted flag of a document
+// in a sequence; nil for a document that is not in one.
+func (r *BaseDocumentRepo[T]) storedSequenceState(ctx context.Context, entityID any) (*storedForSequence, error) {
+	if !r.definition.Sequence.Declared() {
+		return nil, nil
+	}
+	var stored storedForSequence
+	err := r.GetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
+		fmt.Sprintf("SELECT date, posted FROM %s WHERE id = $1", r.tableName), entityID).Scan(&stored.date, &stored.posted)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read stored document: %w", err)
+	}
+	return &stored, nil
 }
 
 // duplicateNumber is the error of a write whose number another document holds.
@@ -303,6 +343,10 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 		return err
 	}
 	status, stored, changed, err := r.statusChange(ctx, entity, entityID)
+	if err != nil {
+		return err
+	}
+	storedSequence, err := r.storedSequenceState(ctx, entityID)
 	if err != nil {
 		return err
 	}
@@ -367,7 +411,12 @@ func (r *BaseDocumentRepo[T]) Update(ctx context.Context, entity T) error {
 		v.SetUpdatedAt(updatedAt)
 	}
 	if changed {
-		return postgres.RecordDocumentStatus(ctx, r.definition.Key, entityID, status, stored)
+		if err := postgres.RecordDocumentStatus(ctx, r.definition.Key, entityID, status, stored); err != nil {
+			return err
+		}
+	}
+	if storedSequence != nil {
+		return r.keepSequences(ctx, entity, data, storedSequence)
 	}
 	return nil
 }

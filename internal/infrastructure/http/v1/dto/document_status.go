@@ -21,3 +21,18 @@ type DocumentStatusChange struct {
 type DocumentStatusHistoryResponse struct {
 	Items []DocumentStatusChange `json:"items"`
 }
+
+// SequenceStateResponse is GET /document/<route>/:id/sequence of a document
+// that closes a period: the sequence it restores, the period [periodFrom,
+// periodTo) it closes, the moment up to which the sequence is restored
+// (absent when no closing was posted yet), whether the posted document is
+// outdated (documents before its period's end changed after it), and
+// whether an earlier period is to be closed again before it can be posted.
+type SequenceStateResponse struct {
+	Sequence      string     `json:"sequence"`
+	PeriodFrom    time.Time  `json:"periodFrom"`
+	PeriodTo      time.Time  `json:"periodTo"`
+	Boundary      *time.Time `json:"boundary,omitempty"`
+	Outdated      bool       `json:"outdated"`
+	EarlierBroken bool       `json:"earlierBroken"`
+}
