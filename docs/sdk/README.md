@@ -58,7 +58,7 @@
 
 Типы — это алиасы платформенных, функции — тонкие обёртки. Собственных типов у фасада нет, кроме ограничений для дженериков и тестового `sdktest.Tenant`. Это проверяет `internal/architecture` (`TestSDKIsAFacade`).
 
-Обе конфигурации — [«Автозапчасти»](../autoparts/README.md) и крипто — в коде и тестах импортируют из платформы только `pkg/sdk`. Это закреплено тестом (`TestSDKConfigurationsUseOnlyThePublicAPI`, список `sdkConfigurations`). «Автозапчастям» хватает 12 пакетов ядра, крипто использует 61 пакет фасада.
+Все конфигурации — [«Торговля и сервис»](../trade/README.md), надстройка [«Автозапчасти»](../autoparts/README.md) и крипто — в коде и тестах импортируют из платформы только `pkg/sdk`; надстройка — ещё пакеты своей базы. Это закреплено тестом (`TestSDKConfigurationsUseOnlyThePublicAPI`, список `sdkConfigurations`). «Торговле и сервису» хватает 12 пакетов ядра, крипто использует 61 пакет фасада.
 
 Правила слоёв (`TestInternalLayerDependenciesPointInward`, `TestInnerPackagesDoNotTransitivelyDependOnAdapters`) смотрят сквозь фасад: импорт пакета `pkg/sdk` считается импортом того, что он фронтирует. Домен конфигурации не может взять `pkg/sdk/postgres` или `pkg/sdk/http/...`, как не мог взять `internal/infrastructure/...`.
 

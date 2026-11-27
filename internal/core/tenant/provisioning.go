@@ -53,8 +53,8 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 		switch {
 		case err == nil:
 			result.Tenant = t
-			if t.Configuration != "" && t.Configuration != input.Configuration {
-				return fmt.Errorf("%w: tenant %s is %q, not %q", ErrConfigurationMismatch, t.ID, t.Configuration, input.Configuration)
+			if t.Configuration != "" && t.Configuration != input.Configuration || t.AddOn != "" && t.AddOn != input.AddOn {
+				return fmt.Errorf("%w: tenant %s is %q+%q, not %q+%q", ErrConfigurationMismatch, t.ID, t.Configuration, t.AddOn, input.Configuration, input.AddOn)
 			}
 			if t.Status == StatusActive {
 				exists, existsErr := p.dbAdmin.DatabaseExists(ctx, t.DBName)
@@ -70,6 +70,7 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 				return fmt.Errorf("%w: tenant %s has status %s", ErrTenantProvisioningState, t.ID, t.Status)
 			}
 			t.Configuration = input.Configuration
+			t.AddOn = input.AddOn
 		case errors.Is(err, ErrTenantNotFound):
 			tenantID := id.New().String()
 			dbName, nameErr := GenerateDatabaseName(tenantID)
@@ -86,6 +87,7 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 				Status:            StatusProvisioning,
 				Plan:              input.Plan,
 				Configuration:     input.Configuration,
+				AddOn:             input.AddOn,
 				ProvisioningStage: ProvisioningStageReserved,
 				Settings:          map[string]any{},
 			}
@@ -113,7 +115,8 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 		if err != nil {
 			return p.fail(ctx, t.ID, ProvisioningStageMigration, fmt.Errorf("migrate tenant database: %w", err))
 		}
-		if schema.Version < 0 || schema.ConfigurationVersion < 0 || schema.Configuration != input.Configuration {
+		if schema.Version < 0 || schema.ConfigurationVersion < 0 || schema.AddOnVersion < 0 ||
+			schema.Configuration != input.Configuration || schema.AddOn != input.AddOn {
 			return p.fail(ctx, t.ID, ProvisioningStageMigration, fmt.Errorf("migrator returned invalid schema %+v", schema))
 		}
 		if err := p.registry.MarkProvisioned(ctx, t.ID, schema); err != nil {
@@ -123,6 +126,7 @@ func (p *Provisioner) Provision(ctx context.Context, input CreateTenantInput) (*
 		t.Status = StatusActive
 		t.SchemaVersion = schema.Version
 		t.ConfigurationSchemaVersion = schema.ConfigurationVersion
+		t.AddOnSchemaVersion = schema.AddOnVersion
 		t.ProvisioningStage = ProvisioningStageComplete
 		t.ProvisioningError = ""
 		return nil

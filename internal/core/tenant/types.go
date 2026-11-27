@@ -65,28 +65,37 @@ type Tenant struct {
 	// Configuration names the configuration whose migrations the tenant
 	// database holds; empty until a binary that records it migrates the
 	// tenant.
-	Configuration              string            `db:"configuration"`
-	ConfigurationSchemaVersion int               `db:"configuration_schema_version"` // Highest applied configuration migration
-	ProvisioningStage          ProvisioningStage `db:"provisioning_stage"`
-	ProvisioningError          string            `db:"provisioning_error"`
-	ProvisionedAt              *time.Time        `db:"provisioned_at"`
-	CreatedAt                  time.Time         `db:"created_at"`
-	UpdatedAt                  time.Time         `db:"updated_at"`
-	Settings                   map[string]any    `db:"settings"` // Additional settings (JSONB)
+	Configuration              string `db:"configuration"`
+	ConfigurationSchemaVersion int    `db:"configuration_schema_version"` // Highest applied configuration migration
+	// AddOn names the add-on built on Configuration (надстройка) whose
+	// migrations the tenant database holds; empty without one.
+	AddOn              string            `db:"addon"`
+	AddOnSchemaVersion int               `db:"addon_schema_version"` // Highest applied add-on migration
+	ProvisioningStage  ProvisioningStage `db:"provisioning_stage"`
+	ProvisioningError  string            `db:"provisioning_error"`
+	ProvisionedAt      *time.Time        `db:"provisioned_at"`
+	CreatedAt          time.Time         `db:"created_at"`
+	UpdatedAt          time.Time         `db:"updated_at"`
+	Settings           map[string]any    `db:"settings"` // Additional settings (JSONB)
 }
 
 // Schema returns the tenant database's recorded migration state.
 func (t *Tenant) Schema() Schema {
-	return Schema{Configuration: t.Configuration, Version: t.SchemaVersion, ConfigurationVersion: t.ConfigurationSchemaVersion}
+	return Schema{Configuration: t.Configuration, Version: t.SchemaVersion, ConfigurationVersion: t.ConfigurationSchemaVersion,
+		AddOn: t.AddOn, AddOnVersion: t.AddOnSchemaVersion}
 }
 
 // Schema is the migration state of a tenant database: the configuration whose
-// migrations it holds and the highest applied version of the platform's
-// migrations and of the configuration's. Each has a goose history of its own.
+// migrations it holds, the add-on built on it if any, and the highest
+// applied version of the platform's migrations, the configuration's and the
+// add-on's. Each has a goose history of its own.
 type Schema struct {
 	Configuration        string
 	Version              int
 	ConfigurationVersion int
+	// AddOn is empty for a tenant of the configuration alone.
+	AddOn        string
+	AddOnVersion int
 }
 
 // Matches reports whether a tenant database in state s is at expected.
@@ -108,11 +117,14 @@ type CreateTenantInput struct {
 	// Configuration names the configuration whose migrations the tenant
 	// database gets; a tenant keeps it for life.
 	Configuration string
-	Slug          string
-	DisplayName   string
-	Plan          Plan
-	DBHost        string // Optional, defaults to localhost
-	DBPort        int    // Optional, defaults to 5432
+	// AddOn names the add-on built on Configuration the tenant runs, empty
+	// for the configuration alone.
+	AddOn       string
+	Slug        string
+	DisplayName string
+	Plan        Plan
+	DBHost      string // Optional, defaults to localhost
+	DBPort      int    // Optional, defaults to 5432
 }
 
 // configurationName matches configuration.ValidName.
@@ -124,6 +136,9 @@ var tenantSlugPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])
 func (i *CreateTenantInput) Validate() error {
 	if !configurationName.MatchString(i.Configuration) {
 		return fmt.Errorf("configuration must be a lowercase identifier of at most 40 characters")
+	}
+	if i.AddOn != "" && (!configurationName.MatchString(i.AddOn) || i.AddOn == i.Configuration) {
+		return fmt.Errorf("add-on must be a lowercase identifier of at most 40 characters other than the configuration")
 	}
 	i.Slug = strings.ToLower(strings.TrimSpace(i.Slug))
 	if i.Slug == "" {

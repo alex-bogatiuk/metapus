@@ -12,9 +12,10 @@ import (
 	"os"
 	"path/filepath"
 
+	autoparts "github.com/alex-bogatiuk/metapus/configurations/autoparts/content"
+	trade "github.com/alex-bogatiuk/metapus/configurations/trade/content"
 	"github.com/alex-bogatiuk/metapus/extensions"
 	"github.com/alex-bogatiuk/metapus/internal/configuration"
-	autoparts "github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
 	crypto "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/content"
 	"github.com/alex-bogatiuk/metapus/internal/configuration/none"
 )
@@ -22,7 +23,7 @@ import (
 // configurations are the repository's configurations whose frontend files
 // the command generates.
 func configurations() []configuration.Configuration {
-	return []configuration.Configuration{none.New(), crypto.Crypto(crypto.Services{}), autoparts.Autoparts()}
+	return []configuration.Configuration{none.New(), crypto.Crypto(crypto.Services{}), trade.Trade(), autoparts.AutoParts()}
 }
 
 func main() {

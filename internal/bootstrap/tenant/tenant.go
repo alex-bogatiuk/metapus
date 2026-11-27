@@ -42,7 +42,8 @@ type application struct {
 // options add.
 func Main(cfg configuration.Configuration, opts ...launch.Option) {
 	extensions := launch.Apply(opts).Extensions
-	if err := configuration.CheckAPIVersion(cfg); err != nil {
+	cfg, err := configuration.Assemble(cfg)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -241,7 +242,8 @@ func createTenant(ctx context.Context, app application) {
 
 	fmt.Printf("Provisioning tenant '%s'...\n", slug)
 	result, err := provisioner.Provision(ctx, tenant.CreateTenantInput{
-		Configuration: app.cfg.Name(),
+		Configuration: configuration.BaseName(app.cfg),
+		AddOn:         configuration.AddOnName(app.cfg),
 		Slug:          slug,
 		DisplayName:   name,
 		DBHost:        getEnvDefault("TENANT_DB_HOST", "localhost"),
@@ -266,7 +268,7 @@ func createTenant(ctx context.Context, app application) {
 	fmt.Printf("\nTenant '%s' is ready\n", t.Slug)
 	fmt.Printf("  Tenant ID: %s\n", t.ID)
 	fmt.Printf("  Database: %s\n", dbName)
-	fmt.Printf("  Configuration: %s\n", t.Configuration)
+	fmt.Printf("  Configuration: %s\n", stackOf(t))
 	fmt.Printf("  Status: active\n")
 	fmt.Printf("  Plan: %s\n", plan)
 }
@@ -298,17 +300,21 @@ func listTenants(ctx context.Context) {
 		return
 	}
 
-	fmt.Printf("%-36s %-20s %-30s %-15s %-14s %-8s %-16s\n", "TENANT_ID", "SLUG", "NAME", "DATABASE", "CONFIGURATION", "SCHEMA", "STATUS")
+	fmt.Printf("%-36s %-20s %-30s %-15s %-24s %-10s %-16s\n", "TENANT_ID", "SLUG", "NAME", "DATABASE", "CONFIGURATION", "SCHEMA", "STATUS")
 	fmt.Println(strings.Repeat("-", 146))
 
 	for _, t := range tenants {
-		fmt.Printf("%-36s %-20s %-30s %-15s %-14s %-8s %-16s\n",
+		versions := strconv.Itoa(t.SchemaVersion) + "/" + strconv.Itoa(t.ConfigurationSchemaVersion)
+		if t.AddOn != "" {
+			versions += "/" + strconv.Itoa(t.AddOnSchemaVersion)
+		}
+		fmt.Printf("%-36s %-20s %-30s %-15s %-24s %-10s %-16s\n",
 			truncate(t.ID, 36),
 			truncate(t.Slug, 20),
 			truncate(t.DisplayName, 30),
 			truncate(t.DBName, 15),
-			truncate(t.Configuration, 14),
-			strconv.Itoa(t.SchemaVersion)+"/"+strconv.Itoa(t.ConfigurationSchemaVersion),
+			truncate(stackOf(t), 24),
+			versions,
 			t.Status,
 		)
 	}
@@ -337,7 +343,7 @@ func migrateTenants(ctx context.Context, app application) error {
 				continue
 			}
 			if !belongsTo(t, app.cfg) {
-				fmt.Printf("Skipping %s: its configuration is %s\n", t.Slug, t.Configuration)
+				fmt.Printf("Skipping %s: its configuration is %s\n", t.Slug, stackOf(t))
 				continue
 			}
 			tenants = append(tenants, t)
@@ -352,7 +358,7 @@ func migrateTenants(ctx context.Context, app application) error {
 		}
 		if !belongsTo(t, app.cfg) {
 			return fmt.Errorf("%w: tenant %q is %q; migrate it with that configuration's tenant command, not %q's",
-				tenant.ErrConfigurationMismatch, targetID, t.Configuration, app.cfg.Name())
+				tenant.ErrConfigurationMismatch, targetID, stackOf(t), app.cfg.Name())
 		}
 		tenants = []*tenant.Tenant{t}
 	}
@@ -386,8 +392,8 @@ func migrateTenants(ctx context.Context, app application) error {
 			failures = append(failures, fmt.Errorf("tenant %s (%s): record schema version: %w", t.Slug, t.ID, updateErr))
 			continue
 		}
-		fmt.Printf("  ✓ Done (%s, schema_version=%d, configuration_schema_version=%d)\n",
-			schema.Configuration, schema.Version, schema.ConfigurationVersion)
+		fmt.Printf("  ✓ Done (%s, schema_version=%d, configuration_schema_version=%d, addon_schema_version=%d)\n",
+			stackOf(&tenant.Tenant{Configuration: schema.Configuration, AddOn: schema.AddOn}), schema.Version, schema.ConfigurationVersion, schema.AddOnVersion)
 	}
 
 	return errors.Join(failures...)
@@ -422,12 +428,24 @@ func canMigrateTenant(t *tenant.Tenant) bool {
 	return t.Status == tenant.StatusActive || t.Status == tenant.StatusSuspended
 }
 
-// belongsTo reports whether this binary may migrate t: a tenant of cfg, or
-// one no binary that records its configuration has migrated yet. The
-// migration itself refuses a database that holds another configuration's
-// migrations.
+// belongsTo reports whether this binary may migrate t: a tenant of cfg's
+// base configuration with cfg's add-on or none yet (an add-on can be added
+// to a tenant of its base, never removed), or one no binary that records
+// its configuration has migrated yet. The migration itself refuses a
+// database that holds another configuration's migrations.
 func belongsTo(t *tenant.Tenant, cfg configuration.Configuration) bool {
-	return t.Configuration == "" || t.Configuration == cfg.Name()
+	if t.Configuration == "" {
+		return true
+	}
+	return t.Configuration == configuration.BaseName(cfg) && (t.AddOn == "" || t.AddOn == configuration.AddOnName(cfg))
+}
+
+// stackOf names the application a tenant runs: its configuration and add-on.
+func stackOf(t *tenant.Tenant) string {
+	if t.AddOn == "" {
+		return t.Configuration
+	}
+	return t.Configuration + "+" + t.AddOn
 }
 
 func suspendTenant(ctx context.Context) {

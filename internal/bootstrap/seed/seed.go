@@ -31,7 +31,8 @@ const (
 
 // Main seeds the tenant database at DATABASE_URL for cfg.
 func Main(cfg configuration.Configuration) {
-	if err := configuration.CheckAPIVersion(cfg); err != nil {
+	cfg, err := configuration.Assemble(cfg)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -74,7 +75,7 @@ func Main(cfg configuration.Configuration) {
 	// Seed demo data if requested
 	if os.Getenv("SEED_DEMO_DATA") == "true" {
 		env.Demo = true
-		if err := seedTenantRegistry(ctx, dbURL, cfg.Name(), log); err != nil {
+		if err := seedTenantRegistry(ctx, dbURL, configuration.BaseName(cfg), configuration.AddOnName(cfg), log); err != nil {
 			log.Warnw("failed to seed tenant registry", "error", err)
 		}
 		if env.Currencies, env.RateSources, err = seedDemoData(ctx, pool, log, adminUserID); err != nil {
@@ -448,7 +449,7 @@ func seedGeneratedCounterparties(ctx context.Context, pool *postgres.Pool, log *
 	return counterpartyIDs, nil
 }
 
-func seedTenantRegistry(ctx context.Context, dbURL, configurationName string, log *logger.Logger) error {
+func seedTenantRegistry(ctx context.Context, dbURL, configurationName, addOn string, log *logger.Logger) error {
 	metaDSN, err := secretfile.Get("META_DATABASE_URL", "")
 	if err != nil {
 		return fmt.Errorf("load META_DATABASE_URL: %w", err)
@@ -534,6 +535,7 @@ func seedTenantRegistry(ctx context.Context, dbURL, configurationName string, lo
 	registry := tenantdb.NewPostgresRegistry(metaPool)
 	newTenant := &tenant.Tenant{
 		Configuration: configurationName,
+		AddOn:         addOn,
 		Slug:          tenantSlug,
 		DisplayName:   tenantName,
 		DBName:        dbName,

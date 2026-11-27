@@ -45,7 +45,8 @@ type Build = launch.Build
 // startup error.
 func Main(build Build, cfg configuration.Configuration, opts ...launch.Option) {
 	extensions := launch.Apply(opts).Extensions
-	if err := configuration.CheckAPIVersion(cfg); err != nil {
+	cfg, err := configuration.Assemble(cfg)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

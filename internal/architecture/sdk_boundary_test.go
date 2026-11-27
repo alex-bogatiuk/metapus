@@ -17,15 +17,17 @@ import (
 
 // sdkConfigurations are the configurations built on the public platform API
 // (github.com/alex-bogatiuk/metapus/pkg/sdk) alone, as a configuration in its own repository has to
-// be: their code and tests import no other platform package.
-var sdkConfigurations = []string{"autoparts", "crypto"}
+// be: their code and tests import no other platform package. An add-on
+// imports its base's packages too.
+var sdkConfigurations = []string{"autoparts", "crypto", "trade"}
 
 func TestSDKConfigurationsUseOnlyThePublicAPI(t *testing.T) {
 	t.Parallel()
 	repoRoot := repositoryRoot(t)
 	for _, name := range sdkConfigurations {
-		own := "github.com/alex-bogatiuk/metapus/internal/configuration/" + name
-		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
+		c := configurationNamed(name)
+		own := c.pkg()
+		err := filepath.WalkDir(configurationDir(repoRoot, name), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" {
 				return walkErr
 			}
@@ -37,6 +39,9 @@ func TestSDKConfigurationsUseOnlyThePublicAPI(t *testing.T) {
 				value, err := strconv.Unquote(imported.Path.Value)
 				if err != nil {
 					return err
+				}
+				if c.base != "" && configurationNamed(c.base).owns(value) {
+					continue
 				}
 				if !strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/") || value == own || strings.HasPrefix(value, own+"/") ||
 					value == "github.com/alex-bogatiuk/metapus/pkg/sdk" || strings.HasPrefix(value, "github.com/alex-bogatiuk/metapus/pkg/sdk/") {
@@ -122,7 +127,7 @@ func TestSDKTestStaysInTests(t *testing.T) {
 	t.Parallel()
 	repoRoot := repositoryRoot(t)
 	for _, name := range sdkConfigurations {
-		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
+		err := filepath.WalkDir(configurationDir(repoRoot, name), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 				return walkErr
 			}
@@ -154,7 +159,7 @@ func TestConfigurationsDoNotHoldTheEncryptionKey(t *testing.T) {
 	t.Parallel()
 	repoRoot := repositoryRoot(t)
 	for _, name := range sdkConfigurations {
-		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
+		err := filepath.WalkDir(configurationDir(repoRoot, name), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 				return walkErr
 			}
@@ -252,7 +257,7 @@ func requireConfigurationsDoNotName(t *testing.T, tablePattern, hint string) {
 	require.NotEmpty(t, tables, "platform migrations create no table matching %s", tablePattern)
 	named := regexp.MustCompile(`\b(` + strings.Join(tables, "|") + `)\b`)
 	for _, name := range sdkConfigurations {
-		err := filepath.WalkDir(filepath.Join(repoRoot, "internal", "configuration", name), func(path string, entry fs.DirEntry, walkErr error) error {
+		err := filepath.WalkDir(configurationDir(repoRoot, name), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 				return walkErr
 			}
@@ -272,4 +277,9 @@ func requireConfigurationsDoNotName(t *testing.T, tablePattern, hint string) {
 		})
 		require.NoError(t, err)
 	}
+}
+
+// configurationDir is the directory of the repository's configuration name.
+func configurationDir(repoRoot, name string) string {
+	return filepath.Join(repoRoot, filepath.FromSlash(configurationNamed(name).dir))
 }

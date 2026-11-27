@@ -34,9 +34,9 @@ func (e *MonthClosing) SequencePeriod() (from, to time.Time) { /* календа
 
 **Форма.** Метаданные закрывающего документа содержат `restoresSequence`. Форма читает `GET /document/<route>/:id/sequence` (право `:read`): период, границу, `outdated` (проведённое закрытие устарело: граница раньше конца периода) и `earlierBroken` (граница раньше начала периода). При любом из этих флагов форма показывает предупреждение ([`sequence-state-alert.tsx`](../../frontend/components/shared/sequence-state-alert.tsx)).
 
-## Закрытие месяца в «Автозапчастях»
+## Закрытие месяца в «Торговле и сервисе»
 
-[`month_closing`](../../internal/configuration/autoparts/domain/documents/month_closing/model.go) считает себестоимость продаж по средней за месяц в валюте учёта документа:
+[`month_closing`](../../configurations/trade/domain/documents/month_closing/model.go) считает себестоимость продаж по средней за месяц в валюте учёта документа:
 
 - средняя по номенклатуре на складе = (стоимость остатка на начало месяца + закупки месяца) / их количество;
 - продажи месяца уходят по средней; продажа всего остатка забирает всю стоимость;
@@ -75,10 +75,10 @@ internal/infrastructure/storage/postgres/sequence_boundaries.go
 internal/infrastructure/storage/postgres/document_repo/base.go
 internal/infrastructure/http/v1/document_status.go
 db/migrations/00009_sequence_boundaries.sql
-internal/configuration/autoparts/domain/documents/month_closing/model.go
-internal/configuration/autoparts/domain/registers/purchases/movement.go
-internal/configuration/autoparts/domain/registers/sales/movement.go
-internal/configuration/autoparts/domain/registers/inventory_cost/movement.go
-db/configuration/autoparts/00005_autoparts_cost.sql
+configurations/trade/domain/documents/month_closing/model.go
+configurations/trade/domain/registers/purchases/movement.go
+configurations/trade/domain/registers/sales/movement.go
+configurations/trade/domain/registers/inventory_cost/movement.go
+db/configuration/trade/00005_trade_cost.sql
 frontend/components/shared/sequence-state-alert.tsx
 ```

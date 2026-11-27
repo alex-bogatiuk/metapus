@@ -146,7 +146,7 @@ myExtension.Register(factoryReg)
 
 ## 4. Модули конфигурации
 
-Конфигурация подключается к платформе модулями, а не правками ядра. В репозитории их две: криптопроцессинг (`internal/configuration/crypto`) и каркас магазина автозапчастей (`internal/configuration/autoparts`, [описание](../autoparts/README.md)). Конфигурации не импортируют друг друга. `make check-configurations` (`scripts/ci/check-configurations.sh`) собирает команды и фронтенд каждой из них и пустой, а `go run ./cmd/http-contracts` генерирует фронтенд-файлы всех конфигураций и проверяет, что платформенные файлы у всех одинаковые.
+Конфигурация подключается к платформе модулями, а не правками ядра ([слои приложения](configuration-layers.md)). В репозитории две базовые конфигурации — криптопроцессинг (`internal/configuration/crypto`) и «Торговля и сервис» (`configurations/trade`, [описание](../trade/README.md)) — и надстройка «Автозапчасти» над «Торговлей и сервисом» (`configurations/autoparts`, [описание](../autoparts/README.md)). Конфигурации не импортируют друг друга; надстройка импортирует только свою базу. `make check-configurations` (`scripts/ci/check-configurations.sh`) собирает команды и фронтенд каждой из них и пустой, а `go run ./cmd/http-contracts` генерирует фронтенд-файлы всех конфигураций и проверяет, что платформенные файлы у всех одинаковые.
 
 Конфигурация в целом передаётся платформе значением `configuration.Configuration` (`internal/configuration`):
 

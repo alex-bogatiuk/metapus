@@ -1,10 +1,10 @@
-// Command autoparts-worker runs the Metapus background worker for the auto parts store
-// configuration («Автозапчасти») with the client extensions.
+// Command autoparts-worker runs the Metapus background worker for the add-on «Автозапчасти»
+// on «Торговля и сервис» with the client extensions.
 package main
 
 import (
+	"github.com/alex-bogatiuk/metapus/configurations/autoparts/content"
 	"github.com/alex-bogatiuk/metapus/extensions"
-	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/content"
 	"github.com/alex-bogatiuk/metapus/pkg/sdk/launch"
 )
 
@@ -17,5 +17,5 @@ var (
 )
 
 func main() {
-	launch.Worker(launch.Build{Version: Version, BuildTime: BuildTime}, content.Autoparts(), launch.WithExtensions(extensions.Register))
+	launch.Worker(launch.Build{Version: Version, BuildTime: BuildTime}, content.AutoParts(), launch.WithExtensions(extensions.Register))
 }

@@ -15,16 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// configurationPackages lists the import paths (and their subpackages) that
-// belong to an industry configuration rather than to the reusable platform:
-// each configuration lives under its own root in internal/configuration/.
-// Everything else under internal/ and pkg/ is the platform, including the
-// contract package itself, the empty configuration (none) and
-// internal/platformcontent with the shared applied catalogs.
-var configurationPackages = []string{
-	"github.com/alex-bogatiuk/metapus/internal/configuration/autoparts",
-	"github.com/alex-bogatiuk/metapus/internal/configuration/crypto",
-}
+// configurationPackages are the roots of the repository's configurations
+// (repositoryConfigurations). Everything else under internal/ and pkg/ is the
+// platform, including the contract package itself, the empty configuration
+// (none) and internal/platformcontent with the shared applied catalogs.
+var configurationPackages = func() []string {
+	roots := make([]string, len(repositoryConfigurations))
+	for i, c := range repositoryConfigurations {
+		roots[i] = c.pkg()
+	}
+	return roots
+}()
 
 // knownConfigurationLeaks lists tolerated platform → configuration imports.
 // It started with 105 edges and is now empty: the platform depends on no
@@ -110,25 +111,17 @@ func isConfigurationPackage(importPath string) bool {
 	return false
 }
 
-// TestConfigurationsDoNotDependOnEachOther keeps each configuration buildable
-// on the platform alone: one configuration's code and tests never import
-// another's.
+// TestConfigurationsDoNotDependOnEachOther keeps each base configuration
+// buildable on the platform alone and each add-on on its base: a
+// configuration's code and tests never import another configuration, except
+// an add-on its own base. The base never imports its add-on.
 func TestConfigurationsDoNotDependOnEachOther(t *testing.T) {
 	t.Parallel()
 	_, currentFile, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	repoRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
-	owner := func(pkg string) string {
-		for _, root := range configurationPackages {
-			if pkg == root || strings.HasPrefix(pkg, root+"/") {
-				return root
-			}
-		}
-		return ""
-	}
-	for _, root := range configurationPackages {
-		dir := filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(root, "github.com/alex-bogatiuk/metapus/")))
-		err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+	for _, c := range repositoryConfigurations {
+		err := filepath.WalkDir(filepath.Join(repoRoot, filepath.FromSlash(c.dir)), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil || entry.IsDir() || filepath.Ext(path) != ".go" {
 				return walkErr
 			}
@@ -141,13 +134,28 @@ func TestConfigurationsDoNotDependOnEachOther(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if other := owner(value); other != "" && other != root {
-					rel, _ := filepath.Rel(repoRoot, path)
-					t.Errorf("%s imports %s of another configuration", filepath.ToSlash(rel), value)
+				other, ok := configurationOwning(value)
+				if !ok || other.name == c.name || other.name == c.base {
+					continue
 				}
+				rel, _ := filepath.Rel(repoRoot, path)
+				t.Errorf("%s imports %s of configuration %s; only an add-on imports its own base", filepath.ToSlash(rel), value, other.name)
 			}
 			return nil
 		})
 		require.NoError(t, err)
+	}
+}
+
+// TestRepositoryConfigurationsAreBasesAndAddOns checks the declared stack:
+// an add-on names a base of the repository that is no add-on itself.
+func TestRepositoryConfigurationsAreBasesAndAddOns(t *testing.T) {
+	t.Parallel()
+	for _, c := range repositoryConfigurations {
+		if c.base == "" {
+			continue
+		}
+		base := configurationNamed(c.base)
+		require.Emptyf(t, base.base, "add-on %s is built on %s, an add-on itself", c.name, base.name)
 	}
 }

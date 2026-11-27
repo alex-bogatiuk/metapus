@@ -3,6 +3,7 @@ package architecture_test
 import (
 	"go/parser"
 	"go/token"
+	"os"
 	"io/fs"
 	"path/filepath"
 	"runtime"
@@ -17,28 +18,51 @@ func TestInternalLayerDependenciesPointInward(t *testing.T) {
 	t.Parallel()
 	_, currentFile, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	internalRoot := filepath.Dir(filepath.Dir(currentFile))
+	repoRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
+	// directory is from the repository root.
 	rules := []struct {
 		directory string
 		forbidden []string
 	}{
-		{directory: "core", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/domain/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/jackc/pgx", "github.com/georgysavva/scany/v2/pgxscan"}},
-		{directory: "metadata", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
-		{directory: "domain", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
-		{directory: "application", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
-		// A configuration keeps the same layers inside its own root.
-		{directory: "configuration/crypto/domain", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/application/", "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/"}},
-		{directory: "configuration/crypto/application", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/alex-bogatiuk/metapus/internal/configuration/crypto/infrastructure/"}},
-		{directory: "configuration/autoparts/domain", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/application/", "github.com/alex-bogatiuk/metapus/internal/configuration/autoparts/infrastructure/"}},
+		{directory: "internal/core", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/domain/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/", "github.com/jackc/pgx", "github.com/georgysavva/scany/v2/pgxscan"}},
+		{directory: "internal/metadata", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
+		{directory: "internal/domain", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
+		{directory: "internal/application", forbidden: []string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/"}},
+	}
+	// A configuration keeps the same layers inside its own root; an add-on's
+	// domain does not reach its base's application or infrastructure either.
+	for _, c := range repositoryConfigurations {
+		roots := []string{c.pkg()}
+		if c.base != "" {
+			roots = append(roots, configurationNamed(c.base).pkg())
+		}
+		var domain, application []string
+		for _, root := range roots {
+			domain = append(domain, root+"/application/", root+"/infrastructure/")
+			application = append(application, root+"/infrastructure/")
+		}
+		rules = append(rules,
+			struct {
+				directory string
+				forbidden []string
+			}{c.dir + "/domain", append([]string{"github.com/alex-bogatiuk/metapus/internal/application/", "github.com/alex-bogatiuk/metapus/internal/infrastructure/"}, domain...)},
+			struct {
+				directory string
+				forbidden []string
+			}{c.dir + "/application", append([]string{"github.com/alex-bogatiuk/metapus/internal/infrastructure/"}, application...)})
 	}
 
 	// A configuration reaches the platform through pkg/sdk: importing a
 	// facade package imports what it fronts.
-	fronts := sdkFronts(t, filepath.Dir(internalRoot))
+	fronts := sdkFronts(t, repoRoot)
 
 	for _, rule := range rules {
 		t.Run(rule.directory, func(t *testing.T) {
-			err := filepath.WalkDir(filepath.Join(internalRoot, rule.directory), func(path string, entry fs.DirEntry, walkErr error) error {
+			dir := filepath.Join(repoRoot, filepath.FromSlash(rule.directory))
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				return // a configuration without the layer
+			}
+			err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
 				if walkErr != nil {
 					return walkErr
 				}
@@ -139,39 +163,45 @@ func TestInnerPackagesDoNotTransitivelyDependOnAdapters(t *testing.T) {
 	for start, deps := range sdkFronts(t, filepath.Dir(root)) {
 		graph[start] = deps
 	}
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, filepath.Dir(path))
-		if err != nil {
-			return err
-		}
-		key := "github.com/alex-bogatiuk/metapus/internal/" + filepath.ToSlash(rel)
-		for _, imp := range parsed.Imports {
-			value, err := strconv.Unquote(imp.Path.Value)
+	repoRoot := filepath.Dir(root)
+	for _, top := range []string{"internal", "configurations"} {
+		err := filepath.WalkDir(filepath.Join(repoRoot, top), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
 			if err != nil {
 				return err
 			}
-			graph[key] = append(graph[key], value)
-		}
-		return nil
-	})
-	require.NoError(t, err)
+			rel, err := filepath.Rel(repoRoot, filepath.Dir(path))
+			if err != nil {
+				return err
+			}
+			key := module + filepath.ToSlash(rel)
+			for _, imp := range parsed.Imports {
+				value, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					return err
+				}
+				graph[key] = append(graph[key], value)
+			}
+			return nil
+		})
+		require.NoError(t, err)
+	}
+	inner := []string{module + "internal/core", module + "internal/domain", module + "internal/application"}
+	for _, c := range repositoryConfigurations {
+		inner = append(inner, c.pkg()+"/domain", c.pkg()+"/application")
+	}
 	for start := range graph {
-		inner := false
-		for _, layer := range []string{"core", "domain", "application", "configuration/crypto/domain", "configuration/crypto/application", "configuration/autoparts/domain"} {
-			prefix := "github.com/alex-bogatiuk/metapus/internal/" + layer
-			inner = inner || start == prefix || strings.HasPrefix(start, prefix+"/")
+		isInner := false
+		for _, prefix := range inner {
+			isInner = isInner || start == prefix || strings.HasPrefix(start, prefix+"/")
 		}
-		if !inner {
+		if !isInner {
 			continue
 		}
 		seen := map[string]bool{}

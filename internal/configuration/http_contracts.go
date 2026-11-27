@@ -8,16 +8,21 @@ import (
 )
 
 // HTTPContractBundles returns every wire contract of the assembled
-// application: the platform's with client extensions, then the
-// configuration's. Route checks of the assembled server use it.
+// application: the platform's with client extensions, then the base
+// configuration's and the add-on's. Route checks of the assembled server use it.
 func HTTPContractBundles(cfg Configuration, extensions ...func(*v1.FactoryRegistry)) []spec.Bundle {
-	return append(PlatformHTTPContractBundles(cfg, extensions...), OwnHTTPContractBundles(cfg)...)
+	bundles := PlatformHTTPContractBundles(cfg, extensions...)
+	for _, layer := range Stack(cfg) {
+		bundles = append(bundles, OwnHTTPContractBundles(layer)...)
+	}
+	return bundles
 }
 
 // PlatformHTTPContractBundles are the contracts of the platform's shared
 // entities and of client extensions, which use the platform's generic UI.
 // The generator writes them to the platform's frontend files.
 func PlatformHTTPContractBundles(cfg Configuration, extensions ...func(*v1.FactoryRegistry)) []spec.Bundle {
+	cfg = assembled(cfg)
 	reg := v1.NewFactoryRegistry()
 	platformcontent.Register(reg, platformcontent.Integrations{Catalog: IntegrationCatalog(cfg), PoolConsumers: cfg.PoolConsumers()})
 	for _, register := range extensions {

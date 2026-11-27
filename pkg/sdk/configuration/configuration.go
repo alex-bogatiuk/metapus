@@ -17,6 +17,10 @@ import (
 type (
 	// Configuration is an industry configuration built on the platform.
 	Configuration = core.Configuration
+	// AddOn is a configuration built on a base configuration (надстройка);
+	// Versioned is a base configuration with the version add-ons are built for.
+	AddOn     = core.AddOn
+	Versioned = core.Versioned
 
 	ServerEnv = core.ServerEnv
 	Server    = core.Server

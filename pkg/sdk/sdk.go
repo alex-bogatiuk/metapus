@@ -11,7 +11,7 @@
 //
 // The platform's infrastructure (HTTP handlers, repositories, the worker)
 // stays in internal/. An architecture test keeps the reference configuration
-// (internal/configuration/autoparts) on these packages alone.
+// (configurations/trade, configurations/autoparts) on these packages alone.
 //
 // Versioning: APIVersion follows semver. A major bump changes or removes
 // something here; a minor bump only adds. A configuration names the version
@@ -27,7 +27,7 @@ import (
 )
 
 // APIVersion is the semantic version of this API.
-const APIVersion = "3.7.0"
+const APIVersion = "3.8.0"
 
 // Compatible reports whether the platform's API serves a configuration built
 // for version required: the same major version and at least its minor one.

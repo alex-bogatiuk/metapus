@@ -68,9 +68,18 @@ type Configuration interface {
 }
 
 // CheckAPIVersion fails when the platform's API (sdk.APIVersion) cannot
-// serve cfg: another major version, or an older minor one. Every platform
-// command checks it before it starts.
+// serve cfg or, for an add-on, its base: another major version, or an older
+// minor one. Every platform command checks it before it starts.
 func CheckAPIVersion(cfg Configuration) error {
+	for _, layer := range Stack(cfg) {
+		if err := checkAPIVersion(layer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkAPIVersion(cfg Configuration) error {
 	if err := sdk.Compatible(cfg.APIVersion()); err != nil {
 		return fmt.Errorf("configuration %s: %w", cfg.Name(), err)
 	}
@@ -97,11 +106,12 @@ func IntegrationCatalog(cfg Configuration) *integrations.Catalog {
 }
 
 // Compose assembles the application's factory registry: the platform's
-// shared entities (platformcontent), the configuration's, then each client
-// extension (extensions.Register). The server and the worker both start from
+// shared entities (platformcontent), the base configuration's and the
+// add-on's, then each client extension (extensions.Register). The server and the worker both start from
 // it, so a dataset an extension registers is served over HTTP and run by
 // scheduled reports alike.
 func Compose(cfg Configuration, extensions ...func(*v1.FactoryRegistry)) *v1.FactoryRegistry {
+	cfg = assembled(cfg)
 	reg := v1.NewFactoryRegistry()
 	platformcontent.Register(reg, platformcontent.Integrations{Catalog: IntegrationCatalog(cfg), PoolConsumers: cfg.PoolConsumers()})
 	cfg.Register(reg)
@@ -147,3 +157,12 @@ type registered struct {
 }
 
 func (r registered) Register(reg *v1.FactoryRegistry) { r.register(reg) }
+
+// assembled is cfg with an add-on's base (Assemble); it panics on an
+// invalid stack, which every process refuses at its start.
+func assembled(cfg Configuration) Configuration {
+	if _, ok := cfg.(AddOn); ok {
+		return MustAssemble(cfg)
+	}
+	return cfg
+}

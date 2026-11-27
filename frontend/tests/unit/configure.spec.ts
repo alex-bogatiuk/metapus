@@ -64,3 +64,27 @@ test("assembling another configuration replaces the previous one's files", () =>
   expect(() => plan("Probe", base)).toThrow(/lowercase identifier/)
   expect(() => plan("missing", base)).toThrow(/manifest.json is missing/)
 })
+
+test("an add-on is assembled on its base, which registers first", () => {
+  const base = mkdtempSync(join(tmpdir(), "metapus-configure-"))
+  const pages = (name: string) => join("configuration", name, "pages", "(main)", "orders")
+  for (const name of ["store", "shop"]) mkdirSync(join(base, pages(name)), { recursive: true })
+  mkdirSync(join(base, "configuration", "store", "pages", "(main)", "stock"), { recursive: true })
+  writeFileSync(join(base, pages("store"), "page.tsx"), "export default function Page() { return null }\n")
+  writeFileSync(join(base, "configuration", "store", "pages", "(main)", "stock", "page.tsx"), "export default function Page() { return null }\n")
+  writeFileSync(join(base, pages("shop"), "page.tsx"), "export default function Page() { return null }\n")
+  writeFileSync(join(base, "configuration", "store", "manifest.json"), JSON.stringify({ register: "registerStore" }))
+  writeFileSync(join(base, "configuration", "shop", "manifest.json"), JSON.stringify({ register: "registerShop", base: "store" }))
+
+  const files: Map<string, string> = plan("shop", base)
+  const registration = files.get(join("app", "configuration.ts"))!
+  expect(registration.indexOf("registerStore()")).toBeGreaterThan(-1)
+  expect(registration.indexOf("registerStore()"), "the base registers first").toBeLessThan(registration.indexOf("registerShop()"))
+  expect(files.get(join("app", "(main)", "stock", "page.tsx")), "the base's pages come along").toContain("configuration/store/")
+  expect(files.get(join("app", "(main)", "orders", "page.tsx")), "an add-on page replaces the base's").toContain("configuration/shop/")
+
+  writeFileSync(join(base, "configuration", "store", "manifest.json"), JSON.stringify({ register: "registerStore", base: "shop" }))
+  expect(() => plan("shop", base), "an add-on is not built on an add-on").toThrow(/is an add-on itself/)
+  writeFileSync(join(base, "configuration", "shop", "manifest.json"), JSON.stringify({ register: "registerShop", base: "shop" }))
+  expect(() => plan("shop", base)).toThrow(/must name another configuration/)
+})

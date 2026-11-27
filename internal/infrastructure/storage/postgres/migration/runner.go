@@ -68,6 +68,17 @@ func WithConfiguration(name string, source fs.FS) Option {
 	}
 }
 
+// WithAddOn makes Run apply the tenant migrations of add-on name, built on
+// the configuration of WithConfiguration, after the configuration's in a
+// goose history of their own; source is nil when the add-on ships none. A
+// database that holds another add-on's migrations is refused.
+func WithAddOn(name string, source fs.FS) Option {
+	return func(o *options) {
+		o.addOn = name
+		o.addOnSource = source
+	}
+}
+
 // Result is what Run applied.
 type Result struct {
 	// Output lists every migration applied and every step taken.
@@ -94,8 +105,12 @@ func Run(dsn string, opts ...Option) (result Result, err error) {
 		opt(&o)
 	}
 	result.Schema.Configuration = o.configuration
+	result.Schema.AddOn = o.addOn
 	if o.configuration != "" && (!configurationName.MatchString(o.configuration) || o.configuration == "platform" || o.configuration == "extensions") {
 		return result, fmt.Errorf("invalid configuration name %q", o.configuration)
+	}
+	if o.addOn != "" && (o.configuration == "" || !configurationName.MatchString(o.addOn) || o.addOn == "platform" || o.addOn == "extensions" || o.addOn == o.configuration) {
+		return result, fmt.Errorf("invalid add-on %q of configuration %q", o.addOn, o.configuration)
 	}
 	db, err := openDB(dsn)
 	if err != nil {
@@ -111,13 +126,18 @@ func Run(dsn string, opts ...Option) (result Result, err error) {
 		return result, err
 	}
 	if o.configuration != "" {
-		if err := refuseOtherConfigurations(ctx, db, o.configuration); err != nil {
+		if err := refuseOtherConfigurations(ctx, db, o.configuration, o.addOn); err != nil {
 			return result, err
 		}
-		// A configuration without migrations still marks the database as
-		// its own with an empty history.
+		// A configuration or add-on without migrations still marks the
+		// database as its own with an empty history.
 		if o.configurationSource == nil {
 			if err := ensureHistory(ctx, db, ConfigurationVersionTable(o.configuration)); err != nil {
+				return result, err
+			}
+		}
+		if o.addOn != "" && o.addOnSource == nil {
+			if err := ensureHistory(ctx, db, ConfigurationVersionTable(o.addOn)); err != nil {
 				return result, err
 			}
 		}
@@ -151,6 +171,8 @@ func Run(dsn string, opts ...Option) (result Result, err error) {
 			result.Schema.Version = int(version)
 		case ConfigurationVersionTable(o.configuration):
 			result.Schema.ConfigurationVersion = int(version)
+		case ConfigurationVersionTable(o.addOn):
+			result.Schema.AddOnVersion = int(version)
 		}
 	}
 	if len(o.permissions) > 0 {
@@ -235,7 +257,8 @@ func (s tenantSource) provider(db *sql.DB) (*goose.Provider, error) {
 }
 
 // tenantSources lists a tenant database's migration sources in the order
-// they apply: the platform's, the configuration's, the extension modules'.
+// they apply: the platform's, the configuration's, the add-on's, the
+// extension modules'.
 func tenantSources(o options) ([]tenantSource, error) {
 	platform, err := dbassets.PlatformMigrations()
 	if err != nil {
@@ -244,6 +267,9 @@ func tenantSources(o options) ([]tenantSource, error) {
 	sources := []tenantSource{{name: "platform", table: PlatformVersionTable, files: platform}}
 	if o.configurationSource != nil {
 		sources = append(sources, tenantSource{name: o.configuration, table: ConfigurationVersionTable(o.configuration), files: o.configurationSource})
+	}
+	if o.addOn != "" && o.addOnSource != nil {
+		sources = append(sources, tenantSource{name: o.addOn, table: ConfigurationVersionTable(o.addOn), files: o.addOnSource})
 	}
 	extensions, err := dbassets.ExtensionMigrations()
 	if err != nil {
@@ -256,8 +282,8 @@ func tenantSources(o options) ([]tenantSource, error) {
 }
 
 // refuseOtherConfigurations fails when the database keeps the goose history
-// of a configuration other than configuration.
-func refuseOtherConfigurations(ctx context.Context, db *sql.DB, configuration string) error {
+// of a configuration other than configuration and its add-on addOn.
+func refuseOtherConfigurations(ctx context.Context, db *sql.DB, configuration, addOn string) error {
 	rows, err := db.QueryContext(ctx, `
 		SELECT tablename FROM pg_tables
 		WHERE schemaname = current_schema() AND tablename LIKE 'goose\_db\_version\_%'
@@ -271,7 +297,8 @@ func refuseOtherConfigurations(ctx context.Context, db *sql.DB, configuration st
 		if err := rows.Scan(&table); err != nil {
 			return err
 		}
-		if table == PlatformVersionTable || table == ExtensionsVersionTable || table == ConfigurationVersionTable(configuration) {
+		if table == PlatformVersionTable || table == ExtensionsVersionTable || table == ConfigurationVersionTable(configuration) ||
+			addOn != "" && table == ConfigurationVersionTable(addOn) {
 			continue
 		}
 		return fmt.Errorf("%w: the database holds the migrations of configuration %q, not %q",

@@ -18,7 +18,7 @@ import (
 // Update this constant when adding new columns to the tenants table.
 const tenantColumns = `id, slug, display_name, db_name, db_host, db_port,
 	       status, plan, schema_version, configuration,
-	       configuration_schema_version, provisioning_stage,
+	       configuration_schema_version, addon, addon_schema_version, provisioning_stage,
 	       provisioning_error, provisioned_at, created_at, updated_at, settings`
 
 // PostgresRegistry implements tenantcore.Registry using meta-database PostgreSQL.
@@ -101,6 +101,7 @@ func (r *PostgresRegistry) Create(ctx context.Context, t *tenantcore.Tenant) err
 	}
 	input := tenantcore.CreateTenantInput{
 		Configuration: t.Configuration,
+		AddOn:         t.AddOn,
 		Slug:          t.Slug,
 		DisplayName:   t.DisplayName,
 		Plan:          t.Plan,
@@ -143,11 +144,11 @@ func (r *PostgresRegistry) Create(ctx context.Context, t *tenantcore.Tenant) err
 	_, err = tx.Exec(ctx, `
 		INSERT INTO tenants (
 			id, slug, display_name, db_name, db_host, db_port, status, plan, settings,
-			provisioning_stage, provisioning_error, provisioned_at, configuration
+			provisioning_stage, provisioning_error, provisioned_at, configuration, addon
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`, t.ID, t.Slug, t.DisplayName, t.DBName, t.DBHost, t.DBPort, t.Status, t.Plan,
-		t.Settings, t.ProvisioningStage, t.ProvisioningError, t.ProvisionedAt, t.Configuration)
+		t.Settings, t.ProvisioningStage, t.ProvisioningError, t.ProvisionedAt, t.Configuration, t.AddOn)
 	if err != nil {
 		return fmt.Errorf("create tenant: %w", err)
 	}
@@ -267,10 +268,12 @@ func (r *PostgresRegistry) MarkProvisioned(ctx context.Context, tenantID string,
 		    provisioning_error = '',
 		    provisioned_at = NOW(),
 		    configuration = $6,
-		    configuration_schema_version = $7
-		WHERE id = $1 AND status = $5 AND configuration IN ('', $6)
+		    configuration_schema_version = $7,
+		    addon = $8,
+		    addon_schema_version = $9
+		WHERE id = $1 AND status = $5 AND configuration IN ('', $6) AND addon IN ('', $8)
 	`, tenantID, tenantcore.StatusActive, schema.Version, tenantcore.ProvisioningStageComplete, tenantcore.StatusProvisioning,
-		schema.Configuration, schema.ConfigurationVersion)
+		schema.Configuration, schema.ConfigurationVersion, schema.AddOn, schema.AddOnVersion)
 	if err != nil {
 		return fmt.Errorf("mark tenant provisioned: %w", err)
 	}
@@ -283,8 +286,10 @@ func (r *PostgresRegistry) MarkProvisioned(ctx context.Context, tenantID string,
 		VALUES ($1, 'provisioned', jsonb_build_object(
 			'schema_version', $2::int,
 			'configuration', $3::text,
-			'configuration_schema_version', $4::int))
-	`, tenantID, schema.Version, schema.Configuration, schema.ConfigurationVersion)
+			'configuration_schema_version', $4::int,
+			'addon', $5::text,
+			'addon_schema_version', $6::int))
+	`, tenantID, schema.Version, schema.Configuration, schema.ConfigurationVersion, schema.AddOn, schema.AddOnVersion)
 	if err != nil {
 		return fmt.Errorf("audit tenant provisioning completion: %w", err)
 	}
@@ -315,9 +320,11 @@ func (r *PostgresRegistry) UpdateSchema(ctx context.Context, tenantID string, sc
 		UPDATE tenants
 		SET schema_version = $2,
 		    configuration = $3,
-		    configuration_schema_version = $4
-		WHERE id = $1 AND configuration IN ('', $3)
-	`, tenantID, schema.Version, schema.Configuration, schema.ConfigurationVersion)
+		    configuration_schema_version = $4,
+		    addon = $5,
+		    addon_schema_version = $6
+		WHERE id = $1 AND configuration IN ('', $3) AND addon IN ('', $5)
+	`, tenantID, schema.Version, schema.Configuration, schema.ConfigurationVersion, schema.AddOn, schema.AddOnVersion)
 	if err != nil {
 		return fmt.Errorf("update schema version: %w", err)
 	}
@@ -328,7 +335,16 @@ func (r *PostgresRegistry) UpdateSchema(ctx context.Context, tenantID string, sc
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf("%w: tenant %s is %q, not %q", tenantcore.ErrConfigurationMismatch, tenantID, t.Configuration, schema.Configuration)
+	return fmt.Errorf("%w: tenant %s is %q, not %q", tenantcore.ErrConfigurationMismatch, tenantID, stackName(t.Configuration, t.AddOn), stackName(schema.Configuration, schema.AddOn))
+}
+
+// stackName names a tenant's application: its configuration and the add-on
+// built on it.
+func stackName(configuration, addOn string) string {
+	if addOn == "" {
+		return configuration
+	}
+	return configuration + "+" + addOn
 }
 
 var _ tenantcore.Registry = (*PostgresRegistry)(nil)

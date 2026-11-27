@@ -1,12 +1,6 @@
 /**
- * The auto parts store configuration's frontend («Автозапчасти»). Its
- * catalogs and documents use the platform's generic lists and forms;
- * registerAutopartsConfiguration adds their contracts and navigation.
+ * The frontend of the add-on «Автозапчасти» on «Торговля и сервис»: the
+ * base configuration registers first (manifest "base"), this after it. The
+ * add-on adds nothing to the base's lists, forms and navigation yet.
  */
-import { registerAutopartsContracts } from "./lib/api/contracts"
-import { registerAutopartsNavigation } from "./lib/navigation"
-
-export function registerAutopartsConfiguration(): void {
-  registerAutopartsContracts()
-  registerAutopartsNavigation()
-}
+export function registerAutoPartsConfiguration(): void {}

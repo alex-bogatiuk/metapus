@@ -21,6 +21,8 @@ type Option func(*options)
 type options struct {
 	configuration       string
 	configurationSource fs.FS
+	addOn               string
+	addOnSource         fs.FS
 	permissions         []auth.Permission
 	catalogs            []entity.Definition
 	registers           []*accumulation.Schema

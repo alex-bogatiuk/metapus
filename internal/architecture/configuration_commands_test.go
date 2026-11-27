@@ -20,6 +20,10 @@ var configurationCommands = []string{
 	"autoparts-server",
 	"autoparts-tenant",
 	"autoparts-worker",
+	"trade-seed",
+	"trade-server",
+	"trade-tenant",
+	"trade-worker",
 	"aml-pool-controller",
 	"aml-testnet-bootstrap",
 	"aml-testnet-config",
@@ -226,15 +230,13 @@ var knownConfigurationCommandPlatformImports = map[string][]string{
 // pkg/sdk, so cmd/<name>-server is launch.Server(…), not internal/bootstrap.
 func TestConfigurationCommandsUseThePublicLauncher(t *testing.T) {
 	t.Parallel()
-	const module = "github.com/alex-bogatiuk/metapus/"
 	allowed := func(value string) bool {
 		if !strings.HasPrefix(value, module) || value == module+"extensions" ||
 			value == module+"pkg/sdk" || strings.HasPrefix(value, module+"pkg/sdk/") {
 			return true
 		}
 		for _, name := range sdkConfigurations {
-			own := module + "internal/configuration/" + name
-			if value == own || strings.HasPrefix(value, own+"/") {
+			if configurationNamed(name).owns(value) {
 				return true
 			}
 		}
