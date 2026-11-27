@@ -226,6 +226,9 @@ export function ReferenceField({
       })
       .catch((err) => {
         if (!cancelled && err?.status === 404) {
+          // Clearing the value reruns this effect and cancels this run, so
+          // the spinner is stopped here rather than in finally.
+          setResolving(false)
           onChange("", "")
           const recent = getRecentSelections(apiEndpoint, filter)
           const cleaned = recent.filter((r) => r.id !== value)

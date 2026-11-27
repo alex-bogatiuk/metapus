@@ -70,6 +70,7 @@ import { createTabStateKey } from "@/stores/useTabStateStore"
 import { majorToMinor, minorUnitsSchema } from "@/lib/money"
 import type { EntityMetadata, MetadataField } from "@/lib/schemas/metadata"
 import { withReachableStatuses } from "@/lib/document-status"
+import { formRequestErrorMessage } from "@/lib/form-request-error"
 import { DocumentStatusHistoryDialog } from "@/components/shared/document-status-history-dialog"
 import { SequenceStateAlert } from "@/components/shared/sequence-state-alert"
 import { parseEntityValues } from "@/lib/schemas/entity-values"
@@ -91,6 +92,9 @@ const tabStateKeys = {
 
 
 type FieldDef = MetadataField
+
+/** The nil UUID: the server's empty reference. */
+const NIL_ID = "00000000-0000-0000-0000-000000000000"
 type EntityMetaDef = EntityMetadata
 
 export interface AutoFormProps {
@@ -455,6 +459,11 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                     if ("posted" in copiedData) {
                         copiedData.posted = false
                     }
+                    // A draft leaves the references it does not fill as the
+                    // nil ID: they are empty, not a missing element.
+                    for (const field of metaData.fields) {
+                        if (field.type === "reference" && copiedData[field.name] === NIL_ID) delete copiedData[field.name]
+                    }
                     finishRead(copiedData, ticket, true)
                 }
             } catch (err) {
@@ -616,7 +625,7 @@ export default function AutoForm({ entityName, id, entityType, routePrefix, appe
                 setLineFocus({ part: err.part, line: err.line, column: err.column, seq: Date.now() })
                 toast.error(err.message)
             } else {
-                toast.error("Не удалось сохранить данные")
+                toast.error((err instanceof Error ? formRequestErrorMessage(meta, ticket.draft, err) : null) ?? "Не удалось сохранить данные")
             }
         } finally {
             if (isCurrentSession(generation)) setSaving(false)
