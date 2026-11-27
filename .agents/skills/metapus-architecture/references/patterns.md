@@ -27,7 +27,7 @@
 **Как.** Модель встраивает `entity.Catalog` или `entity.Document`, описывает поля тегами `db`, `json`, `meta`, `binding` и возвращает `entity.Definition` — один источник для таблицы, маршрута, иерархии, правил кода/номера и табличных частей. Регистрация — одна строка в `content/`. DTO, репозиторий, сервис, маршруты, HTTP-контракты, TypeScript-типы и форма выводятся из модели (`autoShape`).
 
 ```go
-// internal/configuration/autoparts/domain/catalogs/warehouse/model.go
+// configurations/trade/domain/catalogs/warehouse/model.go
 var Definition = entity.Definition{
 	Key: "warehouse", Name: "Warehouse", Route: "warehouses", Table: "cat_warehouses",
 	Kind: entity.CatalogKind,
@@ -42,7 +42,7 @@ type Warehouse struct {
 func (Warehouse) EntityDefinition() entity.Definition { return Definition }
 func (e *Warehouse) Validate(ctx context.Context) error { return e.Catalog.Validate(ctx) }
 
-// internal/configuration/autoparts/content/register.go
+// configurations/trade/content/register.go
 reg.RegisterCatalog(registry.Catalog[warehouse.Warehouse](registry.Presentation{
 	Singular: "Склад", Plural: "Склады", NewLabel: "Новый склад", Genitive: "склад",
 }))
@@ -50,7 +50,7 @@ reg.RegisterCatalog(registry.Catalog[warehouse.Warehouse](registry.Presentation{
 
 Таблица — в миграции своей истории. После добавления — `go run ./cmd/http-contracts`.
 
-**Где.** `internal/configuration/autoparts/domain/{catalogs,documents}`, `docs/howto/new-entity.md`, `docs/howto/new-document.md`, `go run ./cmd/scaffold --name X --type catalog|document`.
+**Где.** `configurations/trade/domain/{catalogs,documents}`, `docs/howto/new-entity.md`, `docs/howto/new-document.md`, `go run ./cmd/scaffold --name X --type catalog|document`.
 
 **Ловушка.** Писать DTO, репозиторий и handler руками «для контроля». Это копия того, что платформа уже делает, и она разойдётся с контрактами. Пиши руками только то, что не выводится (следующий паттерн).
 
@@ -104,7 +104,7 @@ reg.RegisterCatalog(registry.Catalog[warehouse.Warehouse](registry.Presentation{
 **Как — по умолчанию декларативно.** Регистр с измерениями, ресурсами и остатками объявляется структурой движения и одной переменной; visitor, recorder, репозиторий и plpgsql пишет платформа (`internal/domain/registers/accumulation`, фасад `pkg/sdk/registers/accumulation`).
 
 ```go
-// internal/configuration/autoparts/domain/registers/warehouse_stock/movement.go
+// configurations/trade/domain/registers/warehouse_stock/movement.go
 type Movement struct {
 	entity.MovementBase
 	WarehouseID id.ID          `db:"warehouse_id" meta:"label:Склад,ref:warehouse" register:"dimension"`
@@ -139,7 +139,7 @@ func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Mo
 
 Всё вместе отдаётся `posting.Module`, который также возвращает `MovementProvider` для отчёта «Движения документа». Ресурсы, которые надо заблокировать до проверки остатков, — через `PostingResourceLocker` (ключи отсортированы). Проверка остатков — `PostingValidator.ValidateBeforePost` или `PostingController` (проверка после записи всех регистров).
 
-**Где.** Декларативный: `internal/domain/registers/accumulation`, `autoparts/domain/registers/warehouse_stock`, `db/migrations/00006_accumulation_registers.sql`. Ручной: `crypto/infrastructure/crypto/cryptoregisters`, `crypto/domain/registers/*`. Обзор — `docs/systems/posting-engine.md`.
+**Где.** Декларативный: `internal/domain/registers/accumulation`, `configurations/trade/domain/registers/warehouse_stock`, `db/migrations/00006_accumulation_registers.sql`. Ручной: `crypto/infrastructure/crypto/cryptoregisters`, `crypto/domain/registers/*`. Обзор — `docs/systems/posting-engine.md`.
 
 **Ловушка.** Генерировать движения с обращением к базе (курс, остаток) — тогда перепроведение даёт другой результат. Нужные данные загружаются в документ до проведения или проверяются валидатором; генератор остаётся чистым. Вторая ловушка — UPDATE/DELETE финансовых движений: финансовые регистры append-only, отмена — `AppendReversalsByRecorder`. Декларативный регистр при перепроведении удаляет движения прежних версий, поэтому для финансового учёта со сторно он не подходит. Третья — миграция регистра, разошедшаяся с объявлением: исправляй миграцию (до релиза) или объявление, а не проверку.
 
@@ -205,9 +205,11 @@ func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Mo
 
 **Когда.** Сборка сервисов, сервера, воркера, сида.
 
-**Как.** Зависимости собираются руками, без DI-фреймворка, в одном месте: у платформы — `internal/bootstrap/{server,worker,tenant,seed}`, у конфигурации — её `content/`. Конфигурация целиком — одно значение `configuration.Configuration`: `Name`, `APIVersion`, `Register`, `RouteContracts`, `Migrations`, `IntegrationCatalog`, `PoolConsumers`, `Server(ctx, env)`, `Worker(ctx, env)`, `Seed(ctx, env)`. Свои настройки окружения конфигурация читает в `Server`/`Worker` и возвращает ошибку, если они неверны. `cmd/<имя>-server` — однострочный `main`: `launch.Server(launch.Build{…}, content.Autoparts(), launch.WithExtensions(extensions.Register))` из `pkg/sdk/launch`. Тест конфигурации — `sdktest.Check(t, cfg)`.
+**Как.** Зависимости собираются руками, без DI-фреймворка, в одном месте: у платформы — `internal/bootstrap/{server,worker,tenant,seed}`, у конфигурации — её `content/`. Конфигурация целиком — одно значение `configuration.Configuration`: `Name`, `APIVersion`, `Register`, `RouteContracts`, `Migrations`, `IntegrationCatalog`, `PoolConsumers`, `Server(ctx, env)`, `Worker(ctx, env)`, `Seed(ctx, env)`. Свои настройки окружения конфигурация читает в `Server`/`Worker` и возвращает ошибку, если они неверны. `cmd/<имя>-server` — однострочный `main`: `launch.Server(launch.Build{…}, content.Trade(), launch.WithExtensions(extensions.Register))` из `pkg/sdk/launch`. Тест конфигурации — `sdktest.Check(t, cfg)`.
 
-**Где.** `internal/configuration/autoparts/content/configuration.go` (минимальная), `internal/configuration/crypto/content` (полная), `internal/configuration/none`.
+Надстройка — тоже одно значение: `configuration.AddOn` с `Base()` (значение базы) и `BaseVersion()`; база с надстройками объявляет `Version()` (`configuration.Versioned`). `cmd/<надстройка>-server` передаёт в `launch.Server` надстройку, платформа сама собирает её с базой (`configuration.Assemble`): база регистрируется, обслуживается и засевается первой.
+
+**Где.** `configurations/trade/content/configuration.go` (база), `configurations/autoparts/content/configuration.go` (надстройка), `internal/configuration/crypto/content` (полная), `internal/configuration/none`, `internal/configuration/stack.go` (сборка стека).
 
 **Ловушка.** Глобальные синглтоны и `init()` с регистрацией; чтение переменных окружения в глубине доменного пакета; сборка зависимостей в `cmd/`.
 
@@ -227,7 +229,7 @@ func (e *GoodsReceipt) RegisterMovements(_ context.Context, out *accumulation.Mo
 
 **Как.** Не `if doc.Posted && …`, а `doc.State()` — объект состояния (`DocumentState`) с `CanModify`, `CanPost`, `CanUnpost`, `CanDelete`. Правило живёт в одном месте, и новое состояние не требует правки всех условий. Свои предусловия проведения документ добавляет в `CanPost(ctx)`.
 
-**Где.** `internal/core/entity/document_state.go`, `crypto/domain/documents/crypto_custody_receipt/model.go`, `autoparts/domain/documents/goods_receipt/model.go`.
+**Где.** `internal/core/entity/document_state.go`, `crypto/domain/documents/crypto_custody_receipt/model.go`, `configurations/trade/domain/documents/goods_receipt/model.go`.
 
 **Ловушка.** Дублировать проверку состояния в handler и сервисе. Делегируй состоянию.
 

@@ -15,7 +15,7 @@
 
 ## 1. Слои
 
-**Правило.** `core` ← `domain` ← `application` ← `infrastructure`. Стрелка — «может импортировать». `metadata` не импортирует infrastructure. Внутри `internal/configuration/<имя>/` те же слои; домен конфигурации не импортирует ни платформенные, ни свои `application/` и `infrastructure/`.
+**Правило.** `core` ← `domain` ← `application` ← `infrastructure`. Стрелка — «может импортировать». `metadata` не импортирует infrastructure. Внутри корня конфигурации (`configurations/<имя>/`, `internal/configuration/crypto/`) те же слои; домен конфигурации не импортирует ни платформенные, ни свои `application/` и `infrastructure/`. Домен надстройки не импортирует и `application/`/`infrastructure/` своей базы. Тест берёт корни из `repositoryConfigurations`.
 
 **Сквозь фасад.** `sdkFronts` строит карту «пакет `pkg/sdk` → какие `internal/` пакеты он фронтирует (транзитивно)». Поэтому:
 
@@ -35,14 +35,21 @@
 
 **Транзитивное правило.** `TestInnerPackagesDoNotTransitivelyDependOnAdapters` идёт по всему графу импортов от `core`/`domain`/`application` (и слоёв конфигураций) и падает, если на пути встречается gin, pgx, squirrel, jwt, excelize, godocx или go-qrcode. Сообщение показывает цепочку: найди в ней первое звено, где внутренний пакет взял внешний, и разорви его портом.
 
-## 2. Платформа и конфигурация
+## 2. Платформа, базовая конфигурация, надстройка
 
-**Что такое платформа.** Всё в `internal/` и `pkg/`, кроме `internal/configuration/<имя>/` для имён из `configurationPackages`. Сюда же относятся `internal/configuration` (контракт), `internal/configuration/none`, `internal/configuration/configurationtest`, `internal/platformcontent`.
+**Слои приложения** (`docs/systems/configuration-layers.md`). Платформа → базовая конфигурация (самодостаточная: `configurations/trade`, `internal/configuration/crypto`) → не больше одной надстройки над конкретной базой (`configurations/autoparts` над `trade`). Все конфигурации репозитория — в списке `repositoryConfigurations` (`internal/architecture/configurations_test.go`): имя, каталог, база. Новая конфигурация начинается с записи туда.
+
+**Что такое платформа.** Всё в `internal/` и `pkg/`, кроме корней конфигураций из `repositoryConfigurations`. Сюда же относятся `internal/configuration` (контракт и стек: `stack.go`), `internal/configuration/none`, `internal/configuration/configurationtest`, `internal/platformcontent`.
 
 **Правила.**
 - `TestPlatformDoesNotDependOnConfiguration` — платформа не импортирует конфигурацию. `knownConfigurationLeaks` пуст (было 105 рёбер).
-- `TestConfigurationsDoNotDependOnEachOther` — крипто не импортирует «Автозапчасти» и наоборот, включая тесты.
-- `TestPlatformTestsDoNotImportConfiguration` — тест платформы тоже не берёт конфигурацию. Проверка собранного приложения (все контракты, сгенерированные файлы) живёт в `internal/configuration/<имя>/content`, проверка служебных маршрутов платформы — в `internal/configuration/none`.
+- `TestConfigurationsDoNotDependOnEachOther` — конфигурации не импортируют друг друга, включая тесты; единственное разрешение — надстройка импортирует свою базу. База не импортирует свою надстройку, соседи не видят друг друга.
+- `TestRepositoryConfigurationsAreBasesAndAddOns` — база надстройки в списке не является надстройкой.
+- `TestPlatformTestsDoNotImportConfiguration` — тест платформы тоже не берёт конфигурацию. Проверка собранного приложения (все контракты, сгенерированные файлы) живёт в `content/` конфигурации, проверка служебных маршрутов платформы — в `internal/configuration/none`.
+
+**Контракт стека.** Надстройка реализует `configuration.AddOn` (`Base()`, `BaseVersion()`), база — `configuration.Versioned` (`Version()`). Каждый процесс собирает стек (`configuration.Assemble`) и проверяет (`CheckStack`): надстройка не на надстройке, версия базы той же мажорной и не младше минорной `BaseVersion`, `APIVersion` обоих слоёв обслуживается. Регистрация, сервер, воркер и сид идут сначала у базы. Пакеты базы, которые импортирует надстройка, — публичный API базы: добавления — минорная версия, поломки — мажорная. Поэтому база, на которой строят надстройки, живёт вне `internal/`.
+
+**Как надстройка меняет базу.** Только добавлением (свои объекты, а с этапа B — реквизиты к объектам базы и движения к её документам, в своих таблицах) и в точках замены, которые база объявила. Подмена произвольного поведения базы, `ALTER` её таблиц, импорт её `infrastructure/` из домена — нет. Нужна новая точка — добавь её в базу (и подними минорную версию базы).
 
 **Типичное нарушение.** Платформенному сервису нужно знать, что пул интеграций используется справочником крипто, и он импортирует крипто-репозиторий.
 
@@ -57,12 +64,12 @@
 ## 3. Публичный API `pkg/sdk`
 
 **Правила.**
-- `TestSDKConfigurationsUseOnlyThePublicAPI` — конфигурации из `sdkConfigurations` (`autoparts`, `crypto`) импортируют из `metapus/...` только свой корень и `github.com/alex-bogatiuk/metapus/pkg/sdk/...`. Тесты тоже.
+- `TestSDKConfigurationsUseOnlyThePublicAPI` — конфигурации из `sdkConfigurations` (`autoparts`, `crypto`, `trade`) импортируют из `metapus/...` только свой корень и `github.com/alex-bogatiuk/metapus/pkg/sdk/...`; надстройка — ещё корень своей базы. Тесты тоже.
 - `TestSDKIsAFacade` — в `pkg/sdk` только `type X = internal.X`, обёртки-функции и ограничения дженериков. Свой тип — только `sdktest.Tenant` (список `sdkOwnTypes`).
 - `TestSDKTestStaysInTests` — `pkg/sdk/sdktest` (фикстуры строят `TxManager` над сырым пулом и вручную привязывают тенанта) нельзя импортировать в рабочем коде конфигурации, кроме пакетов с именем `*test`.
 
 **Два слоя фасада.**
-- Ядро (с 3.0.0): `entity`, `id`, `types`, `apperror`, `registry`, `posting`, `registers`, `configuration`, `integrations`, `contracts`, `sdktest`. Его хватает «Автозапчастям».
+- Ядро (с 3.0.0): `entity`, `id`, `types`, `apperror`, `registry`, `posting`, `registers`, `configuration`, `integrations`, `contracts`, `sdktest`. Его хватает «Торговле и сервису».
 - Расширенный слой (с 3.1.0): пакеты один к одному повторяют внутренние, **с тем же именем пакета** — перевод на фасад сводится к замене пути импорта. Наружу вынесены только символы, которые кто-то использует.
 
 **Как добавить то, чего не хватает.**
@@ -88,16 +95,18 @@
 - `TestEncodingJSONV1IsIsolatedToCompatibilityFacades` — JSON только через `internal/core/json` (`pkg/sdk/json`).
 - `TestExtensionMigrationsAreEmbedded` — SQL расширения лежит в `db/extensions/<модуль>/`, иначе его не встроят в образ.
 
-## 5. Миграции трёх историй
+## 5. Миграции: своя история у каждого слоя
 
 | Источник | Каталог | История goose | Нумерация |
 |---|---|---|---|
 | Платформа | `db/migrations/` | `goose_db_version_platform` | `00001…` |
-| Конфигурация | `db/configuration/<имя>/` | `goose_db_version_<имя>` | своя, ниже 10000 |
+| Базовая конфигурация | `db/configuration/<база>/` | `goose_db_version_<база>` | своя, ниже 10000 |
+| Надстройка | `db/configuration/<надстройка>/` | `goose_db_version_<надстройка>` | своя, ниже 10000 |
 | Расширения | `db/extensions/<модуль>/` | `goose_db_version_extensions` | 10000+, общая |
 
-- Порядок применения: платформа → конфигурация → расширения (`configuration.MigrationOptions`).
-- Тенант принадлежит одной конфигурации навсегда (`tenants.configuration` в meta-базе).
+- Порядок применения: платформа → база → надстройка → расширения (`configuration.MigrationOptions`, `migration.WithConfiguration`, `WithAddOn`).
+- Тенант принадлежит одной базе навсегда (`tenants.configuration` в meta-базе) и не больше чем одной надстройке (`tenants.addon`, `addon_schema_version`). Надстройку можно добавить тенанту базы (`<надстройка>-tenant migrate`), снять или заменить — нельзя.
+- Надстройка может ссылаться на таблицы базы (FK) и платформы, но не меняет их: её данные — в её таблицах.
 - Конфигурация может ссылаться на таблицы платформы (FK, CHECK своих правил); платформа на таблицы конфигурации — никогда.
 - Конфигурация отдаёт миграции через `Migrations()` (`configuration.EmbeddedMigrations(Name)`), формат и версии проверяет `sdktest.Check`.
 - Платформенные миграции не правятся: их уже получили тенанты всех конфигураций. Изменение платформенной схемы — новая миграция в `db/migrations/`.
@@ -108,8 +117,8 @@
 
 ## 6. Фронтенд
 
-- Платформенный UI: `frontend/{components,lib,hooks,stores,types}`. Конфигурация: `frontend/configuration/<имя>/` с той же структурой и `pages/` по структуре `app/`.
-- `frontend/app/` генерируется под одну конфигурацию (`npm run configure -- <имя>`); сгенерированные обёртки не коммитятся.
+- Платформенный UI: `frontend/{components,lib,hooks,stores,types}`. Конфигурация: `frontend/configuration/<имя>/` с той же структурой и `pages/` по структуре `app/`. Манифест надстройки называет базу: `{ "register": "…", "base": "trade" }`.
+- `frontend/app/` генерируется под одно приложение (`npm run configure -- <имя>`): для надстройки — база и надстройка, база регистрируется первой, страница надстройки заменяет страницу базы того же маршрута. Сгенерированные обёртки не коммитятся.
 - Платформа не импортирует `configuration/` и не использует её словарь (crypto, merchant, portal, wallet…). Конфигурация подключается через реестры: `registerEntityOverlays`, `registerNavigation`, `registerWidget`, `registerSettingsPage`, `registerSecurityDimension` и другие (таблица в `docs/systems/extension-api.md`).
 - Типы TypeScript генерируются из Go-контрактов (`go run ./cmd/http-contracts`); руками не правятся.
 
