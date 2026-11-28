@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/tenantdb"
 )
@@ -15,9 +16,10 @@ import (
 
 // MultiTenantHealthHandler provides health check endpoints for multi-tenant architecture.
 type MultiTenantHealthHandler struct {
-	metaPool      *pgxpool.Pool
-	tenantManager *tenantdb.Manager
-	version       string
+	metaPool             *pgxpool.Pool
+	tenantManager        *tenantdb.Manager
+	version              string
+	controlPlaneTenantID string
 }
 
 // NewHealthHandlerMultiTenant creates a health handler for multi-tenant setup.
@@ -27,6 +29,12 @@ func NewHealthHandlerMultiTenant(metaPool *pgxpool.Pool, tenantManager *tenantdb
 		tenantManager: tenantManager,
 		version:       version,
 	}
+}
+
+// SetControlPlaneTenantID configures the optional platform-ops tenant allowed
+// to inspect connection-pool details across all tenants.
+func (h *MultiTenantHealthHandler) SetControlPlaneTenantID(tenantID string) {
+	h.controlPlaneTenantID = tenantID
 }
 
 // Live handles liveness probe.
@@ -72,13 +80,21 @@ func (h *MultiTenantHealthHandler) Info(c *gin.Context) {
 		Tenants:      &dto.TenantPoolStatsResponse{ActivePools: tenantStats.TotalPools, TotalConns: tenantStats.TotalConns, IdleConns: tenantStats.IdleConns, AcquiredConns: tenantStats.AcquiredConns}})
 }
 
-// TenantsStats returns detailed statistics for all tenant pools.
-// GET /health/tenants
+// TenantsStats returns detailed statistics for tenant pools (all tenants for
+// the control-plane tenant, or strictly the caller's own bound tenant).
+// GET /admin/health/tenants
 func (h *MultiTenantHealthHandler) TenantsStats(c *gin.Context) {
 	stats := h.tenantManager.Stats()
+	callerTenantID := tenant.GetTenantID(c.Request.Context())
+	isControlPlane := h.controlPlaneTenantID != "" && callerTenantID == h.controlPlaneTenantID
 
 	tenantDetails := make([]gin.H, 0, len(stats.Tenants))
+	var scopedConns int
 	for _, t := range stats.Tenants {
+		if !isControlPlane && t.TenantID != callerTenantID {
+			continue
+		}
+		scopedConns += t.TotalConns
 		tenantDetails = append(tenantDetails, gin.H{
 			"tenant_id":      t.TenantID,
 			"db_name":        t.DBName,
@@ -90,9 +106,16 @@ func (h *MultiTenantHealthHandler) TenantsStats(c *gin.Context) {
 		})
 	}
 
+	totalPools := stats.TotalPools
+	totalConns := stats.TotalConns
+	if !isControlPlane {
+		totalPools = len(tenantDetails)
+		totalConns = scopedConns
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"total_pools": stats.TotalPools,
-		"total_conns": stats.TotalConns,
+		"total_pools": totalPools,
+		"total_conns": totalConns,
 		"tenants":     tenantDetails,
 	})
 }

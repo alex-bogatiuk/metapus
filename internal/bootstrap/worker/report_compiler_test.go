@@ -21,13 +21,17 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
-type reportProbeItem struct{ entity.Catalog }
+type reportProbeItem struct {
+	entity.Catalog
+	MerchantID id.ID `db:"merchant_id" json:"merchantId"`
+}
 
 func (reportProbeItem) EntityDefinition() entity.Definition { return probeCatalog }
 
 var probeCatalog = entity.Definition{
 	Kind: entity.CatalogKind, Key: "report_probe_item", Name: "ReportProbeItem",
 	Route: "report-probe-items", Table: "cat_report_probe_items", Code: entity.CodeRule{Prefix: "RP"},
+	RLSDimensions: map[string]string{"merchant": "merchant_id"},
 }
 
 var probeDataset = &schema.Dataset{

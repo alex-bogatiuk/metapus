@@ -86,8 +86,12 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		def.RoutePrefix = identity.Route
 
 		def.SetRefEndpoints(refEndpoints)
+		def.RLSDimensions = identity.RLSDimensions
 		if rls, ok := factory.(platform.RLSProvider); ok {
 			def.RLSDimensions = rls.RLSDimensions()
+		}
+		if insp, ok := factory.(platform.Inspectable); ok && len(def.RLSDimensions) > 0 {
+			mustValidateRLSDimensions(factory.EntityName(), insp.EntityStruct(), def.RLSDimensions)
 		}
 		if sf, ok := searchableFields(factory); ok {
 			fields := sf

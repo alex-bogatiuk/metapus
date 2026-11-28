@@ -15,4 +15,4 @@ export const displayRowSchema = z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("footer"), totals: totalsSchema.default({}) }),
 ])
 export const groupedReportResponseSchema = z.object({ rows: z.array(displayRowSchema), totalItems: z.int().nonnegative() })
-export const reportResultSchema = z.object({ items: z.array(jsonObjectSchema), totalItems: z.int().nonnegative() }) satisfies z.ZodType<DatasetQueryResponse>
+export const reportResultSchema = z.object({ items: z.array(jsonObjectSchema), totalItems: z.int().nonnegative(), truncated: z.boolean() }) satisfies z.ZodType<DatasetQueryResponse>

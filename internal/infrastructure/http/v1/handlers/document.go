@@ -20,7 +20,9 @@ import (
 	domainFilter "github.com/alex-bogatiuk/metapus/internal/domain/filter"
 	"github.com/alex-bogatiuk/metapus/internal/domain/settings"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/middleware"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
+	"github.com/alex-bogatiuk/metapus/internal/metadata"
 	"github.com/alex-bogatiuk/metapus/pkg/logger"
 )
 
@@ -28,8 +30,11 @@ import (
 // In Database-per-Tenant architecture, tenantID is not needed (isolation is physical).
 type BaseDocumentHandler[T any, CreateDTO any, UpdateDTO any] struct {
 	*BaseHandler
-	service    domain.DocumentService[T]
-	entityName string
+	service        domain.DocumentService[T]
+	entityName     string
+	permission     string
+	caps           metadata.DocumentCapabilities
+	capsConfigured bool
 
 	// Mapper functions
 	mapCreateDTO      func(dto CreateDTO) (T, error)
@@ -59,6 +64,7 @@ type BaseDocumentHandler[T any, CreateDTO any, UpdateDTO any] struct {
 type BaseDocumentHandlerConfig[T any, CreateDTO any, UpdateDTO any] struct {
 	Service           domain.DocumentService[T]
 	EntityName        string
+	Permission        string
 	MapCreateDTO      func(dto CreateDTO) (T, error)
 	MapUpdateDTO      func(dto UpdateDTO, existing T) (T, error)
 	MapToDTO          func(entity T) any
@@ -93,6 +99,7 @@ func NewBaseDocumentHandler[T any, CreateDTO any, UpdateDTO any](
 		BaseHandler:         base,
 		service:             cfg.Service,
 		entityName:          cfg.EntityName,
+		permission:          cfg.Permission,
 		mapCreateDTO:        cfg.MapCreateDTO,
 		mapUpdateDTO:        cfg.MapUpdateDTO,
 		mapToDTO:            cfg.MapToDTO,
@@ -122,6 +129,59 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ToDTO(entity T, refs any)
 		return h.mapToDTOWithRefs(entity, refs)
 	}
 	return h.mapToDTO(entity)
+}
+
+// ConfigureRouteAccess binds the route permission prefix and enabled capabilities
+// mounted by RegisterDocumentRoutes so sub-actions inside Create and BatchAction
+// enforce the exact RBAC permission of the requested operation.
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) ConfigureRouteAccess(permission string, caps metadata.DocumentCapabilities) {
+	if permission != "" {
+		h.permission = permission
+	}
+	h.caps = caps
+	h.capsConfigured = true
+}
+
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) permissionPrefix() string {
+	if h.permission != "" {
+		return h.permission
+	}
+	if h.entityName != "" {
+		return "document:" + h.entityName
+	}
+	return ""
+}
+
+func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) authorizeBatchAction(c *gin.Context, action string) bool {
+	prefix := h.permissionPrefix()
+	var suffix string
+	switch action {
+	case "post":
+		if h.capsConfigured && !h.caps.Post {
+			h.Error(c, apperror.NewForbidden("posting is not enabled for this document"))
+			return false
+		}
+		suffix = "post"
+	case "unpost":
+		if h.capsConfigured && !h.caps.Unpost {
+			h.Error(c, apperror.NewForbidden("unposting is not enabled for this document"))
+			return false
+		}
+		suffix = "unpost"
+	case "setDeletionMark", "clearDeletionMark":
+		if h.capsConfigured && !h.caps.SetDeletionMark && !h.caps.Delete {
+			h.Error(c, apperror.NewForbidden("deletion mark is not enabled for this document"))
+			return false
+		}
+		suffix = "delete"
+	default:
+		h.Error(c, apperror.NewValidation("unknown action: "+action))
+		return false
+	}
+	if prefix == "" {
+		return true
+	}
+	return middleware.CheckPermission(c, prefix+":"+suffix)
 }
 
 // ApplyFLSRead applies field-level security masking for read operations.
@@ -238,6 +298,13 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) Create(c *gin.Context) {
 	// And `IsPostImmediately(CreateDTO) bool` to config.
 
 	if h.isPostImmediately != nil && h.isPostImmediately(req) {
+		if h.capsConfigured && !h.caps.Post {
+			h.Error(c, apperror.NewForbidden("posting is not enabled for this document"))
+			return
+		}
+		if prefix := h.permissionPrefix(); prefix != "" && !middleware.CheckPermission(c, prefix+":post") {
+			return
+		}
 		if err := h.service.PostAndSave(ctx, doc); err != nil {
 			h.Error(c, err)
 			return
@@ -670,6 +737,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) BatchAction(c *gin.Contex
 	if !h.BindJSON(c, &req) {
 		return
 	}
+	if !h.authorizeBatchAction(c, req.Action) {
+		return
+	}
 
 	// Pre-validate IDs and build typed slice
 	parsedIDs := make([]id.ID, 0, len(req.IDs))
@@ -734,6 +804,9 @@ func (h *BaseDocumentHandler[T, CreateDTO, UpdateDTO]) BatchActionByFilter(c *gi
 
 	var req dto.BatchActionByFilterRequest
 	if !h.BindJSON(c, &req) {
+		return
+	}
+	if !h.authorizeBatchAction(c, req.Action) {
 		return
 	}
 

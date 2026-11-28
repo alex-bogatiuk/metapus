@@ -64,6 +64,7 @@ func (h *DatasetReportHandler) HandleExecute(datasetKey string) gin.HandlerFunc 
 		if !bindDatasetKey(c, &req, datasetKey) {
 			return
 		}
+		req.Limit = min(compiler.EffectiveLimit(req.Limit), compiler.MaxReportLimit)
 		result, err := h.compiler.Execute(ctx, req)
 		if err != nil {
 			h.Error(c, err)
@@ -87,10 +88,15 @@ func (h *DatasetReportHandler) HandleExport(datasetKey string) gin.HandlerFunc {
 		if !bindDatasetKey(c, &req, datasetKey) {
 			return
 		}
-		req.Limit = 0 // no limit for export
+		req.Limit = compiler.MaxExportReportLimit // bounded export ceiling
 
 		result, err := h.compiler.Execute(ctx, req)
 		if err != nil {
+			h.Error(c, err)
+			return
+		}
+		// A file holding only the first rows would pass for the whole report.
+		if err := result.RequireComplete(); err != nil {
 			h.Error(c, err)
 			return
 		}
@@ -133,6 +139,7 @@ func (h *DatasetReportHandler) HandleGrouped(datasetKey string) gin.HandlerFunc 
 		if !bindDatasetKey(c, &req, datasetKey) {
 			return
 		}
+		req.Limit = min(compiler.EffectiveLimit(req.Limit), compiler.MaxReportLimit)
 
 		req.DisplayFields = append(req.DisplayFields, c.QueryArray("groupBy")...)
 		if sort := c.Query("sortBy"); sort != "" {
@@ -141,6 +148,12 @@ func (h *DatasetReportHandler) HandleGrouped(datasetKey string) gin.HandlerFunc 
 
 		result, err := h.compiler.Execute(ctx, req)
 		if err != nil {
+			h.Error(c, err)
+			return
+		}
+		// Groups and totals are computed from these rows: from a part of the
+		// dataset they would be wrong without a sign of it.
+		if err := result.RequireComplete(); err != nil {
 			h.Error(c, err)
 			return
 		}

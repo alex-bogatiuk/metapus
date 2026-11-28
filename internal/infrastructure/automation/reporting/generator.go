@@ -118,9 +118,15 @@ func (g *ReportGenerator) GenerateAndStore(
 	}
 
 	// 5. Execute query via Compiler
+	// A delivered report holds every row or is not sent: a file with the
+	// first rows only would pass for the whole period.
+	req.Limit = compiler.MaxExportReportLimit
 	result, err := g.compiler.Execute(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("execute report %q: %w", config.DatasetKey, err)
+	}
+	if err := result.RequireComplete(); err != nil {
+		return nil, fmt.Errorf("report %q: %w", config.DatasetKey, err)
 	}
 
 	// 6. Empty check

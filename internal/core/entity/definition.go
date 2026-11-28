@@ -39,6 +39,9 @@ type Definition struct {
 	// Sequence places a document in sequences of documents and says which
 	// one it restores (see SequenceRule); the zero value places it in none.
 	Sequence SequenceRule
+	// RLSDimensions maps logical DataScope dimension names (for example,
+	// "organization" or "merchant") to DB columns on Table.
+	RLSDimensions map[string]string
 }
 
 // PartSeparator joins a header table name and a part key. It is reserved for
@@ -137,6 +140,11 @@ func (d Definition) Validate() error {
 	}
 	if err := d.Sequence.validate(d.Name); err != nil {
 		return err
+	}
+	for dim, col := range d.RLSDimensions {
+		if !definitionKey.MatchString(dim) || !sqlName.MatchString(col) || len(col) > MaxIdentifierBytes {
+			return fmt.Errorf("entity %q: invalid RLS dimension %q -> %q", d.Name, dim, col)
+		}
 	}
 	return d.validateNumber()
 }

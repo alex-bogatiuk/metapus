@@ -31,7 +31,7 @@ async function setup(page: Page, handle: (route: Route, url: URL) => Promise<voi
 }
 
 test("report preserves amounts above 2^53 at every currency scale and keeps currency totals separate", async ({ page }) => {
-  await setup(page, route => json(route, { items: rows, totalItems: rows.length }))
+  await setup(page, route => json(route, { items: rows, totalItems: rows.length, truncated: false }))
   await page.getByRole("button", { name: "Сформировать", exact: true }).click()
   const expected = ["9 007 199 254 740 993 JPY", "90 071 992 547 409,93 USD", "9 007 199 254 740,993 KWD", "9 007 199,254740993 TON"]
   for (let index = 0; index < rows.length; index++) {
@@ -51,7 +51,7 @@ test("crypto report uses token scale and exact values beyond int64", async ({ pa
     { number: "Crypto exact", amount: "100000000000000000001", currency_id: "eth", currency: "ETH", currency_decimal_places: 18 },
     { number: "Crypto increment", amount: "1", currency_id: "eth", currency: "ETH", currency_decimal_places: 18 },
   ]
-  await setup(page, route => json(route, { items, totalItems: items.length }), cryptoMetadata)
+  await setup(page, route => json(route, { items, totalItems: items.length, truncated: false }), cryptoMetadata)
   await page.getByRole("button", { name: "Сформировать", exact: true }).click()
   await expect(page.getByRole("row").filter({ hasText: "Crypto exact" })).toContainText("100,000000000000000001 ETH")
   await expect(page.getByRole("row").filter({ hasText: "Итого" }).last()).toContainText("100,000000000000000002 ETH")
@@ -73,7 +73,7 @@ test("server grouping and export use the generated query and superseded grouping
       exported = jsonObjectSchema.parse(route.request().postDataJSON())
       return route.fulfill({ contentType: "text/csv", headers: { "Content-Disposition": 'attachment; filename="report.csv"' }, body: "amount\n9007199254740993\n" })
     }
-    return json(route, { items, totalItems: items.length })
+    return json(route, { items, totalItems: items.length, truncated: false })
   })
   await page.getByPlaceholder("Сумма фильтра").fill("9007199254740993")
   await page.getByRole("button", { name: "Сформировать", exact: true }).click()

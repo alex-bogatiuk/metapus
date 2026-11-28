@@ -63,10 +63,9 @@ var GlobalHub = &Hub{
 // It sends a JSON payload to all active connections of a specific user.
 func (h *Hub) BroadcastToUser(tenantID, userID string, eventType string, payload any) {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	userConns, ok := h.conns[tenantID][userID]
-	if !ok || len(userConns) == 0 {
+	hasConns := len(h.conns[tenantID][userID]) > 0
+	h.mu.RUnlock()
+	if !hasConns {
 		return
 	}
 
@@ -82,12 +81,40 @@ func (h *Hub) BroadcastToUser(tenantID, userID string, eventType string, payload
 		return
 	}
 
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	userConns, ok := h.conns[tenantID][userID]
+	if !ok || len(userConns) == 0 {
+		return
+	}
+
 	for c := range userConns {
 		select {
 		case c.Send <- msgBytes:
 		default:
 			// Buffer full or closed — drop message for this connection
 		}
+	}
+}
+
+// Close disconnects all active WebSocket connections cleanly on server shutdown.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	var active []*Connection
+	for _, users := range h.conns {
+		for _, set := range users {
+			for c := range set {
+				close(c.Send)
+				active = append(active, c)
+			}
+		}
+	}
+	h.conns = make(map[string]map[string]map[*Connection]struct{})
+	h.mu.Unlock()
+
+	for _, c := range active {
+		_ = c.Conn.Close()
 	}
 }
 

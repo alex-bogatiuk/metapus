@@ -29,19 +29,20 @@ const BcryptCost = 12
 
 // ServiceConfig holds auth service configuration.
 type ServiceConfig struct {
-	MaxLoginAttempts    int
-	LockDuration        time.Duration
-	PasswordMinLength   int
-	RefreshTokenExpiry  time.Duration
-	AdminMFAMode        MFAMode
-	AdminMFAGracePeriod time.Duration
-	AdminStepUpTTL      time.Duration
-	AdminSecurityMode   AdminSecurityMode
-	AdminAllowedCIDRs   []netip.Prefix
-	AdminIdleTimeout    time.Duration
-	AdminAbsoluteMaxAge time.Duration
-	MFAEncryptionKey    []byte
-	MFAIssuer           string
+	MaxLoginAttempts      int
+	LockDuration          time.Duration
+	PasswordMinLength     int
+	RefreshTokenExpiry    time.Duration
+	AdminMFAMode          MFAMode
+	AdminMFAGracePeriod   time.Duration
+	AdminStepUpTTL        time.Duration
+	AdminSecurityMode     AdminSecurityMode
+	AdminAllowedCIDRs     []netip.Prefix
+	AdminIdleTimeout      time.Duration
+	AdminAbsoluteMaxAge   time.Duration
+	MFAEncryptionKey      []byte
+	MFAIssuer             string
+	AllowSelfRegistration bool
 }
 
 // DefaultServiceConfig returns default configuration.
@@ -250,6 +251,9 @@ func (s *Service) invalidatePolicyCache(ctx context.Context) {
 
 // Register registers a new user.
 func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, error) {
+	if !s.config.AllowSelfRegistration {
+		return nil, apperror.NewForbidden("self-registration is disabled")
+	}
 	if _, err := s.requireTenantID(ctx); err != nil {
 		return nil, err
 	}
@@ -670,6 +674,9 @@ func (s *Service) UpdateUser(ctx context.Context, userID id.ID, firstName, lastN
 		user.IsActive = *isActive
 	}
 	if isAdmin != nil {
+		if *isAdmin && !user.IsAdmin && !user.EmailVerified {
+			return nil, apperror.NewValidation("cannot grant admin privileges to an unverified user").WithDetail("field", "isAdmin")
+		}
 		user.IsAdmin = *isAdmin
 	}
 
@@ -996,17 +1003,51 @@ func (s *Service) Impersonate(ctx context.Context, targetUserID id.ID, info Sess
 	if !user.IsActive {
 		return nil, nil, apperror.NewValidation("cannot impersonate inactive user")
 	}
+	if user.IsLocked() {
+		return nil, nil, apperror.NewValidation("cannot impersonate locked user")
+	}
 
 	// Load roles, permissions, orgs
-	roles, _ := s.userRepo.LoadRoles(ctx, user.ID)
+	roles, err := s.userRepo.LoadRoles(ctx, user.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load roles for impersonation: %w", err)
+	}
 	user.Roles = roles
-	permissions, _ := s.userRepo.LoadPermissions(ctx, user.ID)
+	if user.IsAdminPrincipal() {
+		return nil, nil, apperror.NewForbidden("cannot impersonate admin principals")
+	}
+	permissions, err := s.userRepo.LoadPermissions(ctx, user.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load permissions for impersonation: %w", err)
+	}
 	user.Permissions = permissions
 
-	// Generate tokens for target user
-	tokens, err := s.generateTokenPair(ctx, user, info, id.Nil(), TokenSessionOptions{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("generate impersonation tokens: %w", err)
+	// Generate tokens for target user inside a transaction when available
+	var tokens *TokenPair
+	issueTokens := func(txCtx context.Context) error {
+		var genErr error
+		tokens, genErr = s.generateTokenPair(txCtx, user, info, id.Nil(), TokenSessionOptions{})
+		if genErr != nil {
+			return fmt.Errorf("generate impersonation tokens: %w", genErr)
+		}
+		s.emitSecurityEvent(txCtx, eventlog.EventType("security.impersonate"), eventlog.SeverityCritical, user.ID, user.Email, info.IPAddress,
+			fmt.Sprintf("Admin %s impersonated user %s", caller.UserID, user.Email),
+			map[string]any{
+				"actorUserId":  caller.UserID,
+				"targetUserId": targetUserID.String(),
+				"targetEmail":  user.Email,
+			},
+		)
+		return nil
+	}
+	if txm, txErr := s.getTxManager(ctx); txErr == nil && txm != nil {
+		if err := txm.RunInTransaction(ctx, issueTokens); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		if err := issueTokens(ctx); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	logger.Info(ctx, "user impersonated",

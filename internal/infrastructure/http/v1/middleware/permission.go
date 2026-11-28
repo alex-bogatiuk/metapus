@@ -64,34 +64,43 @@ func RequirePermissionOrSystemAdmin(permission string) gin.HandlerFunc {
 	}
 }
 
+// CheckPermission verifies that the authenticated user holds permission (or is
+// an admin). When denied, it records the security event, attaches the 403/401
+// error to c, aborts the chain, and returns false.
+func CheckPermission(c *gin.Context, permission string) bool {
+	user := appctx.GetUser(c.Request.Context())
+	if user == nil {
+		_ = c.Error(apperror.NewUnauthorized("authentication required"))
+		c.Abort()
+		return false
+	}
+
+	// Admins have all permissions
+	if user.IsAdmin {
+		return true
+	}
+
+	// O(1) lookup via permissions_set built by Auth middleware
+	if _, ok := getPermissionsSet(c)[permission]; !ok {
+		emitPermissionDenied(c, user, permission)
+		_ = c.Error(
+			apperror.NewForbidden("insufficient permissions").
+				WithDetail("required_permission", permission),
+		)
+		c.Abort()
+		return false
+	}
+
+	return true
+}
+
 // RequirePermission middleware checks if user has required permission.
 // Admins automatically have all permissions.
 func RequirePermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user := appctx.GetUser(c.Request.Context())
-		if user == nil {
-			_ = c.Error(apperror.NewUnauthorized("authentication required"))
-			c.Abort()
+		if !CheckPermission(c, permission) {
 			return
 		}
-
-		// Admins have all permissions
-		if user.IsAdmin {
-			c.Next()
-			return
-		}
-
-		// O(1) lookup via permissions_set built by Auth middleware
-		if _, ok := getPermissionsSet(c)[permission]; !ok {
-			emitPermissionDenied(c, user, permission)
-			_ = c.Error(
-				apperror.NewForbidden("insufficient permissions").
-					WithDetail("required_permission", permission),
-			)
-			c.Abort()
-			return
-		}
-
 		c.Next()
 	}
 }

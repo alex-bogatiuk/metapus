@@ -119,6 +119,12 @@ type RouterConfig struct {
 
 	// WSTicketStore for WebSocket ticket-based authentication.
 	WSTicketStore *auth.WSTicketStore
+
+	// ControlPlaneTenantID optionally designates the single platform-ops tenant
+	// allowed to inspect cross-tenant registry metadata and pool stats. When
+	// empty (or for any other tenant), /admin/tenants and /admin/health/tenants
+	// are strictly scoped to the caller's own bound tenant.
+	ControlPlaneTenantID string
 }
 
 // NewRouter creates and configures the Gin router for multi-tenant architecture.
@@ -148,6 +154,7 @@ func NewRouter(cfg RouterConfig) *gin.Engine {
 
 	// Health endpoints (no auth, no tenant required)
 	healthHandler := handlers.NewHealthHandlerMultiTenant(cfg.MetaPool, cfg.TenantManager, cfg.Version)
+	healthHandler.SetControlPlaneTenantID(cfg.ControlPlaneTenantID)
 	health := router.Group("/health")
 	{
 		health.GET("/live", healthHandler.Live)

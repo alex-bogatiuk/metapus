@@ -36,7 +36,8 @@ type config struct {
 	SecurityProfileCacheMaxEntries int
 	Auth                           auth.ServiceConfig
 
-	PDFRendererURL string
+	PDFRendererURL       string
+	ControlPlaneTenantID string
 }
 
 func (c config) development() bool { return c.AppEnv == "development" }
@@ -63,7 +64,8 @@ func loadConfig() (config, error) {
 		SecurityProfileCacheMaxEntries: env.PositiveInt("SECURITY_PROFILE_CACHE_MAX_ENTRIES", 10000),
 		Auth:                           loadAuthServiceConfig(env),
 
-		PDFRendererURL: env.String("PDF_RENDERER_URL", ""),
+		PDFRendererURL:       env.String("PDF_RENDERER_URL", ""),
+		ControlPlaneTenantID: strings.TrimSpace(env.String("CONTROL_PLANE_TENANT_ID", "")),
 	}
 	if err := env.Err(); err != nil {
 		return config{}, err
@@ -80,6 +82,7 @@ func loadAuthServiceConfig(env *envconfig.Reader) auth.ServiceConfig {
 	cfg.AdminAllowedCIDRs = parseCIDRs(env, "ADMIN_ALLOWED_CIDRS", env.String("ADMIN_ALLOWED_CIDRS", ""))
 	cfg.MFAIssuer = env.String("AUTH_MFA_ISSUER", cfg.MFAIssuer)
 	cfg.MFAEncryptionKey = parseMFAEncryptionKey(env, strings.TrimSpace(env.String("AUTH_MFA_ENCRYPTION_KEY", "")))
+	cfg.AllowSelfRegistration = env.Bool("AUTH_ALLOW_SELF_REGISTRATION", false)
 	return cfg
 }
 

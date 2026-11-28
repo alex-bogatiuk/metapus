@@ -6,10 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/alex-bogatiuk/metapus/internal/core/entity"
-	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
-	filterPkg "github.com/alex-bogatiuk/metapus/internal/domain/filter"
-	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
+	"slices"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -18,8 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
+	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 	"github.com/alex-bogatiuk/metapus/internal/core/id"
 	"github.com/alex-bogatiuk/metapus/internal/domain"
+	"github.com/alex-bogatiuk/metapus/internal/domain/cursor"
+	filterPkg "github.com/alex-bogatiuk/metapus/internal/domain/filter"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 	pgfilter "github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/filter"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres/keyset"
@@ -37,6 +38,12 @@ func NewCatalogRepoForDefinition[T any](def entity.Definition, selectCols []stri
 	repo := NewBaseCatalogRepo(def.Table, selectCols, newFn, def.Hierarchy.Hierarchical)
 	repo.SetEntityName(def.Key)
 	repo.hierarchyMeta = def.Hierarchy
+	for dim, col := range def.RLSDimensions {
+		if !slices.Contains(selectCols, col) {
+			panic(fmt.Sprintf("catalog %q: RLS dimension %q column %q is not a column of the catalog", def.Name, dim, col))
+		}
+		repo.RegisterRLSDimension(dim, col)
+	}
 	return repo
 }
 

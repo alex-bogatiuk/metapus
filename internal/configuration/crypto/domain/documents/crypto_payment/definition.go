@@ -3,12 +3,13 @@ package crypto_payment
 import "github.com/alex-bogatiuk/metapus/pkg/sdk/entity"
 
 var Definition = entity.Definition{
-	Key:    "crypto_payment",
-	Name:   "CryptoPayment",
-	Route:  "crypto-payment",
-	Table:  "doc_crypto_payments",
-	Kind:   entity.DocumentKind,
-	Number: entity.NumberRule{Prefix: "CP"},
+	Key:           "crypto_payment",
+	Name:          "CryptoPayment",
+	Route:         "crypto-payment",
+	Table:         "doc_crypto_payments",
+	Kind:          entity.DocumentKind,
+	Number:        entity.NumberRule{Prefix: "CP"},
+	RLSDimensions: map[string]string{"merchant": "merchant_id"},
 }
 
 func (CryptoPayment) EntityDefinition() entity.Definition { return Definition }

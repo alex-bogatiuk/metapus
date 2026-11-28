@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -21,16 +22,35 @@ const (
 	_coingeckoBaseURL = "https://api.coingecko.com/api/v3"
 	_httpTimeout      = 15 * time.Second
 	_maxBatch         = 250
+	_quoteCacheTTL    = 30 * time.Second
 )
+
+type cachedCoinQuote struct {
+	rate              decimal.Decimal
+	providerUpdatedAt time.Time
+	receivedAt        time.Time
+	expiresAt         time.Time
+}
+
+type coinQuoteCache struct {
+	mu      sync.Mutex
+	entries map[string]cachedCoinQuote
+}
 
 type CoinGeckoFetcher struct {
 	client  *http.Client
 	baseURL string
 	now     func() time.Time
+	cache   *coinQuoteCache
 }
 
 func NewCoinGeckoFetcher() *CoinGeckoFetcher {
-	return &CoinGeckoFetcher{client: &http.Client{Timeout: _httpTimeout}, baseURL: _coingeckoBaseURL, now: func() time.Time { return time.Now().UTC() }}
+	return &CoinGeckoFetcher{
+		client:  &http.Client{Timeout: _httpTimeout},
+		baseURL: _coingeckoBaseURL,
+		now:     func() time.Time { return time.Now().UTC() },
+		cache:   &coinQuoteCache{entries: make(map[string]cachedCoinQuote)},
+	}
 }
 
 func (f *CoinGeckoFetcher) FetchRates(ctx context.Context, mappings []er.Mapping, rpm int, apiKey string) er.FetchResult {
@@ -44,9 +64,32 @@ func (f *CoinGeckoFetcher) FetchRates(ctx context.Context, mappings []er.Mapping
 	for _, m := range mappings {
 		lookup[m.ExternalID] = append(lookup[m.ExternalID], m)
 	}
+	now := f.now()
 	ids := make([]string, 0, len(lookup))
-	for k := range lookup {
-		ids = append(ids, k)
+	if f.cache != nil {
+		f.cache.mu.Lock()
+		for k := range lookup {
+			if cached, ok := f.cache.entries[f.baseURL+"\x00"+k]; ok && now.Before(cached.expiresAt) {
+				for _, m := range lookup[k] {
+					result.Observations = append(result.Observations, er.Observation{
+						Mapping:           m,
+						Rate:              cached.rate,
+						ProviderUpdatedAt: cached.providerUpdatedAt,
+						ReceivedAt:        cached.receivedAt,
+					})
+				}
+				continue
+			}
+			ids = append(ids, k)
+		}
+		f.cache.mu.Unlock()
+	} else {
+		for k := range lookup {
+			ids = append(ids, k)
+		}
+	}
+	if len(ids) == 0 {
+		return result
 	}
 	sort.Strings(ids)
 	var next time.Time
@@ -93,6 +136,16 @@ func (f *CoinGeckoFetcher) FetchRates(ctx context.Context, mappings []er.Mapping
 				if err := er.ValidatePrice(price, 1); err != nil {
 					code, message = "invalid_price", err.Error()
 				}
+			}
+			if code == "" && f.cache != nil {
+				f.cache.mu.Lock()
+				f.cache.entries[f.baseURL+"\x00"+coin] = cachedCoinQuote{
+					rate:              price,
+					providerUpdatedAt: updated,
+					receivedAt:        received,
+					expiresAt:         received.Add(_quoteCacheTTL),
+				}
+				f.cache.mu.Unlock()
 			}
 			for _, m := range lookup[coin] {
 				if code != "" {

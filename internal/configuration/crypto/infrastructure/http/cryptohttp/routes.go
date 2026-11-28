@@ -128,6 +128,7 @@ func (m *Module) registerMerchantPublicRoutes(rc v1.RouteContext) {
 
 	// /merchant/v1/ — public merchant API (API-key auth)
 	merchantBase := router.Group("/merchant/v1")
+	merchantBase.Use(middleware.RateLimit(20, 40))
 	merchantBase.Use(cryptomiddleware.MerchantAPIKey(m.cfg.MerchantAPIKeyRepo, cfg.TenantManager, cfg.MetaPool))
 	merchantBase.Use(cryptomiddleware.MerchantNetworkAccess(networkPolicyRepo, merchant.NetworkSurfaceAPI))
 	merchantBase.PATCH("/invoices/:id/reference",

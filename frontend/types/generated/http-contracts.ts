@@ -655,6 +655,7 @@ export type DatasetQueryRequest = {
 export type DatasetQueryResponse = {
   "items": Array<Record<string, JsonValue>>
   "totalItems": number
+  "truncated": boolean
 }
 
 export type DeleteMarkedRequest = {

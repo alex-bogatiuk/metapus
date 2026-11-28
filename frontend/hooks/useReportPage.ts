@@ -513,7 +513,8 @@ export function useReportPage(reportKey: string): UseReportPageReturn {
             const reportItems = result.items ?? []
             const totalCount = result.totalItems ?? reportItems.length
 
-            if (totalCount > MAX_INTERACTIVE_ROWS) {
+            // The server caps interactive rows and says when it cut the result.
+            if (result.truncated || totalCount > MAX_INTERACTIVE_ROWS) {
                 setItems([])
                 setStatus("export-only")
             } else {

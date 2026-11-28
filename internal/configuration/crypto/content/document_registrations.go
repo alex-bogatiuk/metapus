@@ -240,9 +240,6 @@ func (r *CryptoInvoiceRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "крипто-инвойса",
 	}
 }
-func (r *CryptoInvoiceRegistration) RLSDimensions() map[string]string {
-	return map[string]string{"organization": "organization_id"}
-}
 
 var _ v1.PrintFormsProvider = (*CryptoInvoiceRegistration)(nil)
 
@@ -295,9 +292,6 @@ func (r *CryptoPaymentRegistration) EntityPresentation() metadata.Presentation {
 		Genitive: "крипто-платежа",
 	}
 }
-func (r *CryptoPaymentRegistration) RLSDimensions() map[string]string {
-	return map[string]string{"organization": "organization_id", "merchant": "merchant_id"}
-}
 func (r *CryptoPaymentRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return metadata.DocumentCapabilities{List: true, Read: true, ExportList: true, RelatedDocuments: true, Movements: true}
 }
@@ -342,9 +336,6 @@ func (r *CryptoWithdrawalRegistration) EntityPresentation() metadata.Presentatio
 		Genitive: "крипто-вывода",
 	}
 }
-func (r *CryptoWithdrawalRegistration) RLSDimensions() map[string]string {
-	return map[string]string{"organization": "organization_id", "merchant": "merchant_id"}
-}
 func (r *CryptoWithdrawalRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return metadata.DocumentCapabilities{List: true, Read: true, ExportList: true, RelatedDocuments: true, Movements: true}
 }
@@ -388,9 +379,6 @@ func (r *CryptoSweepRegistration) EntityPresentation() metadata.Presentation {
 		NewLabel: "Новый крипто-свип",
 		Genitive: "крипто-свипа",
 	}
-}
-func (r *CryptoSweepRegistration) RLSDimensions() map[string]string {
-	return map[string]string{"organization": "organization_id"}
 }
 func (r *CryptoSweepRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return metadata.DocumentCapabilities{List: true, Read: true, ExportList: true, RelatedDocuments: true, Movements: true}
@@ -582,10 +570,6 @@ func (r *WithdrawalRequestRegistration) EntityPresentation() metadata.Presentati
 		Genitive: "заявки на вывод",
 	}
 }
-func (r *WithdrawalRequestRegistration) RLSDimensions() map[string]string {
-	return map[string]string{"merchant": "merchant_id"}
-}
-
 func (r *WithdrawalRequestRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return metadata.DocumentCapabilities{
 		List:             true,

@@ -150,3 +150,26 @@ func TestResolveDeclaredFieldKindsPreserveSQL(t *testing.T) {
 		})
 	}
 }
+
+func TestContainsEscapesLikeWildcards(t *testing.T) {
+	tests := []struct {
+		name string
+		give filter.Item
+		want string
+	}{
+		{name: "contains percent", give: filter.Item{Field: "code", Operator: filter.Contains, Value: "100%"}, want: `%100\%%`},
+		{name: "contains underscore", give: filter.Item{Field: "code", Operator: filter.Contains, Value: "inv_01"}, want: `%inv\_01%`},
+		{name: "not_contains backslash", give: filter.Item{Field: "code", Operator: filter.NotContains, Value: `a\b`}, want: `%a\\b%`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolved, err := filter.Resolve(tt.give, filter.FieldSpec{Kind: filter.NativeValue})
+			require.NoError(t, err)
+			cond, err := BuildSingleCondition(resolved, "code")
+			require.NoError(t, err)
+			_, args, err := cond.ToSql()
+			require.NoError(t, err)
+			require.Equal(t, []any{tt.want}, args)
+		})
+	}
+}

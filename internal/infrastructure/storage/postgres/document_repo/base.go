@@ -39,6 +39,12 @@ func NewDocumentRepoForDefinition[T any](def entity.Definition, selectCols []str
 	if def.Statuses.Declared() && !slices.Contains(selectCols, def.Statuses.Column) {
 		panic(fmt.Sprintf("document %q: status column %q is not a column of the document", def.Name, def.Statuses.Column))
 	}
+	for dim, col := range def.RLSDimensions {
+		if !slices.Contains(selectCols, col) {
+			panic(fmt.Sprintf("document %q: RLS dimension %q column %q is not a column of the document", def.Name, dim, col))
+		}
+		repo.RegisterRLSDimension(dim, col)
+	}
 	repo.definition = def
 	return repo
 }

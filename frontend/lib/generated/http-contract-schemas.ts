@@ -659,6 +659,7 @@ export const DatasetQueryRequestSchema: z.ZodType<Wire.DatasetQueryRequest> = z.
 export const DatasetQueryResponseSchema: z.ZodType<Wire.DatasetQueryResponse> = z.lazy(() => z.object({
   "items": z.array(z.record(z.string(), jsonValueSchema)),
   "totalItems": z.number().int(),
+  "truncated": z.boolean(),
 }))
 
 export const DeleteMarkedRequestSchema: z.ZodType<Wire.DeleteMarkedRequest> = z.lazy(() => z.strictObject({

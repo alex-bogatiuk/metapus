@@ -20,8 +20,10 @@ import (
 
 // Limits of one load: larger files are split by the user.
 const (
-	MaxFileBytes = 10 << 20
-	MaxRows      = 10000
+	MaxFileBytes     = 10 << 20
+	MaxUnzipBytes    = 64 << 20
+	MaxUnzipXMLBytes = 32 << 20
+	MaxRows          = 10000
 )
 
 // Table is a file's header and data rows, cells trimmed; empty rows are
@@ -116,7 +118,10 @@ func isEmpty(cells []string) bool {
 }
 
 func readXLSX(data []byte) ([]line, error) {
-	book, err := excelize.OpenReader(bytes.NewReader(data))
+	book, err := excelize.OpenReader(bytes.NewReader(data), excelize.Options{
+		UnzipSizeLimit:    MaxUnzipBytes,
+		UnzipXMLSizeLimit: MaxUnzipXMLBytes,
+	})
 	if err != nil {
 		return nil, apperror.NewValidation("Файл не читается как XLSX").WithCause(err)
 	}
@@ -125,13 +130,36 @@ func readXLSX(data []byte) ([]line, error) {
 	if len(sheets) == 0 {
 		return nil, apperror.NewValidation("В книге нет листов")
 	}
-	rows, err := book.GetRows(sheets[0])
+	rows, err := book.Rows(sheets[0])
 	if err != nil {
 		return nil, apperror.NewValidation("Лист не читается").WithCause(err)
 	}
-	lines := make([]line, len(rows))
-	for i, cells := range rows {
-		lines[i] = line{number: i + 1, cells: cells}
+	defer func() { _ = rows.Close() }()
+
+	lines := make([]line, 0, 256)
+	lineNo := 0
+	nonEmpty := 0
+	for rows.Next() {
+		lineNo++
+		cells, colErr := rows.Columns()
+		if colErr != nil {
+			return nil, apperror.NewValidation("Лист не читается").WithCause(colErr)
+		}
+		trimmed := make([]string, len(cells))
+		for j := range cells {
+			trimmed[j] = strings.TrimSpace(cells[j])
+		}
+		if !isEmpty(trimmed) {
+			nonEmpty++
+			// 1 header row + MaxRows data rows; stop streaming before exhausting memory.
+			if nonEmpty > MaxRows+1 {
+				return nil, apperror.NewValidation(fmt.Sprintf("В файле больше %d строк: разделите его на части", MaxRows))
+			}
+		}
+		lines = append(lines, line{number: lineNo, cells: trimmed})
+	}
+	if err := rows.Error(); err != nil {
+		return nil, apperror.NewValidation("Лист не читается").WithCause(err)
 	}
 	return lines, nil
 }

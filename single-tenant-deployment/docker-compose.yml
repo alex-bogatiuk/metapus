@@ -189,6 +189,8 @@ services:
       ADMIN_STEP_UP_TTL_SECONDS: ${ADMIN_STEP_UP_TTL_SECONDS:-300}
       ADMIN_SECURITY_MODE: ${ADMIN_SECURITY_MODE:-warn}
       ADMIN_ALLOWED_CIDRS: ${ADMIN_ALLOWED_CIDRS:-}
+      AUTH_ALLOW_SELF_REGISTRATION: ${AUTH_ALLOW_SELF_REGISTRATION:-false}
+      CONTROL_PLANE_TENANT_ID: ${CONTROL_PLANE_TENANT_ID:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       META_DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/tenants?sslmode=disable
       DATABASE_URL: postgres://metapus:${POSTGRES_PASSWORD:-metapus}@postgres:5432/mt_default?sslmode=disable

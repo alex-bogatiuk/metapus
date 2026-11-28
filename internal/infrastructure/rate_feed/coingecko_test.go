@@ -81,3 +81,48 @@ func TestCoinGeckoRetryTimeoutAndConfiguration(t *testing.T) {
 	require.Len(t, result.Problems, 1)
 	require.Equal(t, 15*time.Second, NewCoinGeckoFetcher().client.Timeout)
 }
+
+func TestCoinGeckoQuoteCacheAcrossTenants(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		ids := r.URL.Query().Get("ids")
+		switch ids {
+		case "bitcoin,tether":
+			_, _ = fmt.Fprintf(w, `{"bitcoin":{"usd":65000,"last_updated_at":%d},"tether":{"usd":1,"last_updated_at":%d}}`, now.Unix(), now.Unix())
+		case "ethereum":
+			_, _ = fmt.Fprintf(w, `{"ethereum":{"usd":3200,"last_updated_at":%d}}`, now.Unix())
+		default:
+			_, _ = fmt.Fprintf(w, `{"bitcoin":{"usd":66000,"last_updated_at":%d}}`, now.Unix())
+		}
+	}))
+	defer server.Close()
+
+	f := NewCoinGeckoFetcher()
+	f.baseURL = server.URL
+	f.now = func() time.Time { return now }
+
+	// Tenant 1 fetches bitcoin + tether -> 1 HTTP call
+	res1 := f.FetchRates(context.Background(), []er.Mapping{mapping("bitcoin"), mapping("tether")}, 1000, "key-1")
+	require.Equal(t, int32(1), calls.Load())
+	require.Len(t, res1.Observations, 2)
+
+	// Tenant 2 fetches bitcoin + tether within TTL -> 0 additional HTTP calls
+	now = now.Add(10 * time.Second)
+	res2 := f.FetchRates(context.Background(), []er.Mapping{mapping("bitcoin"), mapping("tether")}, 1000, "key-2")
+	require.Equal(t, int32(1), calls.Load())
+	require.Len(t, res2.Observations, 2)
+
+	// Tenant 3 fetches bitcoin + ethereum within TTL -> only ethereum hits HTTP
+	res3 := f.FetchRates(context.Background(), []er.Mapping{mapping("bitcoin"), mapping("ethereum")}, 1000, "key-3")
+	require.Equal(t, int32(2), calls.Load())
+	require.Len(t, res3.Observations, 2)
+
+	// After TTL expires, bitcoin is fetched again
+	now = now.Add(31 * time.Second)
+	res4 := f.FetchRates(context.Background(), []er.Mapping{mapping("bitcoin")}, 1000, "key-1")
+	require.Equal(t, int32(3), calls.Load())
+	require.Len(t, res4.Observations, 1)
+	require.Equal(t, "66000", res4.Observations[0].Rate.String())
+}

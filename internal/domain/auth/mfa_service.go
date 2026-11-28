@@ -219,30 +219,33 @@ func matchTOTPCode(secret, code string, now time.Time) (int64, bool, error) {
 	return 0, false, nil
 }
 
-func (s *Service) verifyTOTPProof(ctx context.Context, user *User, code string, info SessionInfo) error {
+// checkTOTPCode validates a user's TOTP code outside the session/step-up
+// mutation transaction so failure counters, lockouts, and security audit events
+// are durably committed instead of rolling back with the denied request.
+func (s *Service) checkTOTPCode(ctx context.Context, user *User, code string, info SessionInfo) (int64, error) {
 	if s.mfaRepo == nil {
-		return apperror.NewMFADenied("MFA is not configured")
+		return 0, apperror.NewMFADenied("MFA is not configured")
 	}
 	rec, err := s.mfaRepo.GetTOTP(ctx, user.ID)
 	if err != nil || rec == nil || !rec.Enabled {
-		return apperror.NewMFANotEnrolled()
+		return 0, apperror.NewMFANotEnrolled()
 	}
 	now := time.Now().UTC()
 	if rec.LockedUntil != nil && now.Before(*rec.LockedUntil) {
-		return apperror.NewMFALocked("MFA verification is temporarily locked")
+		return 0, apperror.NewMFALocked("MFA verification is temporarily locked")
 	}
 	secret, err := s.decryptMFASecret(user.ID, rec.SecretCiphertext, rec.SecretNonce)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	matchedStep, ok, err := matchTOTPCode(secret, strings.TrimSpace(code), now)
 	if err != nil {
-		return apperror.NewMFADenied("invalid TOTP code").WithCause(err)
+		return 0, apperror.NewMFADenied("invalid TOTP code").WithCause(err)
 	}
 	if !ok {
-		_, locked, recordErr := s.mfaRepo.RecordTOTPFailure(ctx, user.ID, now, _totpMaxFailures, _totpFailureWindow, _totpLockDuration)
+		locked, recordErr := s.recordTOTPFailureCommitted(ctx, user.ID, now)
 		if recordErr != nil {
-			return recordErr
+			return 0, recordErr
 		}
 		eventType := eventlog.EventSecurityMFADenied
 		severity := eventlog.SeverityWarning
@@ -255,18 +258,54 @@ func (s *Service) verifyTOTPProof(ctx context.Context, user *User, code string, 
 			map[string]any{"email": user.Email, "locked": locked},
 		)
 		if locked {
-			return apperror.NewMFALocked("MFA verification is temporarily locked")
+			return 0, apperror.NewMFALocked("MFA verification is temporarily locked")
 		}
-		return apperror.NewMFADenied("invalid TOTP code")
+		return 0, apperror.NewMFADenied("invalid TOTP code")
 	}
-	if err := s.mfaRepo.UpdateTOTPLastUsed(ctx, user.ID, matchedStep); err != nil {
-		s.emitSecurityEvent(ctx, eventlog.EventSecurityMFADenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
-			fmt.Sprintf("MFA replay denied for user %s", user.Email),
-			map[string]any{"email": user.Email, "timeStep": matchedStep},
-		)
+	return matchedStep, nil
+}
+
+func (s *Service) recordTOTPFailureCommitted(ctx context.Context, userID id.ID, now time.Time) (bool, error) {
+	txm, err := s.getTxManager(ctx)
+	if err != nil {
+		_, locked, recErr := s.mfaRepo.RecordTOTPFailure(ctx, userID, now, _totpMaxFailures, _totpFailureWindow, _totpLockDuration)
+		return locked, recErr
+	}
+	var locked bool
+	err = txm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		var recErr error
+		_, locked, recErr = s.mfaRepo.RecordTOTPFailure(txCtx, userID, now, _totpMaxFailures, _totpFailureWindow, _totpLockDuration)
+		return recErr
+	})
+	return locked, err
+}
+
+func (s *Service) consumeTOTPTimeStep(ctx context.Context, userID id.ID, matchedStep int64) (bool, error) {
+	if err := s.mfaRepo.UpdateTOTPLastUsed(ctx, userID, matchedStep); err != nil {
+		if appErr, ok := apperror.AsAppError(err); ok && appErr.Code == apperror.CodeMFADenied {
+			return true, err
+		}
+		return false, err
+	}
+	if err := s.mfaRepo.ResetTOTPFailures(ctx, userID); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+func (s *Service) verifyTOTPProof(ctx context.Context, user *User, code string, info SessionInfo) error {
+	matchedStep, err := s.checkTOTPCode(ctx, user, code, info)
+	if err != nil {
 		return err
 	}
-	if err := s.mfaRepo.ResetTOTPFailures(ctx, user.ID); err != nil {
+	replayDenied, err := s.consumeTOTPTimeStep(ctx, user.ID, matchedStep)
+	if err != nil {
+		if replayDenied {
+			s.emitSecurityEvent(ctx, eventlog.EventSecurityMFADenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
+				fmt.Sprintf("MFA replay denied for user %s", user.Email),
+				map[string]any{"email": user.Email, "timeStep": matchedStep},
+			)
+		}
 		return err
 	}
 	return nil
@@ -320,24 +359,32 @@ func (s *Service) VerifyMFA(ctx context.Context, challengeID id.ID, code string,
 	if err != nil {
 		return nil, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
+	ch, err := s.mfaRepo.GetChallenge(ctx, challengeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateChallenge(ch, "login"); err != nil {
+		return nil, err
+	}
+	user, err := s.loadUserWithAuth(ctx, ch.UserID)
+	if err != nil {
+		return nil, err
+	}
+	matchedStep, err := s.checkTOTPCode(ctx, user, code, info)
+	if err != nil {
+		return nil, err
+	}
+
 	var result *LoginResult
+	var replayDenied bool
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		ch, err := s.mfaRepo.GetChallenge(ctx, challengeID)
-		if err != nil {
-			return err
-		}
-		if err := s.validateChallenge(ch, "login"); err != nil {
-			return err
-		}
-		user, err := s.loadUserWithAuth(ctx, ch.UserID)
-		if err != nil {
-			return err
-		}
-		if err := s.verifyTOTPProof(ctx, user, code, info); err != nil {
-			return err
-		}
 		if err := s.mfaRepo.ConsumeChallenge(ctx, challengeID); err != nil {
 			return err
+		}
+		var stepErr error
+		replayDenied, stepErr = s.consumeTOTPTimeStep(ctx, user.ID, matchedStep)
+		if stepErr != nil {
+			return stepErr
 		}
 		now := time.Now().UTC()
 		var finalErr error
@@ -348,6 +395,12 @@ func (s *Service) VerifyMFA(ctx context.Context, challengeID id.ID, code string,
 		return finalErr
 	})
 	if err != nil {
+		if replayDenied {
+			s.emitSecurityEvent(ctx, eventlog.EventSecurityMFADenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
+				fmt.Sprintf("MFA replay denied for user %s", user.Email),
+				map[string]any{"email": user.Email, "timeStep": matchedStep},
+			)
+		}
 		return nil, err
 	}
 	return result, nil
@@ -516,21 +569,38 @@ func (s *Service) StepUp(ctx context.Context, password, totpCode, actionCode str
 	if err != nil {
 		return time.Time{}, apperror.NewInternal(err).WithDetail("missing", "tx_manager")
 	}
+
+	user, err := s.loadUserWithAuth(ctx, userID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if !user.IsActive {
+		return time.Time{}, apperror.NewForbidden("account is disabled")
+	}
+	if user.IsLocked() {
+		return time.Time{}, apperror.NewForbidden("account is temporarily locked")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		user.RecordFailedLogin(s.config.MaxLoginAttempts, s.config.LockDuration)
+		_ = s.userRepo.Update(ctx, user)
+		s.emitSecurityEvent(ctx, eventlog.EventSecurityStepUpDenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
+			fmt.Sprintf("Step-up password denied for user %s", user.Email), map[string]any{"actionCode": actionCode})
+		return time.Time{}, apperror.NewUnauthorized("invalid credentials")
+	}
+	matchedStep, err := s.checkTOTPCode(ctx, user, totpCode, info)
+	if err != nil {
+		s.emitSecurityEvent(ctx, eventlog.EventSecurityStepUpDenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
+			fmt.Sprintf("Step-up MFA denied for user %s", user.Email), map[string]any{"actionCode": actionCode})
+		return time.Time{}, err
+	}
+
 	var expiresAt time.Time
+	var replayDenied bool
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
-		user, err := s.loadUserWithAuth(ctx, userID)
-		if err != nil {
-			return err
-		}
-		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-			s.emitSecurityEvent(ctx, eventlog.EventSecurityStepUpDenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
-				fmt.Sprintf("Step-up password denied for user %s", user.Email), map[string]any{"actionCode": actionCode})
-			return apperror.NewUnauthorized("invalid credentials")
-		}
-		if err := s.verifyTOTPProof(ctx, user, totpCode, info); err != nil {
-			s.emitSecurityEvent(ctx, eventlog.EventSecurityStepUpDenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
-				fmt.Sprintf("Step-up MFA denied for user %s", user.Email), map[string]any{"actionCode": actionCode})
-			return err
+		var stepErr error
+		replayDenied, stepErr = s.consumeTOTPTimeStep(ctx, user.ID, matchedStep)
+		if stepErr != nil {
+			return stepErr
 		}
 		now := time.Now().UTC()
 		if s.authStateRepo != nil {
@@ -548,6 +618,14 @@ func (s *Service) StepUp(ctx context.Context, password, totpCode, actionCode str
 		return nil
 	})
 	if err != nil {
+		if replayDenied {
+			s.emitSecurityEvent(ctx, eventlog.EventSecurityMFADenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
+				fmt.Sprintf("MFA replay denied for user %s", user.Email),
+				map[string]any{"email": user.Email, "timeStep": matchedStep},
+			)
+			s.emitSecurityEvent(ctx, eventlog.EventSecurityStepUpDenied, eventlog.SeverityWarning, user.ID, user.Email, info.IPAddress,
+				fmt.Sprintf("Step-up MFA denied for user %s", user.Email), map[string]any{"actionCode": actionCode})
+		}
 		return time.Time{}, err
 	}
 	s.invalidateSessionAuthCache(ctx, sessionID)

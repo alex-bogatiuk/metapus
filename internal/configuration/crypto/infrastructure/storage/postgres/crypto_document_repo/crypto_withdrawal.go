@@ -19,14 +19,12 @@ type CryptoWithdrawalRepo struct {
 
 // NewCryptoWithdrawalRepo creates a new crypto withdrawal repository.
 func NewCryptoWithdrawalRepo() *CryptoWithdrawalRepo {
-	repo := &CryptoWithdrawalRepo{
+	return &CryptoWithdrawalRepo{
 		BaseDocumentRepo: document_repo.NewDocumentRepoForDefinition[*crypto_withdrawal.CryptoWithdrawal](crypto_withdrawal.Definition,
 			postgres.ExtractDBColumns[crypto_withdrawal.CryptoWithdrawal](),
 			func() *crypto_withdrawal.CryptoWithdrawal { return &crypto_withdrawal.CryptoWithdrawal{} },
 		),
 	}
-	repo.RegisterRLSDimension("merchant", "merchant_id")
-	return repo
 }
 
 // FindPending returns withdrawals in Created status for processing.

@@ -86,7 +86,7 @@ func documentPermissionActions(caps metadata.DocumentCapabilities) []string {
 	add(caps.Create || caps.Copy, "create")
 	add(caps.Update, "update")
 	add(caps.Delete || caps.SetDeletionMark, "delete")
-	add(caps.Post || caps.Repost || caps.BatchAction || caps.BatchActionByFilter, "post")
+	add(caps.Post || caps.Repost || ((caps.BatchAction || caps.BatchActionByFilter) && !caps.Unpost && !caps.Delete && !caps.SetDeletionMark), "post")
 	add(caps.Unpost, "unpost")
 	return actions
 }

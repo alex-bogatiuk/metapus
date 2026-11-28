@@ -145,6 +145,7 @@ func NewEngine(
 ) (*Engine, error) {
 	// Initialize CEL environment with standard document variables.
 	env, err := cel.NewEnv(
+		cel.ParserExpressionSizeLimit(4096),
 		cel.Variable("doc", cel.DynType),
 		cel.Variable("action", cel.StringType),
 		cel.Variable("entityType", cel.StringType),
@@ -759,12 +760,17 @@ func (e *Engine) recordHistoryWithDuration(
 
 // EvaluateCEL evaluates a CEL expression against variables.
 func (e *Engine) EvaluateCEL(expr string, vars map[string]any) (bool, error) {
+	return e.EvaluateCELContext(context.Background(), expr, vars)
+}
+
+// EvaluateCELContext evaluates a CEL expression with context cancellation and cost bounds.
+func (e *Engine) EvaluateCELContext(ctx context.Context, expr string, vars map[string]any) (bool, error) {
 	prg, err := e.getOrCompileCEL(expr)
 	if err != nil {
 		return false, err
 	}
 
-	out, _, err := prg.Eval(vars)
+	out, _, err := prg.ContextEval(ctx, vars)
 	if err != nil {
 		return false, fmt.Errorf("eval error: %w", err)
 	}
@@ -798,7 +804,11 @@ func (e *Engine) getOrCompileCEL(expr string) (cel.Program, error) {
 		return nil, fmt.Errorf("compile error: %w", issues.Err())
 	}
 
-	prg, err := e.celEnv.Program(ast)
+	prg, err := e.celEnv.Program(
+		ast,
+		cel.CostLimit(100000),
+		cel.InterruptCheckFrequency(100),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("program error: %w", err)
 	}

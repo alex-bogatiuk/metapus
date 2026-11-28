@@ -4,6 +4,7 @@ package cryptomiddleware
 import (
 	"context"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -80,6 +81,9 @@ func MerchantAPIKey(repo MerchantAPIKeyAuthenticator, manager *tenantdb.Manager,
 	if metaPool == nil {
 		panic("MerchantAPIKey middleware requires meta pool")
 	}
+
+	const _lastUsedUpdateInterval = 60 * time.Second
+	var lastUsedByKey sync.Map // id.ID -> int64 (UnixNano)
 
 	return func(c *gin.Context) {
 		rawKey := c.GetHeader("X-Api-Key")
@@ -167,25 +171,32 @@ func MerchantAPIKey(repo MerchantAPIKeyAuthenticator, manager *tenantdb.Manager,
 		ctx = appctx.WithUser(ctx, syntheticUser)
 		c.Request = c.Request.WithContext(ctx)
 
-		// Best-effort: record last used time without blocking the request.
-		// The goroutine binds the tenant again in a context of its own: it is
-		// not tied to the request lifetime, holds its own reference to the pool
-		// (so pool eviction cannot close it mid-query, CWE-362) and gives up
-		// after 5 seconds so it never outlives graceful shutdown.
-		go func(keyID id.ID) {
-			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			bgCtx, release, err := middleware.BindTenant(bgCtx, manager, tenantID)
-			if err != nil {
-				logger.Warn(bgCtx, "merchant api: update last_used skipped", "tenant_id", tenantID, "error", err)
-				return
+		// Best-effort: record last used time without blocking the request,
+		// throttled per API key to avoid write amplification on hot keys.
+		nowNano := time.Now().UnixNano()
+		shouldUpdate := true
+		if prev, ok := lastUsedByKey.Load(apiKey.ID); ok {
+			if prevNano, valid := prev.(int64); valid && nowNano-prevNano < int64(_lastUsedUpdateInterval) {
+				shouldUpdate = false
 			}
-			defer release()
-			if uerr := repo.UpdateLastUsed(bgCtx, keyID); uerr != nil {
-				logger.Warn(bgCtx, "merchant api: update last_used failed",
-					"key_id", keyID, "error", uerr)
-			}
-		}(apiKey.ID)
+		}
+		if shouldUpdate {
+			lastUsedByKey.Store(apiKey.ID, nowNano)
+			go func(keyID id.ID) {
+				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				bgCtx, release, err := middleware.BindTenant(bgCtx, manager, tenantID)
+				if err != nil {
+					logger.Warn(bgCtx, "merchant api: update last_used skipped", "tenant_id", tenantID, "error", err)
+					return
+				}
+				defer release()
+				if uerr := repo.UpdateLastUsed(bgCtx, keyID); uerr != nil {
+					logger.Warn(bgCtx, "merchant api: update last_used failed",
+						"key_id", keyID, "error", uerr)
+				}
+			}(apiKey.ID)
+		}
 
 		c.Next()
 	}

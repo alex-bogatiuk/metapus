@@ -174,6 +174,7 @@ type MultiTenantWorker struct {
 	part      configuration.Worker
 	// broadcaster carries in-app notifications to the API servers' hubs.
 	broadcaster automation.Broadcaster
+	coinGecko   *rate_feed.CoinGeckoFetcher
 	ready       metric.Int64Gauge
 	restarts    metric.Int64Counter
 }
@@ -195,6 +196,7 @@ func NewMultiTenantWorker(manager *tenantdb.Manager, log *logger.Logger, factori
 		log:         log.WithComponent("worker"),
 		part:        part,
 		broadcaster: broadcaster,
+		coinGecko:   rate_feed.NewCoinGeckoFetcher(),
 	}
 }
 
@@ -362,7 +364,11 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 	// Periodically fetches crypto exchange rates from CoinGecko.
 	// Loads currency→source mappings from reg_rate_source_mappings.
 	{
-		rfWorker := rate_feed.NewWorker(register_repo.NewExchangeRateRepo(), rate_feed.NewCoinGeckoFetcher(), recorder, w.log)
+		fetcher := w.coinGecko
+		if fetcher == nil {
+			fetcher = rate_feed.NewCoinGeckoFetcher()
+		}
+		rfWorker := rate_feed.NewWorker(register_repo.NewExchangeRateRepo(), fetcher, recorder, w.log)
 		subsWg.Go(func() { rfWorker.Start(ctx) })
 	}
 
@@ -423,6 +429,9 @@ func (w *MultiTenantWorker) runTenantWorker(ctx context.Context, t *tenant.Tenan
 			recorder.RecordIfWork(ctx, "outbox.dead_letter", "outbox", func(ctx context.Context) (int, error) {
 				n, err := recoveryRelay.MoveToDLQ(ctx)
 				return int(n), err
+			})
+			recorder.RecordIfWork(ctx, "cleanup.outbox", "cleanup", func(ctx context.Context) (int, error) {
+				return w.cleanupPublishedOutbox(ctx, mp.Pool(), t.ID)
 			})
 			recorder.Record(ctx, "cleanup.worker_jobs", "cleanup", func(ctx context.Context) (int, error) {
 				n, err := jobRepo.CleanupOld(ctx, 7*24*time.Hour)
@@ -570,7 +579,8 @@ func (w *MultiTenantWorker) cleanupIdempotency(ctx context.Context, pool *pgxpoo
 	result, err := pool.Exec(ctx, `
 		UPDATE sys_idempotency
 		SET archived_at = NOW(), application_result = '{}'::jsonb
-		WHERE completed_at < NOW() - INTERVAL '90 days'
+		WHERE completed_at IS NOT NULL
+		  AND completed_at < NOW() - INTERVAL '90 days'
 		  AND archived_at IS NULL
 	`)
 	if err != nil {
@@ -579,6 +589,22 @@ func (w *MultiTenantWorker) cleanupIdempotency(ctx context.Context, pool *pgxpoo
 	n := int(result.RowsAffected())
 	if n > 0 {
 		w.log.Infow("archived idempotency results", "tenant_id", tenantID, "count", n)
+	}
+	return n, nil
+}
+
+func (w *MultiTenantWorker) cleanupPublishedOutbox(ctx context.Context, pool *pgxpool.Pool, tenantID string) (int, error) {
+	result, err := pool.Exec(ctx, `
+		DELETE FROM sys_outbox
+		WHERE status = 'published'
+		  AND published_at < NOW() - INTERVAL '14 days'
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("cleanup published outbox: %w", err)
+	}
+	n := int(result.RowsAffected())
+	if n > 0 {
+		w.log.Infow("cleaned up published outbox messages", "tenant_id", tenantID, "count", n)
 	}
 	return n, nil
 }

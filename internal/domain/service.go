@@ -160,6 +160,11 @@ func (s *CatalogService[T]) Create(ctx context.Context, ent T) error {
 		if err := s.checkRLSAccess(ctx, ent); err != nil {
 			return err
 		}
+		if policy := security.GetFieldPolicy(ctx, s.entityName, "write"); policy != nil {
+			if err := security.ValidateCreate(ent, policy); err != nil {
+				return err
+			}
+		}
 		if err := ent.Validate(ctx); err != nil {
 			return s.normalizeValidationErr(err)
 		}
@@ -237,7 +242,7 @@ func (s *CatalogService[T]) Update(ctx context.Context, ent T) error {
 			return err
 		}
 		if policy := security.GetFieldPolicy(ctx, s.entityName, "write"); policy != nil {
-			if err := security.ValidateWrite(current, ent, policy); err != nil {
+			if err := validateFieldWrite(ctx, s.entityName, current, ent, policy); err != nil {
 				return err
 			}
 		}
@@ -370,6 +375,11 @@ func (s *CatalogService[T]) completeMutation(ctx context.Context, ent T, phase, 
 // the DB count minus items removed on THIS page only. Returned Items may be fewer
 // than the requested limit. Clients should rely on HasMore/HasPrev for navigation.
 func (s *CatalogService[T]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
+	if readPolicy := security.GetFieldPolicy(ctx, s.entityName, "read"); readPolicy != nil {
+		if err := security.ValidateListQueryReadPolicy[T](readPolicy, filter.OrderBy, "name", filter.Search, []string{"name", "code"}, filterFieldNames(filter)); err != nil {
+			return CursorListResult[T]{}, err
+		}
+	}
 	if filter.DataScope == nil {
 		filter.DataScope = security.GetDataScope(ctx)
 	}
@@ -569,4 +579,12 @@ func normalizeCatalog(ent any) {
 	if normalizable, ok := ent.(interface{ Normalize() }); ok {
 		normalizable.Normalize()
 	}
+}
+
+// validateFieldWrite refuses changes to fields the write policy restricts,
+// after putting back the stored values of the fields the editor could neither
+// read nor write: the masked form returns them as zero values.
+func validateFieldWrite(ctx context.Context, entityName string, stored, edited any, writePolicy *security.FieldPolicy) error {
+	security.RestoreMaskedFields(stored, edited, security.GetFieldPolicy(ctx, entityName, "read"), writePolicy)
+	return security.ValidateWrite(stored, edited, writePolicy)
 }

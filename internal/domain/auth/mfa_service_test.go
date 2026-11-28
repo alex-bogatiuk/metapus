@@ -14,6 +14,7 @@ import (
 	appctx "github.com/alex-bogatiuk/metapus/internal/core/context"
 	"github.com/alex-bogatiuk/metapus/internal/core/id"
 	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
+	"github.com/alex-bogatiuk/metapus/internal/domain/eventlog"
 )
 
 const testTOTPSecret = "JBSWY3DPEHPK3PXP"
@@ -720,3 +721,121 @@ func (fakeAccessTokens) GenerateAccessToken(string, string, string, string, int6
 type fakeQRCode struct{}
 
 func (fakeQRCode) EncodeDataURL(string) (string, error) { return "data:image/png;base64,test", nil }
+
+type rollbackTxManager struct {
+	userRepo *fakeUserRepo
+	mfaRepo  *fakeMFARepo
+	events   *rollbackEventWriter
+}
+
+func (m *rollbackTxManager) RunInTransaction(ctx context.Context, fn func(context.Context) error) error {
+	// Snapshot mutable state before running transactional work so any non-nil
+	// error returned from fn rolls back mutations made inside the transaction,
+	// matching real PostgreSQL tx semantics.
+	totpBackup := map[id.ID]TOTPRecord{}
+	for k, v := range m.mfaRepo.totp {
+		if v != nil {
+			totpBackup[k] = *v
+		}
+	}
+	userBackup := map[id.ID]User{}
+	for k, v := range m.userRepo.users {
+		if v != nil {
+			userBackup[k] = *v
+		}
+	}
+	eventsLen := len(m.events.events)
+
+	err := fn(ctx)
+	if err != nil {
+		for k, snap := range totpBackup {
+			copyRec := snap
+			m.mfaRepo.totp[k] = &copyRec
+		}
+		for k, snap := range userBackup {
+			copyUser := snap
+			m.userRepo.users[k] = &copyUser
+		}
+		m.events.events = m.events.events[:eventsLen]
+	}
+	return err
+}
+
+type rollbackEventWriter struct {
+	events []eventlog.EventType
+}
+
+func (w *rollbackEventWriter) Write(_ context.Context, ev eventlog.Event) error {
+	w.events = append(w.events, ev.EventType)
+	return nil
+}
+
+func (w *rollbackEventWriter) WriteBatch(_ context.Context, _ []eventlog.Event) error {
+	return nil
+}
+
+func TestVerifyMFAAndStepUpPersistFailuresAcrossRollback(t *testing.T) {
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte("correct-password"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	user := NewUser("admin@example.com", string(passwordHash))
+	user.IsAdmin = true
+	user.EmailVerified = true
+
+	userRepo := newFakeUserRepo(user)
+	mfaRepo := newFakeMFARepo()
+	events := &rollbackEventWriter{}
+	txm := &rollbackTxManager{userRepo: userRepo, mfaRepo: mfaRepo, events: events}
+
+	cfg := DefaultServiceConfig()
+	cfg.MFAEncryptionKey = []byte("0123456789abcdef0123456789abcdef")
+	cfg.AdminStepUpTTL = 5 * time.Minute
+	svc := NewService(
+		userRepo, nil, nil, newFakeTokenRepo(), mfaRepo, &fakeAuthStateRepo{},
+		nil, txm, fakeAccessTokens{}, events, nil, cfg,
+		WithQRCodeEncoder(fakeQRCode{}),
+	)
+	enrollTestTOTP(t, svc, mfaRepo, user.ID, testTOTPSecret)
+
+	ctx := tenant.WithTenant(context.Background(), &tenant.Tenant{ID: "tenant-a"})
+	ch, err := svc.createMFAChallenge(ctx, user.ID, "login", SessionInfo{IPAddress: "127.0.0.1"})
+	if err != nil {
+		t.Fatalf("create challenge: %v", err)
+	}
+
+	// 5 wrong TOTP attempts in VerifyMFA must persist failed_attempts, lock MFA, and retain security events.
+	var verifyErr error
+	for range 5 {
+		_, verifyErr = svc.VerifyMFA(ctx, ch.ID, "000000", SessionInfo{IPAddress: "127.0.0.1"})
+	}
+	appErr := requireAppError(t, verifyErr)
+	if appErr.Code != apperror.CodeMFALocked {
+		t.Fatalf("expected %s after 5 wrong VerifyMFA attempts, got %s", apperror.CodeMFALocked, appErr.Code)
+	}
+	if got := mfaRepo.totp[user.ID].FailedAttempts; got != 5 {
+		t.Fatalf("expected 5 persisted failed_attempts, got %d", got)
+	}
+	if len(events.events) != 5 {
+		t.Fatalf("expected 5 persisted security events, got %d", len(events.events))
+	}
+
+	// Wrong password in StepUp must also persist failed login counter and security event.
+	events.events = nil
+	sessionID := id.New()
+	stepCtx := appctx.WithUser(ctx, &appctx.UserContext{
+		UserID:    user.ID.String(),
+		SessionID: sessionID.String(),
+		TenantID:  "tenant-a",
+	})
+	_, stepErr := svc.StepUp(stepCtx, "wrong-password", "000000", "auth.roles.update", SessionInfo{IPAddress: "127.0.0.1"})
+	if requireAppError(t, stepErr).Code != apperror.CodeUnauthorized {
+		t.Fatalf("expected unauthorized on wrong step-up password, got %v", stepErr)
+	}
+	if got := userRepo.users[user.ID].FailedLoginAttempts; got != 1 {
+		t.Fatalf("expected persisted FailedLoginAttempts=1, got %d", got)
+	}
+	if len(events.events) != 1 || events.events[0] != eventlog.EventSecurityStepUpDenied {
+		t.Fatalf("expected persisted step-up denied event, got %v", events.events)
+	}
+}

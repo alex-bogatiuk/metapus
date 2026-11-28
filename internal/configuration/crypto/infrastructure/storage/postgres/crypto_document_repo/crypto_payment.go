@@ -23,17 +23,12 @@ type CryptoPaymentRepo struct {
 
 // NewCryptoPaymentRepo creates a new crypto payment repository.
 func NewCryptoPaymentRepo() *CryptoPaymentRepo {
-	repo := &CryptoPaymentRepo{
+	return &CryptoPaymentRepo{
 		BaseDocumentRepo: document_repo.NewDocumentRepoForDefinition[*crypto_payment.CryptoPayment](crypto_payment.Definition,
 			postgres.ExtractDBColumns[crypto_payment.CryptoPayment](),
 			func() *crypto_payment.CryptoPayment { return &crypto_payment.CryptoPayment{} },
 		),
 	}
-
-	// Register RLS dimensions
-	repo.RegisterRLSDimension("merchant", "merchant_id")
-
-	return repo
 }
 
 // FindByTxHash finds a crypto payment by blockchain transaction hash.

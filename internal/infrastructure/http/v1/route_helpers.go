@@ -193,6 +193,11 @@ func InferDocumentCapabilities(handler DocumentRouteHandler) metadata.DocumentCa
 //	handler := handlers.NewCryptoInvoiceHandler(baseHandler, service)
 //	RegisterDocumentRoutes(documents.Group("/crypto-invoices"), handler, "document:crypto_invoice", InferDocumentCapabilities(handler))
 func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler, permission string, caps metadata.DocumentCapabilities) {
+	if configurable, ok := handler.(interface {
+		ConfigureRouteAccess(string, metadata.DocumentCapabilities)
+	}); ok {
+		configurable.ConfigureRouteAccess(permission, caps)
+	}
 	if guarded, ok := handler.(interface{ RequiresCommandIdempotency() bool }); ok && guarded.RequiresCommandIdempotency() {
 		group.Use(middleware.CommandIdempotency(true))
 	}
@@ -277,15 +282,17 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 	}
 
 	// Register BatchAction route if handler supports it (optional).
-	// Mounted on /batch-action (no :id) — permission checked per-action inside handler.
+	// Mounted on /batch-action (no :id) — route gate checks any supported batch
+	// mutation permission, and the handler checks the exact per-action permission.
+	batchGuard := batchRouteGuard(permission, caps)
 	if batchHandler, ok := handler.(DocumentBatchHandler); ok && caps.BatchAction {
-		group.POST("/batch-action", middleware.RequirePermission(permission+":post"), batchHandler.BatchAction)
+		group.POST("/batch-action", batchGuard, batchHandler.BatchAction)
 	}
 
 	// Register BatchActionByFilter route if handler supports it (optional).
 	// Used for virtual "select all" — the server resolves matching IDs from filters.
 	if batchFilterHandler, ok := handler.(DocumentBatchByFilterHandler); ok && caps.BatchActionByFilter {
-		group.POST("/batch-action-by-filter", middleware.RequirePermission(permission+":post"), batchFilterHandler.BatchActionByFilter)
+		group.POST("/batch-action-by-filter", batchGuard, batchFilterHandler.BatchActionByFilter)
 	}
 
 	// Register ExportList route if handler supports it (optional)
@@ -296,4 +303,24 @@ func RegisterDocumentRoutes(group *gin.RouterGroup, handler DocumentRouteHandler
 	if customRoutesHandler, ok := handler.(DocumentCustomRoutesHandler); ok {
 		customRoutesHandler.RegisterCustomDocumentRoutes(group, permission)
 	}
+}
+
+func batchRouteGuard(permission string, caps metadata.DocumentCapabilities) gin.HandlerFunc {
+	var perms []string
+	if caps.Post {
+		perms = append(perms, permission+":post")
+	}
+	if caps.Unpost {
+		perms = append(perms, permission+":unpost")
+	}
+	if caps.Delete || caps.SetDeletionMark {
+		perms = append(perms, permission+":delete")
+	}
+	if len(perms) == 0 {
+		perms = []string{permission + ":post"}
+	}
+	if len(perms) == 1 {
+		return middleware.RequirePermission(perms[0])
+	}
+	return middleware.RequireAnyPermission(perms...)
 }

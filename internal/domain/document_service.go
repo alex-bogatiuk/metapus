@@ -172,6 +172,16 @@ func (s *BaseDocumentService[T, L]) checkCELPolicy(ctx context.Context, action s
 func (s *BaseDocumentService[T, L]) Create(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
 		// RLS: check write permission
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
+
+		// FLS: validate that no write-restricted fields were supplied on creation
+		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
+			if err := security.ValidateCreate(doc, writePolicy); err != nil {
+				return err
+			}
+		}
 
 		// Run before-create hooks (for enrichment, validation, etc.)
 		if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
@@ -180,6 +190,11 @@ func (s *BaseDocumentService[T, L]) Create(ctx context.Context, doc T) error {
 
 		// Resolve currency
 		if err := s.ResolveCurrency(ctx, doc); err != nil {
+			return err
+		}
+
+		// RLS: point-check after hooks have populated document dimensions
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
 			return err
 		}
 
@@ -265,6 +280,9 @@ func (s *BaseDocumentService[T, L]) GetByIDForUpdate(ctx context.Context, docID 
 func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
 		// RLS: check write permission and record access
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
 		if err := s.checkRLSAccess(ctx, doc); err != nil {
 			return err
 		}
@@ -276,6 +294,11 @@ func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 		if err != nil {
 			return fmt.Errorf("fetch existing document: %w", err)
 		}
+		oldLines, err := s.Repo.GetLines(ctx, doc.GetID())
+		if err != nil {
+			return fmt.Errorf("fetch existing document lines: %w", err)
+		}
+		oldDoc.SetLines(oldLines)
 
 		// SECURITY FIX: Ensure the user actually has access to the original record in the DB!
 		if err := s.checkRLSAccess(ctx, oldDoc); err != nil {
@@ -284,7 +307,7 @@ func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 
 		// FLS: validate that no restricted fields were modified
 		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
-			if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
+			if err := validateFieldWrite(ctx, s.EntityName, oldDoc, doc, writePolicy); err != nil {
 				return err
 			}
 		}
@@ -304,6 +327,14 @@ func (s *BaseDocumentService[T, L]) Update(ctx context.Context, doc T) error {
 
 		// Run before-update hooks
 		if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
+			return err
+		}
+
+		// Re-check RLS and CEL against the target document state after hooks.
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
 			return err
 		}
 
@@ -374,6 +405,9 @@ func (s *BaseDocumentService[T, L]) Delete(ctx context.Context, docID id.ID) err
 //   - If clearing the mark (marked=false): clear the flag, document stays unposted (draft state).
 func (s *BaseDocumentService[T, L]) SetDeletionMark(ctx context.Context, docID id.ID, marked bool) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
 		doc, err := s.GetByID(ctx, docID)
 		if err != nil {
 			return err
@@ -477,6 +511,27 @@ func (s *BaseDocumentService[T, L]) PostAndSave(ctx context.Context, doc T) erro
 			return err
 		}
 
+		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
+			if doc.GetVersion() <= 1 {
+				if err := security.ValidateCreate(doc, writePolicy); err != nil {
+					return err
+				}
+			} else {
+				oldDoc, err := s.Repo.GetByID(ctx, doc.GetID())
+				if err != nil {
+					return fmt.Errorf("fetch existing document: %w", err)
+				}
+				oldLines, err := s.Repo.GetLines(ctx, doc.GetID())
+				if err != nil {
+					return fmt.Errorf("fetch existing document lines: %w", err)
+				}
+				oldDoc.SetLines(oldLines)
+				if err := validateFieldWrite(ctx, s.EntityName, oldDoc, doc, writePolicy); err != nil {
+					return err
+				}
+			}
+		}
+
 		// Run before-create hooks (for enrichment: CreatedBy, UpdatedBy, etc.)
 		if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
 			return err
@@ -487,8 +542,20 @@ func (s *BaseDocumentService[T, L]) PostAndSave(ctx context.Context, doc T) erro
 			return err
 		}
 
-		// CEL policy check
-		if err := s.checkCELPolicy(ctx, "create", doc); err != nil {
+		// RLS: point-check after hooks have populated document dimensions
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+
+		// CEL policy check: creation/modification and posting must both be allowed
+		saveAction := "create"
+		if doc.GetVersion() > 1 {
+			saveAction = "update"
+		}
+		if err := s.checkCELPolicy(ctx, saveAction, doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "post", doc); err != nil {
 			return err
 		}
 
@@ -547,6 +614,11 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 		if err != nil {
 			return fmt.Errorf("fetch existing document: %w", err)
 		}
+		oldLines, err := s.Repo.GetLines(ctx, doc.GetID())
+		if err != nil {
+			return fmt.Errorf("fetch existing document lines: %w", err)
+		}
+		oldDoc.SetLines(oldLines)
 
 		// SECURITY FIX: Ensure the user actually has access to the original record in the DB!
 		if err := s.checkRLSAccess(ctx, oldDoc); err != nil {
@@ -560,7 +632,7 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 
 		// FLS: validate that no restricted fields were modified
 		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
-			if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
+			if err := validateFieldWrite(ctx, s.EntityName, oldDoc, doc, writePolicy); err != nil {
 				return err
 			}
 		}
@@ -580,6 +652,17 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 
 		// Resolve currency
 		if err := s.ResolveCurrency(ctx, doc); err != nil {
+			return err
+		}
+
+		// Re-check RLS and CEL ("update" + "post") against the target document state.
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "post", doc); err != nil {
 			return err
 		}
 
@@ -609,6 +692,11 @@ func (s *BaseDocumentService[T, L]) UpdateAndRepost(ctx context.Context, doc T) 
 // the DB count minus items removed on THIS page only. Returned Items may be fewer
 // than the requested limit. Clients should rely on HasMore/HasPrev for navigation.
 func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
+	if readPolicy := security.GetFieldPolicy(ctx, s.EntityName, "read"); readPolicy != nil {
+		if err := security.ValidateListQueryReadPolicy[T](readPolicy, filter.OrderBy, "date", filter.Search, []string{"number"}, filterFieldNames(filter)); err != nil {
+			return CursorListResult[T]{}, err
+		}
+	}
 	if filter.DataScope == nil {
 		filter.DataScope = security.GetDataScope(ctx)
 	}
@@ -631,8 +719,24 @@ func (s *BaseDocumentService[T, L]) List(ctx context.Context, filter ListFilter)
 // ListIDs returns all document IDs matching the filter.
 // Used for filter-based batch operations (virtual "select all").
 func (s *BaseDocumentService[T, L]) ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error) {
+	if readPolicy := security.GetFieldPolicy(ctx, s.EntityName, "read"); readPolicy != nil {
+		if err := security.ValidateListQueryReadPolicy[T](readPolicy, filter.OrderBy, "date", filter.Search, []string{"number"}, filterFieldNames(filter)); err != nil {
+			return nil, err
+		}
+	}
 	if filter.DataScope == nil {
 		filter.DataScope = security.GetDataScope(ctx)
 	}
 	return s.Repo.ListIDs(ctx, filter, maxIDs)
+}
+
+func filterFieldNames(f ListFilter) []string {
+	if len(f.AdvancedFilters) == 0 {
+		return nil
+	}
+	names := make([]string, len(f.AdvancedFilters))
+	for i, item := range f.AdvancedFilters {
+		names[i] = item.Field
+	}
+	return names
 }

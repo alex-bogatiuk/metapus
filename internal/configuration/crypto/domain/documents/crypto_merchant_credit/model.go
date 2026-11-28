@@ -104,6 +104,15 @@ func (c *CryptoMerchantCredit) Reject(actor id.ID, reason string, at time.Time) 
 
 func (c *CryptoMerchantCredit) GetDocumentType() string { return DocumentType }
 
+// GetRLSDimensions returns the merchant dimension for point-check RLS enforcement.
+func (c *CryptoMerchantCredit) GetRLSDimensions() map[string]string {
+	dims := make(map[string]string, 1)
+	if !id.IsNil(c.MerchantID) {
+		dims["merchant"] = c.MerchantID.String()
+	}
+	return dims
+}
+
 // AttributedReceipt is the custody receipt whose remainder this document takes.
 func (c *CryptoMerchantCredit) AttributedReceipt() id.ID { return c.ReceiptID }
 

@@ -87,10 +87,12 @@ func BuildSingleCondition(item filter.ResolvedItem, sqlExpr string) (squirrel.Sq
 	case filter.IsNotNull:
 		return squirrel.NotEq{sqlExpr: nil}, nil
 	case filter.Contains:
-		return squirrel.ILike{sqlExpr: fmt.Sprintf("%%%v%%", item.Value())}, nil
+		escaped := escapeLikePattern(fmt.Sprint(item.Value()))
+		return squirrel.ILike{sqlExpr: "%" + escaped + "%"}, nil
 	case filter.NotContains:
+		escaped := escapeLikePattern(fmt.Sprint(item.Value()))
 		return squirrel.Or{
-			squirrel.NotILike{sqlExpr: fmt.Sprintf("%%%v%%", item.Value())},
+			squirrel.NotILike{sqlExpr: "%" + escaped + "%"},
 			squirrel.Eq{sqlExpr: nil},
 		}, nil
 	default:

@@ -183,6 +183,10 @@ func contentDisposition(name, ext string) string {
 func sanitizeFilename(s string) string {
 	var b strings.Builder
 	for _, r := range s {
+		if r < 32 || r == 127 {
+			b.WriteRune('_')
+			continue
+		}
 		switch r {
 		case '"', '\\', '/', ':', '*', '?', '<', '>', '|':
 			b.WriteRune('_')
@@ -197,7 +201,7 @@ func sanitizeFilename(s string) string {
 func sanitizeASCII(s string) string {
 	var b strings.Builder
 	for _, r := range s {
-		if r > 127 || r == '"' || r == '\\' || r == '/' || r == ':' || r == '*' || r == '?' || r == '<' || r == '>' || r == '|' {
+		if r < 32 || r >= 127 || r == '"' || r == '\\' || r == '/' || r == ':' || r == '*' || r == '?' || r == '<' || r == '>' || r == '|' {
 			b.WriteRune('_')
 		} else {
 			b.WriteRune(r)

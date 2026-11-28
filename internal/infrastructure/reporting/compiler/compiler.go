@@ -40,9 +40,20 @@ import (
 	"github.com/alex-bogatiuk/metapus/internal/metadata"
 )
 
-// MaxJoinDepth is the maximum depth for reference field resolution.
-// Paths like "token_id.blockchain_network_id.name" have depth 2.
-const MaxJoinDepth = 3
+const (
+	// MaxJoinDepth is the maximum depth for reference field resolution.
+	// Paths like "token_id.blockchain_network_id.name" have depth 2.
+	MaxJoinDepth = 3
+
+	// DefaultReportLimit bounds report queries when the caller omits limit (0).
+	DefaultReportLimit = 5000
+
+	// MaxReportLimit caps interactive report queries to prevent OOM on large ledgers.
+	MaxReportLimit = 50000
+
+	// MaxExportReportLimit caps in-memory report exports (XLSX/CSV).
+	MaxExportReportLimit = 100000
+)
 
 // QueryRequest is the JSON body sent by the frontend to execute a report.
 type QueryRequest struct {
@@ -98,6 +109,32 @@ type QueryRequest struct {
 type QueryResult struct {
 	Items      []map[string]any `json:"items"`
 	TotalItems int              `json:"totalItems"`
+	// Truncated reports that the dataset has more rows than the request's
+	// limit allowed: Items holds only the first ones, and totals or groups
+	// computed from them would be wrong.
+	Truncated bool `json:"truncated"`
+}
+
+// RequireComplete fails when the result was cut at its row limit, for callers
+// that aggregate or deliver every row and must not do so from a part of them.
+func (r *QueryResult) RequireComplete() error {
+	if !r.Truncated {
+		return nil
+	}
+	return apperror.NewValidation(fmt.Sprintf("В отчёте больше %d строк: уточните отбор", len(r.Items))).
+		WithDetail("limit", len(r.Items))
+}
+
+// EffectiveLimit is the row limit a report query runs with: DefaultReportLimit
+// when none is given, never more than MaxExportReportLimit.
+func EffectiveLimit(requested int) int {
+	switch {
+	case requested <= 0:
+		return DefaultReportLimit
+	case requested > MaxExportReportLimit:
+		return MaxExportReportLimit
+	}
+	return requested
 }
 
 // Compiler is the core Query Engine.
@@ -313,10 +350,9 @@ func (c *Compiler) BuildQuery(ctx context.Context, req QueryRequest) (squirrel.S
 		qb = qb.JoinClause(squirrel.Expr(clause, predicate))
 	}
 
-	// 8. LIMIT / OFFSET
-	if req.Limit > 0 {
-		qb = qb.Limit(uint64(req.Limit))
-	}
+	// 8. LIMIT / OFFSET — always enforce a ceiling so unbounded requests cannot
+	// OOM. One row past the limit is read so Execute can tell a cut result.
+	qb = qb.Limit(uint64(EffectiveLimit(req.Limit) + 1))
 	if req.Offset > 0 {
 		qb = qb.Offset(uint64(req.Offset))
 	}
@@ -392,9 +428,14 @@ func (c *Compiler) Execute(ctx context.Context, req QueryRequest) (*QueryResult,
 		return nil, apperror.NewInternal(fmt.Errorf("iterate report rows: %w", err))
 	}
 
+	truncated := false
+	if limit := EffectiveLimit(req.Limit); len(items) > limit {
+		items, truncated = items[:limit], true
+	}
 	return &QueryResult{
 		Items:      items,
 		TotalItems: len(items),
+		Truncated:  truncated,
 	}, nil
 }
 

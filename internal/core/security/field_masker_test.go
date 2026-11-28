@@ -226,3 +226,114 @@ func TestFieldMasker_ValidateWrite(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestFieldMasker_ValidateWriteAndCreate_TablePartsAndListQuery(t *testing.T) {
+	writePolicy := &FieldPolicy{
+		AllowedFields: []string{"*", "-amount"},
+		TableParts: map[string][]string{
+			"lines": {"*", "-unit_price"},
+		},
+	}
+
+	t.Run("table part restricted column modified on update — blocked", func(t *testing.T) {
+		oldDoc := &testDocWithLines{
+			Name: "Doc", Amount: 1000,
+			Lines: []testLine{{LineID: "l1", Quantity: 2, UnitPrice: 500}},
+		}
+		newDoc := &testDocWithLines{
+			Name: "Doc", Amount: 1000,
+			Lines: []testLine{{LineID: "l1", Quantity: 3, UnitPrice: 600}},
+		}
+		err := ValidateWrite(oldDoc, newDoc, writePolicy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "lines.unit_price")
+	})
+
+	t.Run("table part allowed column modified while restricted unchanged — passes", func(t *testing.T) {
+		oldDoc := &testDocWithLines{
+			Name: "Doc", Amount: 1000,
+			Lines: []testLine{{LineID: "l1", Quantity: 2, UnitPrice: 500}},
+		}
+		newDoc := &testDocWithLines{
+			Name: "Doc", Amount: 1000,
+			Lines: []testLine{{LineID: "l1", Quantity: 5, UnitPrice: 500}},
+		}
+		require.NoError(t, ValidateWrite(oldDoc, newDoc, writePolicy))
+	})
+
+	t.Run("create blocks non-zero restricted header or line field", func(t *testing.T) {
+		docHeaderViolation := &testDocWithLines{Name: "Doc", Amount: 100}
+		require.Error(t, ValidateCreate(docHeaderViolation, writePolicy))
+
+		docLineViolation := &testDocWithLines{
+			Name:  "Doc",
+			Lines: []testLine{{LineID: "l1", Quantity: 1, UnitPrice: 250}},
+		}
+		err := ValidateCreate(docLineViolation, writePolicy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "lines.unit_price")
+
+		docAllowed := &testDocWithLines{
+			Name:  "Doc",
+			Lines: []testLine{{LineID: "l1", Quantity: 1}},
+		}
+		require.NoError(t, ValidateCreate(docAllowed, writePolicy))
+	})
+
+	t.Run("list query blocks filtering and sorting on FLS-hidden fields", func(t *testing.T) {
+		readPolicy := &FieldPolicy{
+			AllowedFields: []string{"*", "-amount"},
+			TableParts:    map[string][]string{"lines": {"*", "-unit_price"}},
+		}
+		require.Error(t, ValidateListQueryReadPolicy[testDocWithLines](readPolicy, "-amount", "date", "", []string{"name"}, nil))
+		require.Error(t, ValidateListQueryReadPolicy[testDocWithLines](readPolicy, "date", "date", "", []string{"name"}, []string{"amount"}))
+		require.Error(t, ValidateListQueryReadPolicy[testDocWithLines](readPolicy, "date", "date", "", []string{"name"}, []string{"lines.unit_price"}))
+		require.NoError(t, ValidateListQueryReadPolicy[testDocWithLines](readPolicy, "name", "date", "", []string{"name"}, []string{"lines.quantity"}))
+	})
+}
+
+func TestRestoreMaskedFieldsKeepsHiddenValuesOnSave(t *testing.T) {
+	hidden := &FieldPolicy{
+		AllowedFields: []string{"*", "-amount"},
+		TableParts:    map[string][]string{"lines": {"*", "-unit_price"}},
+	}
+	stored := func() *testDocWithLines {
+		return &testDocWithLines{
+			Name: "Doc", Amount: 1000,
+			Lines: []testLine{{LineID: "l1", Quantity: 2, UnitPrice: 500}, {LineID: "l2", Quantity: 1, UnitPrice: 700}},
+		}
+	}
+
+	t.Run("masked form saved back keeps hidden values and passes", func(t *testing.T) {
+		form := stored()
+		MaskForRead(form, hidden)
+		form.Name = "Renamed"
+		form.Lines[0].Quantity = 3
+		form.Lines[0], form.Lines[1] = form.Lines[1], form.Lines[0]
+
+		RestoreMaskedFields(stored(), form, hidden, hidden)
+		require.NoError(t, ValidateWrite(stored(), form, hidden))
+		assert.Equal(t, 1000, form.Amount)
+		assert.Equal(t, 700, form.Lines[0].UnitPrice)
+		assert.Equal(t, 500, form.Lines[1].UnitPrice)
+	})
+
+	t.Run("setting a hidden value is still refused", func(t *testing.T) {
+		form := stored()
+		MaskForRead(form, hidden)
+		form.Lines[0].UnitPrice = 1
+
+		RestoreMaskedFields(stored(), form, hidden, hidden)
+		err := ValidateWrite(stored(), form, hidden)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "lines.unit_price")
+	})
+
+	t.Run("readable field is not restored", func(t *testing.T) {
+		writeOnlyRestricted := &FieldPolicy{AllowedFields: []string{"*"}}
+		form := stored()
+		form.Amount = 0
+		RestoreMaskedFields(stored(), form, writeOnlyRestricted, hidden)
+		assert.Zero(t, form.Amount)
+	})
+}

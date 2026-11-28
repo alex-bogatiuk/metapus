@@ -78,6 +78,8 @@ Admin/security_admin login проходит как цепочка:
 | `ADMIN_STEP_UP_TTL_SECONDS=300` | TTL fresh confirmation для sensitive actions. |
 | `AUTH_MFA_ENCRYPTION_KEY` | Base64 от 32 bytes. Обязателен для TOTP enrollment и step-up; TOTP secret хранится только AES-256-GCM encrypted. |
 | `ADMIN_ALLOWED_CIDRS` | Comma-separated CIDR/IP allowlist для admin/security_admin. |
+| `AUTH_ALLOW_SELF_REGISTRATION` | `true` открывает публичный `POST /auth/register`; по умолчанию `false`, пользователей создаёт администратор. |
+| `CONTROL_PLANE_TENANT_ID` | Тенант, администраторам которого видны все тенанты и статистика их пулов (`/admin/tenants`, `/admin/health/tenants`); пусто — каждый администратор видит только свой тенант. |
 | `ADMIN_SECURITY_MODE=off|warn|enforce` | CIDR mode. Empty allowlist в `enforce` блокирует admin login/routes. |
 | `TRUSTED_PROXIES` | Comma-separated trusted proxies для корректного `ClientIP()`. Empty = no trusted proxy. |
 

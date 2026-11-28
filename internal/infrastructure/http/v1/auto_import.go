@@ -11,21 +11,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/alex-bogatiuk/metapus/internal/application/readaccess"
 	"github.com/alex-bogatiuk/metapus/internal/core/apperror"
 	"github.com/alex-bogatiuk/metapus/internal/core/entity"
 	"github.com/alex-bogatiuk/metapus/internal/core/id"
+	"github.com/alex-bogatiuk/metapus/internal/core/security"
 	"github.com/alex-bogatiuk/metapus/internal/core/tenant"
-	"github.com/alex-bogatiuk/metapus/internal/core/tx"
 	"github.com/alex-bogatiuk/metapus/internal/core/types"
 	"github.com/alex-bogatiuk/metapus/internal/domain"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/dto"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/http/v1/handlers"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/importing"
+	"github.com/alex-bogatiuk/metapus/internal/infrastructure/readpolicy"
 	"github.com/alex-bogatiuk/metapus/internal/infrastructure/storage/postgres"
 )
 
@@ -52,6 +55,7 @@ type importField struct {
 	name, label string
 	field       reflect.StructField
 	required    bool
+	refKey      string // entity key of the referenced catalog, "" for none
 	refTable    string // the table a reference is looked up in, "" for none
 	parent      bool   // the hierarchy's parent: looked up among folders
 }
@@ -80,7 +84,7 @@ func newImporter[T entity.DefinitionProvider, PT catalogModel[T]](def entity.Def
 				field.label = label
 			}
 			if key := autoRefKey(original); key != "" {
-				field.refTable = tables[key]
+				field.refKey, field.refTable = key, tables[key]
 			}
 		}
 		switch f.Name {
@@ -89,7 +93,7 @@ func newImporter[T entity.DefinitionProvider, PT catalogModel[T]](def entity.Def
 		case "Name":
 			field.label = "Наименование"
 		case "ParentID":
-			field.label, field.refTable, field.parent = "Группа", def.Table, true
+			field.label, field.refKey, field.refTable, field.parent = "Группа", def.Key, def.Table, true
 		case "IsFolder":
 			field.label = "Это группа"
 		}
@@ -192,35 +196,19 @@ func (im *importer[T, PT]) run(c *gin.Context) {
 		_ = c.Error(apperror.NewInternal(err))
 		return
 	}
-	savepoints, ok := txm.(tx.SavepointManager)
-	if !ok {
-		_ = c.Error(apperror.NewInternal(fmt.Errorf("the transaction manager has no savepoints")))
-		return
-	}
 	resp := dto.ImportCatalogResponse{DryRun: req.DryRun, Errors: []dto.ImportRowError{}}
 	refs := map[string]id.ID{}
 	err = txm.RunInTransaction(ctx, func(ctx context.Context) error {
 		for _, row := range table.Rows {
-			var rowErr *dto.ImportRowError
-			err := savepoints.RunInSavepoint(ctx, func(ctx context.Context) error {
-				created, failure := im.importRow(ctx, row, columns, req.MatchByCode, refs)
-				if failure != nil {
-					rowErr = failure
-					return errRollback
-				}
-				if created {
-					resp.Created++
-				} else {
-					resp.Updated++
-				}
-				return nil
-			})
-			if rowErr != nil {
-				resp.Errors = append(resp.Errors, *rowErr)
+			created, failure := im.importRow(ctx, row, columns, req.MatchByCode, refs)
+			if failure != nil {
+				resp.Errors = append(resp.Errors, *failure)
 				continue
 			}
-			if err != nil {
-				resp.Errors = append(resp.Errors, dto.ImportRowError{Line: row.Line, Message: rowMessage(err)})
+			if created {
+				resp.Created++
+			} else {
+				resp.Updated++
 			}
 		}
 		if len(resp.Errors) > 0 || req.DryRun {
@@ -305,7 +293,7 @@ func (im *importer[T, PT]) importRow(ctx context.Context, row importing.Row, col
 
 	var existingID *id.ID
 	if code, ok := values["Code"]; ok && matchByCode && code.String() != "" {
-		found, err := lookupByCode(ctx, im.def.Table, code.String())
+		found, err := lookupByCode(ctx, im.def, code.String())
 		if err != nil {
 			return fail(err)
 		}
@@ -375,7 +363,7 @@ func (im *importer[T, PT]) convert(ctx context.Context, f importField, text stri
 			value = reflect.ValueOf(parsed)
 			break
 		}
-		found, err := lookupReference(ctx, f.refTable, text, f.parent, refs)
+		found, err := lookupReference(ctx, f.refKey, f.refTable, text, f.parent, refs)
 		if err != nil {
 			return reflect.Value{}, err
 		}
@@ -439,18 +427,68 @@ func parseImportDate(text string) (time.Time, error) {
 }
 
 // lookupReference finds the item of table whose code or name is text, a
-// folder for a parent and an element otherwise.
-func lookupReference(ctx context.Context, table, text string, folder bool, cache map[string]id.ID) (id.ID, error) {
-	key := table + "\x00" + strings.ToLower(text)
+// folder for a parent and an element otherwise, enforcing RBAC, RLS, FLS and CEL.
+func lookupReference(ctx context.Context, refKey, table, text string, folder bool, cache map[string]id.ID) (id.ID, error) {
+	key := refKey + "\x00" + table + "\x00" + strconv.FormatBool(folder) + "\x00" + strings.ToLower(text)
 	if found, ok := cache[key]; ok {
 		return found, nil
 	}
 	if !strings.HasPrefix(table, "cat_") {
 		return id.ID{}, fmt.Errorf("ссылка на документ из файла не загружается")
 	}
-	rows, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Query(ctx, fmt.Sprintf(
-		`SELECT id FROM %s WHERE _deleted_at IS NULL AND NOT deletion_mark AND is_folder = $2
-		   AND (lower(code) = lower($1) OR lower(name) = lower($1)) LIMIT 2`, table), text, folder)
+
+	codeAllowed, nameAllowed := true, true
+	var rlsDims map[string]string
+	reads, hasReads := readaccess.FromContext(ctx)
+	if hasReads && refKey != "" {
+		refDef, err := reads.Require(ctx, refKey)
+		if err != nil {
+			return id.ID{}, fmt.Errorf("нет прав на чтение справочника для «%s»", text)
+		}
+		rlsDims = refDef.Dimensions
+		codeAllowed, nameAllowed = false, false
+		for _, fld := range refDef.Fields {
+			switch fld.Column {
+			case "code":
+				codeAllowed = readaccess.FieldAllowed(ctx, refDef, fld)
+			case "name":
+				nameAllowed = readaccess.FieldAllowed(ctx, refDef, fld)
+			}
+		}
+	} else if refKey != "" {
+		if fp := security.GetFieldPolicy(ctx, refKey, "read"); fp != nil {
+			codeAllowed = fp.IsFieldAllowed("code")
+			nameAllowed = fp.IsFieldAllowed("name")
+		}
+	}
+	if !codeAllowed && !nameAllowed {
+		return id.ID{}, fmt.Errorf("нет прав на чтение полей поиска справочника")
+	}
+
+	var matchParts squirrel.Or
+	if codeAllowed {
+		matchParts = append(matchParts, squirrel.Expr("lower(code) = lower(?)", text))
+	}
+	if nameAllowed {
+		matchParts = append(matchParts, squirrel.Expr("lower(name) = lower(?)", text))
+	}
+
+	qb := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Select("id").
+		From(table).
+		Where("_deleted_at IS NULL").
+		Where("NOT deletion_mark").
+		Where(squirrel.Eq{"is_folder": folder}).
+		Where(matchParts).
+		Limit(2)
+	for _, cond := range readpolicy.ApplyConditions(security.GetDataScope(ctx), refKey, rlsDims) {
+		qb = qb.Where(cond)
+	}
+	sqlStr, args, err := qb.ToSql()
+	if err != nil {
+		return id.ID{}, fmt.Errorf("build reference lookup %s: %w", table, err)
+	}
+	rows, err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).Query(ctx, sqlStr, args...)
 	if err != nil {
 		return id.ID{}, fmt.Errorf("look up %s: %w", table, err)
 	}
@@ -458,6 +496,17 @@ func lookupReference(ctx context.Context, table, text string, folder bool, cache
 	if err != nil {
 		return id.ID{}, fmt.Errorf("look up %s: %w", table, err)
 	}
+	if hasReads && refKey != "" && len(found) > 0 {
+		projected, err := reads.ReadIDs(ctx, refKey, found)
+		if err != nil {
+			return id.ID{}, fmt.Errorf("authorize reference %s: %w", table, err)
+		}
+		found = make([]id.ID, 0, len(projected))
+		for _, p := range projected {
+			found = append(found, p.ID)
+		}
+	}
+
 	switch len(found) {
 	case 0:
 		if folder {
@@ -472,11 +521,26 @@ func lookupReference(ctx context.Context, table, text string, folder bool, cache
 	}
 }
 
-// lookupByCode finds the item of table with code; nil when none.
-func lookupByCode(ctx context.Context, table, code string) (*id.ID, error) {
+// lookupByCode finds the item of def.Table with code within caller's RLS/FLS scope; nil when none.
+func lookupByCode(ctx context.Context, def entity.Definition, code string) (*id.ID, error) {
+	if fp := security.GetFieldPolicy(ctx, def.Key, "read"); fp != nil && !fp.IsFieldAllowed("code") {
+		return nil, apperror.NewForbidden("чтение поля «Код» запрещено профилем безопасности")
+	}
+	qb := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Select("id").
+		From(def.Table).
+		Where("_deleted_at IS NULL").
+		Where(squirrel.Eq{"code": code}).
+		Limit(1)
+	for _, cond := range readpolicy.ApplyConditions(security.GetDataScope(ctx), def.Key, def.RLSDimensions) {
+		qb = qb.Where(cond)
+	}
+	sqlStr, args, err := qb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build code lookup: %w", err)
+	}
 	var found id.ID
-	err := postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx,
-		fmt.Sprintf(`SELECT id FROM %s WHERE _deleted_at IS NULL AND code = $1`, table), code).Scan(&found)
+	err = postgres.MustGetTxManager(ctx).GetQuerier(ctx).QueryRow(ctx, sqlStr, args...).Scan(&found)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

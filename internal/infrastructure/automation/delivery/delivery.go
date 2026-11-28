@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -359,6 +360,28 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 	if len(recipients) == 0 {
 		return fmt.Errorf("no recipients specified")
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if strings.ContainsAny(from, "\r\n") {
+		return fmt.Errorf("invalid 'from' address in account config")
+	}
+	cleanRecipients := make([]string, 0, len(recipients))
+	for _, rcpt := range recipients {
+		rcpt = strings.TrimSpace(rcpt)
+		if rcpt == "" {
+			continue
+		}
+		if strings.ContainsAny(rcpt, "\r\n") {
+			return fmt.Errorf("invalid recipient address in channel destination")
+		}
+		cleanRecipients = append(cleanRecipients, rcpt)
+	}
+	if len(cleanRecipients) == 0 {
+		return fmt.Errorf("no valid recipients specified")
+	}
+	recipients = cleanRecipients
 
 	// Parse subject from payload: first line = subject, rest = body
 	subject := "Notification"
@@ -367,9 +390,11 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		subject = strings.TrimSpace(payload[:idx])
 		body = strings.TrimSpace(payload[idx+1:])
 	}
+	encodedSubject := mime.QEncoding.Encode("utf-8", sanitizeSMTPHeaderValue(subject))
 
 	// Build email message
 	contentType, _ := accountConfig["content_type"].(string)
+	contentType = sanitizeSMTPHeaderValue(contentType)
 	if contentType == "" {
 		contentType = "text/plain"
 	}
@@ -381,7 +406,7 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		fmt.Fprintf(&msgBuf, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: %s; charset=UTF-8\r\n\r\n%s",
 			from,
 			strings.Join(recipients, ", "),
-			subject,
+			encodedSubject,
 			contentType,
 			body,
 		)
@@ -393,7 +418,7 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		fmt.Fprintf(&msgBuf, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=%s\r\n\r\n",
 			from,
 			strings.Join(recipients, ", "),
-			subject,
+			encodedSubject,
 			boundary,
 		)
 
@@ -406,8 +431,18 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		// Attachment parts
 		for _, att := range attachments {
 			attHeader := make(textproto.MIMEHeader)
-			attHeader.Set("Content-Type", att.MimeType)
-			attHeader.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", att.FileName))
+			attMime := sanitizeSMTPHeaderValue(att.MimeType)
+			if attMime == "" {
+				attMime = "application/octet-stream"
+			}
+			attHeader.Set("Content-Type", attMime)
+			disposition := mime.FormatMediaType("attachment", map[string]string{
+				"filename": sanitizeSMTPHeaderValue(att.FileName),
+			})
+			if disposition == "" {
+				disposition = "attachment"
+			}
+			attHeader.Set("Content-Disposition", disposition)
 			attHeader.Set("Content-Transfer-Encoding", "base64")
 
 			attPart, _ := mpWriter.CreatePart(attHeader)
@@ -428,63 +463,56 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 	}
 
 	addr := net.JoinHostPort(smtpHost, smtpPort)
-
-	// Use explicit TLS connection (port 465) or STARTTLS (port 587) with verification.
 	tlsConfig := &tls.Config{ServerName: smtpHost}
 
-	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}, "tcp", addr, tlsConfig)
-	if err != nil {
-		// Fallback: try STARTTLS for port 587
-		plainConn, dialErr := net.DialTimeout("tcp", addr, 10*time.Second)
-		if dialErr != nil {
-			return fmt.Errorf("smtp dial: %w", dialErr)
+	const _smtpMaxTimeout = 30 * time.Second
+	deadline := time.Now().Add(_smtpMaxTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	dialer := &net.Dialer{Timeout: 10 * time.Second, Deadline: deadline}
+
+	var client *smtp.Client
+	if smtpPort == "465" {
+		conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+		if err != nil {
+			return fmt.Errorf("smtp tls dial: %w", err)
 		}
-		client, clientErr := smtp.NewClient(plainConn, smtpHost)
-		if clientErr != nil {
+		_ = conn.SetDeadline(deadline)
+		c, err := smtp.NewClient(conn, smtpHost)
+		if err != nil {
+			_ = conn.Close()
+			return fmt.Errorf("smtp new client (tls): %w", err)
+		}
+		client = c
+	} else {
+		plainConn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return fmt.Errorf("smtp dial: %w", err)
+		}
+		_ = plainConn.SetDeadline(deadline)
+		c, err := smtp.NewClient(plainConn, smtpHost)
+		if err != nil {
 			_ = plainConn.Close()
-			return fmt.Errorf("smtp new client: %w", clientErr)
+			return fmt.Errorf("smtp new client: %w", err)
 		}
-		// Require STARTTLS — fail if server doesn't support it.
-		if err := client.StartTLS(tlsConfig); err != nil {
-			_ = client.Close()
+		if err := c.StartTLS(tlsConfig); err != nil {
+			_ = c.Close()
 			return fmt.Errorf("smtp STARTTLS required but failed: %w", err)
 		}
-		if auth != nil {
-			if err := client.Auth(auth); err != nil {
-				_ = client.Close()
-				return fmt.Errorf("smtp auth: %w", err)
-			}
-		}
-		if err := client.Mail(from); err != nil {
-			_ = client.Close()
-			return fmt.Errorf("smtp mail: %w", err)
-		}
-		for _, rcpt := range recipients {
-			if err := client.Rcpt(rcpt); err != nil {
-				_ = client.Close()
-				return fmt.Errorf("smtp rcpt: %w", err)
-			}
-		}
-		wc, err := client.Data()
-		if err != nil {
-			_ = client.Close()
-			return fmt.Errorf("smtp data: %w", err)
-		}
-		if _, err := wc.Write([]byte(msg)); err != nil {
-			_ = wc.Close()
-			_ = client.Close()
-			return fmt.Errorf("smtp write: %w", err)
-		}
-		_ = wc.Close()
-		return client.Quit()
+		client = c
 	}
 
-	// Direct TLS connection succeeded (port 465).
-	client, err := smtp.NewClient(conn, smtpHost)
-	if err != nil {
-		_ = conn.Close()
-		return fmt.Errorf("smtp new client (tls): %w", err)
-	}
+	return sendSMTPMessage(client, auth, from, recipients, msg)
+}
+
+func sanitizeSMTPHeaderValue(v string) string {
+	v = strings.ReplaceAll(v, "\r", " ")
+	v = strings.ReplaceAll(v, "\n", " ")
+	return strings.TrimSpace(v)
+}
+
+func sendSMTPMessage(client *smtp.Client, auth smtp.Auth, from string, recipients []string, msg string) error {
 	if auth != nil {
 		if err := client.Auth(auth); err != nil {
 			_ = client.Close()
@@ -511,6 +539,9 @@ func (a *EmailAdapter) Deliver(ctx context.Context, destination map[string]any, 
 		_ = client.Close()
 		return fmt.Errorf("smtp write: %w", err)
 	}
-	_ = wc.Close()
+	if err := wc.Close(); err != nil {
+		_ = client.Close()
+		return fmt.Errorf("smtp close data: %w", err)
+	}
 	return client.Quit()
 }

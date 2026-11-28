@@ -89,12 +89,14 @@ func (r *ProfileRepo) GetByID(ctx context.Context, profileID id.ID) (*security_p
 func (r *ProfileRepo) GetByUserID(ctx context.Context, userID id.ID) (*security_profile.SecurityProfile, error) {
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
 
-	// Find user's profile(s) — pick the first one (or merge later).
+	// Deterministic selection: custom profiles (is_system = false) take priority
+	// over seeded system profiles, matching GetProfileBriefByUserIDs.
 	q, args, err := r.Builder().
 		Select("sp.id", "sp.code", "sp.name", "sp.description", "sp.is_system", "sp.created_at", "sp.updated_at").
 		From("auth_security_profiles sp").
 		Join("auth_user_security_profiles usp ON usp.profile_id = sp.id").
 		Where(squirrel.Eq{"usp.user_id": userID}).
+		OrderBy("sp.is_system ASC", "sp.created_at DESC", "sp.id ASC").
 		Limit(1).
 		ToSql()
 	if err != nil {
@@ -173,80 +175,73 @@ func (r *ProfileRepo) List(ctx context.Context) ([]*security_profile.SecurityPro
 // ─── Create ──────────────────────────────────────────────────────────
 
 func (r *ProfileRepo) Create(ctx context.Context, profile *security_profile.SecurityProfile) error {
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	txm := r.getTxManager(ctx)
+	return txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		querier := txm.GetQuerier(ctx)
 
-	if id.IsNil(profile.ID) {
-		profile.ID = id.New()
-	}
+		if id.IsNil(profile.ID) {
+			profile.ID = id.New()
+		}
 
-	q, args, err := r.Builder().
-		Insert("auth_security_profiles").
-		Columns("id", "code", "name", "description", "is_system").
-		Values(profile.ID, profile.Code, profile.Name, profile.Description, profile.IsSystem).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("build insert query: %w", err)
-	}
+		q, args, err := r.Builder().
+			Insert("auth_security_profiles").
+			Columns("id", "code", "name", "description", "is_system").
+			Values(profile.ID, profile.Code, profile.Name, profile.Description, profile.IsSystem).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf("build insert query: %w", err)
+		}
 
-	if _, err := querier.Exec(ctx, q, args...); err != nil {
-		return fmt.Errorf("insert profile: %w", err)
-	}
+		if _, err := querier.Exec(ctx, q, args...); err != nil {
+			return fmt.Errorf("insert profile: %w", err)
+		}
 
-	// Save dimensions
-	if err := r.saveDimensions(ctx, querier, profile); err != nil {
-		return err
-	}
-
-	// Save field policies
-	if err := r.saveFieldPolicies(ctx, querier, profile); err != nil {
-		return err
-	}
-
-	return nil
+		if err := r.saveDimensions(ctx, querier, profile); err != nil {
+			return err
+		}
+		return r.saveFieldPolicies(ctx, querier, profile)
+	})
 }
 
 // ─── Update ──────────────────────────────────────────────────────────
 
 func (r *ProfileRepo) Update(ctx context.Context, profile *security_profile.SecurityProfile) error {
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	txm := r.getTxManager(ctx)
+	return txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		querier := txm.GetQuerier(ctx)
 
-	q, args, err := r.Builder().
-		Update("auth_security_profiles").
-		Set("code", profile.Code).
-		Set("name", profile.Name).
-		Set("description", profile.Description).
-		Set("updated_at", squirrel.Expr("now()")).
-		Where(squirrel.Eq{"id": profile.ID}).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("build update query: %w", err)
-	}
+		q, args, err := r.Builder().
+			Update("auth_security_profiles").
+			Set("code", profile.Code).
+			Set("name", profile.Name).
+			Set("description", profile.Description).
+			Set("updated_at", squirrel.Expr("now()")).
+			Where(squirrel.Eq{"id": profile.ID}).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf("build update query: %w", err)
+		}
 
-	if _, err := querier.Exec(ctx, q, args...); err != nil {
-		return fmt.Errorf("update profile: %w", err)
-	}
+		if _, err := querier.Exec(ctx, q, args...); err != nil {
+			return fmt.Errorf("update profile: %w", err)
+		}
 
-	// Replace dimensions (delete + insert)
-	delQ, delArgs, _ := r.Builder().Delete("auth_security_profile_dimensions").
-		Where(squirrel.Eq{"profile_id": profile.ID}).ToSql()
-	if _, err := querier.Exec(ctx, delQ, delArgs...); err != nil {
-		return fmt.Errorf("delete old dimensions: %w", err)
-	}
-	if err := r.saveDimensions(ctx, querier, profile); err != nil {
-		return err
-	}
+		delQ, delArgs, _ := r.Builder().Delete("auth_security_profile_dimensions").
+			Where(squirrel.Eq{"profile_id": profile.ID}).ToSql()
+		if _, err := querier.Exec(ctx, delQ, delArgs...); err != nil {
+			return fmt.Errorf("delete old dimensions: %w", err)
+		}
+		if err := r.saveDimensions(ctx, querier, profile); err != nil {
+			return err
+		}
 
-	// Replace field policies (delete + insert)
-	delQ2, delArgs2, _ := r.Builder().Delete("auth_security_profile_field_policies").
-		Where(squirrel.Eq{"profile_id": profile.ID}).ToSql()
-	if _, err := querier.Exec(ctx, delQ2, delArgs2...); err != nil {
-		return fmt.Errorf("delete old field policies: %w", err)
-	}
-	if err := r.saveFieldPolicies(ctx, querier, profile); err != nil {
-		return err
-	}
-
-	return nil
+		delQ2, delArgs2, _ := r.Builder().Delete("auth_security_profile_field_policies").
+			Where(squirrel.Eq{"profile_id": profile.ID}).ToSql()
+		if _, err := querier.Exec(ctx, delQ2, delArgs2...); err != nil {
+			return fmt.Errorf("delete old field policies: %w", err)
+		}
+		return r.saveFieldPolicies(ctx, querier, profile)
+	})
 }
 
 // ─── Delete ──────────────────────────────────────────────────────────
@@ -254,9 +249,14 @@ func (r *ProfileRepo) Update(ctx context.Context, profile *security_profile.Secu
 func (r *ProfileRepo) Delete(ctx context.Context, profileID id.ID) error {
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
 
+	var isSystem bool
+	if err := querier.QueryRow(ctx, `SELECT is_system FROM auth_security_profiles WHERE id = $1`, profileID).Scan(&isSystem); err == nil && isSystem {
+		return apperror.NewBusinessRule("CANNOT_DELETE_SYSTEM_PROFILE", "Cannot delete system security profile")
+	}
+
 	q, args, err := r.Builder().
 		Delete("auth_security_profiles").
-		Where(squirrel.Eq{"id": profileID}).
+		Where(squirrel.Eq{"id": profileID, "is_system": false}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build delete query: %w", err)
@@ -271,22 +271,32 @@ func (r *ProfileRepo) Delete(ctx context.Context, profileID id.ID) error {
 // ─── AssignToUser / RemoveFromUser ───────────────────────────────────
 
 func (r *ProfileRepo) AssignToUser(ctx context.Context, userID, profileID id.ID) error {
-	querier := r.getTxManager(ctx).GetQuerier(ctx)
+	txm := r.getTxManager(ctx)
+	return txm.RunInTransaction(ctx, func(ctx context.Context) error {
+		querier := txm.GetQuerier(ctx)
 
-	q, args, err := r.Builder().
-		Insert("auth_user_security_profiles").
-		Columns("user_id", "profile_id").
-		Values(userID, profileID).
-		Suffix("ON CONFLICT (user_id, profile_id) DO NOTHING").
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("build assign query: %w", err)
-	}
+		if _, err := querier.Exec(ctx,
+			`DELETE FROM auth_user_security_profiles WHERE user_id = $1 AND profile_id <> $2`,
+			userID, profileID,
+		); err != nil {
+			return fmt.Errorf("clear previous user profiles: %w", err)
+		}
 
-	if _, err := querier.Exec(ctx, q, args...); err != nil {
-		return fmt.Errorf("assign profile to user: %w", err)
-	}
-	return nil
+		q, args, err := r.Builder().
+			Insert("auth_user_security_profiles").
+			Columns("user_id", "profile_id").
+			Values(userID, profileID).
+			Suffix("ON CONFLICT (user_id, profile_id) DO NOTHING").
+			ToSql()
+		if err != nil {
+			return fmt.Errorf("build assign query: %w", err)
+		}
+
+		if _, err := querier.Exec(ctx, q, args...); err != nil {
+			return fmt.Errorf("assign profile to user: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *ProfileRepo) RemoveFromUser(ctx context.Context, userID, profileID id.ID) error {
@@ -703,10 +713,11 @@ func (r *ProfileRepo) GetProfileBriefByUserIDs(ctx context.Context, userIDs []id
 	querier := r.getTxManager(ctx).GetQuerier(ctx)
 
 	query := `
-		SELECT usp.user_id, sp.id, sp.code, sp.name
+		SELECT DISTINCT ON (usp.user_id) usp.user_id, sp.id, sp.code, sp.name
 		FROM auth_user_security_profiles usp
 		INNER JOIN auth_security_profiles sp ON sp.id = usp.profile_id
 		WHERE usp.user_id = ANY($1)
+		ORDER BY usp.user_id, sp.is_system ASC, sp.created_at DESC, sp.id ASC
 	`
 
 	rows, err := querier.Query(ctx, query, userIDs)

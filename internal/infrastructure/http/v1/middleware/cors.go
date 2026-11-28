@@ -19,14 +19,22 @@ func CORS() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
+		c.Writer.Header().Add("Vary", "Origin")
 
-		if origin != "" && isAllowed(origin, allowedOrigins) {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID, Idempotency-Key, X-Request-ID, X-Api-Key")
-			c.Header("Access-Control-Expose-Headers", "X-Request-ID, X-Total-Count")
-			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Max-Age", "3600")
+		if origin != "" {
+			explicit, wildcard := matchOrigin(origin, allowedOrigins)
+			if explicit || wildcard {
+				if explicit {
+					c.Header("Access-Control-Allow-Origin", origin)
+					c.Header("Access-Control-Allow-Credentials", "true")
+				} else {
+					c.Header("Access-Control-Allow-Origin", "*")
+				}
+				c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+				c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID, Idempotency-Key, X-Request-ID, X-Api-Key")
+				c.Header("Access-Control-Expose-Headers", "X-Request-ID, X-Total-Count")
+				c.Header("Access-Control-Max-Age", "3600")
+			}
 		}
 
 		if c.Request.Method == http.MethodOptions {
@@ -53,11 +61,14 @@ func getOrigins() []string {
 	return origins
 }
 
-func isAllowed(origin string, allowed []string) bool {
+func matchOrigin(origin string, allowed []string) (explicit bool, wildcard bool) {
 	for _, a := range allowed {
-		if a == "*" || a == origin {
-			return true
+		switch a {
+		case origin:
+			explicit = true
+		case "*":
+			wildcard = true
 		}
 	}
-	return false
+	return explicit, wildcard
 }

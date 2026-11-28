@@ -162,8 +162,16 @@ func (h *SecurityProfileHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Fetch before delete for audit
-	profile, fetchErr := h.repo.GetByID(c.Request.Context(), profileID)
+	// Fetch before delete for system-profile guard and audit
+	profile, err := h.repo.GetByID(c.Request.Context(), profileID)
+	if err != nil {
+		h.Error(c, err)
+		return
+	}
+	if profile != nil && profile.IsSystem {
+		h.Error(c, apperror.NewBusinessRule("CANNOT_DELETE_SYSTEM_PROFILE", "Cannot delete system security profile"))
+		return
+	}
 
 	if err := h.repo.Delete(c.Request.Context(), profileID); err != nil {
 		h.Error(c, err)
@@ -175,7 +183,7 @@ func (h *SecurityProfileHandler) Delete(c *gin.Context) {
 
 	// Audit log
 	changes := map[string]any{"profileId": profileID.String()}
-	if fetchErr == nil && profile != nil {
+	if profile != nil {
 		changes["code"] = profile.Code
 		changes["name"] = profile.Name
 	}

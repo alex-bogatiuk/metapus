@@ -175,8 +175,12 @@ func registerDocumentMetadata(factory documentMetadataRegistration, reg *metadat
 	}
 
 	def.SetRefEndpoints(refEndpoints)
+	def.RLSDimensions = identity.RLSDimensions
 	if rls, ok := factory.(platform.RLSProvider); ok {
 		def.RLSDimensions = rls.RLSDimensions()
+	}
+	if insp, ok := factory.(platform.Inspectable); ok && len(def.RLSDimensions) > 0 {
+		mustValidateRLSDimensions(factory.EntityName(), insp.EntityStruct(), def.RLSDimensions)
 	}
 	if sf, ok := factory.(platform.SearchFieldsProvider); ok {
 		fields := sf.SearchableFields()
@@ -242,7 +246,7 @@ func registerReportRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fac
 	// Mount metadata under /metadata/reports/{key} for discoverability
 	metaGroup := rg.Group("/metadata/reports")
 	for _, ds := range datasets {
-		metaGroup.GET("/"+ds.Key, dsHandler.HandleMeta(ds.Key))
+		metaGroup.GET("/"+ds.Key, middleware.RequirePermission(ds.Permission), dsHandler.HandleMeta(ds.Key))
 	}
 
 	return comp

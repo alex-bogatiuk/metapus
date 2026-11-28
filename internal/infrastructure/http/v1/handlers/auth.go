@@ -904,7 +904,7 @@ func (h *AuthHandler) RegisterRoutes(public, protected *gin.RouterGroup, stepUp 
 		}
 		h.OK(c, dto.PermissionCodesResponse{Items: effectivePermissions(user)})
 	})
-	protected.POST("/step-up", h.StepUp)
+	protected.POST("/step-up", middleware.RateLimit(1, 5), h.StepUp)
 	protected.POST("/mfa/enroll/start-session", h.MFAEnrollStartSession)
 	protected.POST("/mfa/reset", middleware.RequireRole("security_admin"), requireStepUp("auth.mfa.reset"), h.ResetMFA)
 	// NOTE: These endpoints are privileged. Keep them protected from privilege escalation.

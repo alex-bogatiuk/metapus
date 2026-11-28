@@ -250,6 +250,7 @@ func run(ctx context.Context, cfg config, build Build, app configuration.Configu
 		IntegrationCatalog:         configuration.IntegrationCatalog(app),
 		ExpectedSchema:             expectedSchema,
 		RouteModules:               part.RouteModules,
+		ControlPlaneTenantID:       cfg.ControlPlaneTenantID,
 	})
 
 	// --- HTTP Server ---
@@ -287,6 +288,7 @@ func serve(ctx context.Context, server *http.Server, log *logger.Logger) error {
 	}
 
 	log.Info("shutting down server...")
+	ws.GlobalHub.Close()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {

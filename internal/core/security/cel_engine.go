@@ -69,6 +69,10 @@ const (
 
 	// cacheEvictInterval is the tick interval for the background eviction goroutine.
 	cacheEvictInterval = 10 * time.Minute
+
+	_celMaxExpressionCodePoints = 4096
+	_celRuntimeCostLimit        = 100000
+	_celInterruptCheckFrequency = 100
 )
 
 // NewPolicyEngine creates a PolicyEngine with a shared CEL environment
@@ -76,6 +80,7 @@ const (
 // from the cache (every 10 min, TTL = 1 hour). Call Stop() for graceful cleanup.
 func NewPolicyEngine() (*PolicyEngine, error) {
 	env, err := cel.NewEnv(
+		cel.ParserExpressionSizeLimit(_celMaxExpressionCodePoints),
 		cel.Variable("doc", cel.DynType),
 		cel.Variable("user", cel.DynType),
 		cel.Variable("action", cel.StringType),
@@ -147,7 +152,7 @@ func (e *PolicyEngine) Evaluate(ctx context.Context, rules []PolicyRule, action 
 	activation := e.buildActivation(ctx, action, entity)
 
 	for _, rule := range applicable {
-		result, err := e.evalRule(rule, activation)
+		result, err := e.evalRule(ctx, rule, activation)
 		if err != nil {
 			// Fail-closed: evaluation error → deny
 			return apperror.NewForbidden(
@@ -197,7 +202,7 @@ func (e *PolicyEngine) EvaluateForList(ctx context.Context, rules []PolicyRule, 
 	result := make([]any, 0, len(entities))
 	for _, ent := range entities {
 		entityToCELMapReuse(ent, docMap)
-		if e.isAllowedByRules(applicable, activation) {
+		if e.isAllowedByRules(ctx, applicable, activation) {
 			result = append(result, ent)
 		}
 	}
@@ -205,9 +210,9 @@ func (e *PolicyEngine) EvaluateForList(ctx context.Context, rules []PolicyRule, 
 }
 
 // isAllowedByRules checks if the activation is allowed by the given sorted rules.
-func (e *PolicyEngine) isAllowedByRules(rules []PolicyRule, activation map[string]any) bool {
+func (e *PolicyEngine) isAllowedByRules(ctx context.Context, rules []PolicyRule, activation map[string]any) bool {
 	for _, rule := range rules {
-		result, err := e.evalRule(rule, activation)
+		result, err := e.evalRule(ctx, rule, activation)
 		if err != nil {
 			return false // fail-closed
 		}
@@ -235,13 +240,13 @@ func (e *PolicyEngine) buildActivation(ctx context.Context, action string, entit
 }
 
 // evalRule compiles (or retrieves from cache) and evaluates a single rule.
-func (e *PolicyEngine) evalRule(rule PolicyRule, activation map[string]any) (bool, error) {
+func (e *PolicyEngine) evalRule(ctx context.Context, rule PolicyRule, activation map[string]any) (bool, error) {
 	program, err := e.getOrCompile(rule)
 	if err != nil {
 		return false, err
 	}
 
-	out, _, err := program.Eval(activation)
+	out, _, err := program.ContextEval(ctx, activation)
 	if err != nil {
 		return false, fmt.Errorf("eval: %w", err)
 	}
@@ -271,7 +276,11 @@ func (e *PolicyEngine) getOrCompile(rule PolicyRule) (cel.Program, error) {
 		return nil, fmt.Errorf("compile: %w", issues.Err())
 	}
 
-	program, err := e.env.Program(ast)
+	program, err := e.env.Program(
+		ast,
+		cel.CostLimit(_celRuntimeCostLimit),
+		cel.InterruptCheckFrequency(_celInterruptCheckFrequency),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("program: %w", err)
 	}
@@ -294,12 +303,18 @@ func (e *PolicyEngine) EvalExpression(expression string, activation map[string]a
 		return false, fmt.Errorf("compile: %w", issues.Err())
 	}
 
-	program, err := e.env.Program(ast)
+	program, err := e.env.Program(
+		ast,
+		cel.CostLimit(_celRuntimeCostLimit),
+		cel.InterruptCheckFrequency(_celInterruptCheckFrequency),
+	)
 	if err != nil {
 		return false, fmt.Errorf("program: %w", err)
 	}
 
-	out, _, err := program.Eval(activation)
+	evalCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, _, err := program.ContextEval(evalCtx, activation)
 	if err != nil {
 		return false, fmt.Errorf("eval: %w", err)
 	}

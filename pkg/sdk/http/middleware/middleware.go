@@ -29,6 +29,9 @@ const (
 // command. Authentication and merchant-scope middleware must run before it.
 func CommandIdempotency(required bool) gin.HandlerFunc { return core.CommandIdempotency(required) }
 
+// RateLimit applies per-IP token-bucket rate limiting.
+func RateLimit(rps float64, burst int) gin.HandlerFunc { return core.RateLimit(rps, burst) }
+
 // ErrorHandler middleware transforms errors into consistent JSON responses.
 // Hides internal errors from clients while logging full details.
 func ErrorHandler() gin.HandlerFunc { return core.ErrorHandler() }

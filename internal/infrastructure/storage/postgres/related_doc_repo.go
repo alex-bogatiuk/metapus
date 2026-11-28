@@ -233,15 +233,21 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 	for _, res := range resolveResults {
 		resolvedMap[treeKey{entityName: res.RefType, entityID: res.RefID}] = res
 	}
-	for _, key := range allKeys {
+	isAuthorizedDoc := func(key treeKey) bool {
 		res, ok := resolvedMap[key]
-		if !ok || res.EntityType != string(metadata.TypeDocument) || res.Presentation == "" {
-			return nil, fmt.Errorf("resolve related document %s %s: document not found", key.entityName, key.entityID)
-		}
+		return ok && res.EntityType == string(metadata.TypeDocument) && res.Presentation != ""
 	}
 
-	// ── Step 4: Convert rawTreeNode → RelatedDocTreeNode ──
+	// ── Step 4: Convert rawTreeNode → RelatedDocTreeNode (pruning unauthorized nodes) ──
 	currentKey := treeKey{entityName: req.EntityName, entityID: req.EntityID}
+	if !isAuthorizedDoc(currentKey) {
+		return nil, fmt.Errorf("resolve related document %s %s: document not found", currentKey.entityName, currentKey.entityID)
+	}
+
+	visibleRoot := highestAuthorizedAncestor(root, currentKey, isAuthorizedDoc)
+	if visibleRoot == nil {
+		return nil, fmt.Errorf("resolve related document %s %s: document not found", currentKey.entityName, currentKey.entityID)
+	}
 
 	var buildNode func(raw *rawTreeNode) domain.RelatedDocTreeNode
 	buildNode = func(raw *rawTreeNode) domain.RelatedDocTreeNode {
@@ -263,26 +269,34 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 		}
 
 		if len(raw.children) > 0 {
-			// Sort children by date for stable output
-			sort.Slice(raw.children, func(i, j int) bool {
-				ri := resolvedMap[raw.children[i].key]
-				rj := resolvedMap[raw.children[j].key]
-				if ri.Date.Equal(rj.Date) {
-					return ri.Number < rj.Number
+			authorizedChildren := make([]*rawTreeNode, 0, len(raw.children))
+			for _, child := range raw.children {
+				if isAuthorizedDoc(child.key) {
+					authorizedChildren = append(authorizedChildren, child)
 				}
-				return ri.Date.Before(rj.Date)
-			})
+			}
+			if len(authorizedChildren) > 0 {
+				// Sort children by date for stable output
+				sort.Slice(authorizedChildren, func(i, j int) bool {
+					ri := resolvedMap[authorizedChildren[i].key]
+					rj := resolvedMap[authorizedChildren[j].key]
+					if ri.Date.Equal(rj.Date) {
+						return ri.Number < rj.Number
+					}
+					return ri.Date.Before(rj.Date)
+				})
 
-			node.Children = make([]domain.RelatedDocTreeNode, len(raw.children))
-			for i, child := range raw.children {
-				node.Children[i] = buildNode(child)
+				node.Children = make([]domain.RelatedDocTreeNode, len(authorizedChildren))
+				for i, child := range authorizedChildren {
+					node.Children[i] = buildNode(child)
+				}
 			}
 		}
 
 		return node
 	}
 
-	treeRoot := buildNode(root)
+	treeRoot := buildNode(visibleRoot)
 
 	// ── Step 5: FK-references NOT in the basis chain (flat groups) ──
 	// Batch-resolve all FK refs in a single call (instead of N individual calls).
@@ -398,6 +412,45 @@ func (r *RelatedDocRepo) FindRelatedDocuments(ctx context.Context, req domain.Re
 	return &domain.RelatedDocumentsResult{
 		Tree:       &treeRoot,
 		FlatGroups: flatGroups,
-		Total:      totalNodes + len(flatGroups),
+		Total:      countVisibleTreeNodes(treeRoot) + len(flatGroups),
 	}, nil
+}
+
+// highestAuthorizedAncestor finds the path from root to target and returns the
+// highest ancestor on a contiguous chain of authorized nodes leading to target.
+func highestAuthorizedAncestor(root *rawTreeNode, target treeKey, isAuthorized func(treeKey) bool) *rawTreeNode {
+	var path []*rawTreeNode
+	var findPath func(node *rawTreeNode) bool
+	findPath = func(node *rawTreeNode) bool {
+		path = append(path, node)
+		if node.key == target {
+			return true
+		}
+		for _, child := range node.children {
+			if findPath(child) {
+				return true
+			}
+		}
+		path = path[:len(path)-1]
+		return false
+	}
+	if !findPath(root) || len(path) == 0 {
+		return nil
+	}
+	best := path[len(path)-1]
+	for i := len(path) - 2; i >= 0; i-- {
+		if !isAuthorized(path[i].key) {
+			break
+		}
+		best = path[i]
+	}
+	return best
+}
+
+func countVisibleTreeNodes(node domain.RelatedDocTreeNode) int {
+	n := 1
+	for _, child := range node.Children {
+		n += countVisibleTreeNodes(child)
+	}
+	return n
 }

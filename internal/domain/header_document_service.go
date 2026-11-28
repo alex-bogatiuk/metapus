@@ -170,10 +170,21 @@ func (s *BaseHeaderDocumentService[T]) checkCELPolicy(ctx context.Context, actio
 // Create creates a new document and its table parts in a transaction.
 func (s *BaseHeaderDocumentService[T]) Create(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
+		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
+			if err := security.ValidateCreate(doc, writePolicy); err != nil {
+				return err
+			}
+		}
 		if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
 			return err
 		}
 		if err := s.ResolveCurrency(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
 			return err
 		}
 		if err := doc.Validate(ctx); err != nil {
@@ -240,6 +251,9 @@ func (s *BaseHeaderDocumentService[T]) GetByIDForUpdate(ctx context.Context, doc
 // Update updates a document and replaces its table parts (must be unposted).
 func (s *BaseHeaderDocumentService[T]) Update(ctx context.Context, doc T) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
 		if err := s.checkRLSAccess(ctx, doc); err != nil {
 			return err
 		}
@@ -252,7 +266,7 @@ func (s *BaseHeaderDocumentService[T]) Update(ctx context.Context, doc T) error 
 			return err
 		}
 		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
-			if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
+			if err := validateFieldWrite(ctx, s.EntityName, oldDoc, doc, writePolicy); err != nil {
 				return err
 			}
 		}
@@ -267,6 +281,12 @@ func (s *BaseHeaderDocumentService[T]) Update(ctx context.Context, doc T) error 
 		}
 
 		if err := s.hooks.RunBeforeUpdate(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
 			return err
 		}
 		if err := doc.CanModify(); err != nil {
@@ -318,6 +338,9 @@ func (s *BaseHeaderDocumentService[T]) Delete(ctx context.Context, docID id.ID) 
 // SetDeletionMark sets or clears the deletion mark on a document.
 func (s *BaseHeaderDocumentService[T]) SetDeletionMark(ctx context.Context, docID id.ID, marked bool) error {
 	return runDocumentMutation(ctx, s.GetTxManager, func(ctx context.Context) error {
+		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
+			return err
+		}
 		doc, err := s.GetByID(ctx, docID)
 		if err != nil {
 			return err
@@ -404,13 +427,38 @@ func (s *BaseHeaderDocumentService[T]) PostAndSave(ctx context.Context, doc T) e
 		if err := security.GetDataScope(ctx).CanMutate(); err != nil {
 			return err
 		}
+		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
+			if doc.GetVersion() <= 1 {
+				if err := security.ValidateCreate(doc, writePolicy); err != nil {
+					return err
+				}
+			} else {
+				oldDoc, err := s.getStored(ctx, doc.GetID())
+				if err != nil {
+					return fmt.Errorf("fetch existing document: %w", err)
+				}
+				if err := validateFieldWrite(ctx, s.EntityName, oldDoc, doc, writePolicy); err != nil {
+					return err
+				}
+			}
+		}
 		if err := s.hooks.RunBeforeCreate(ctx, doc); err != nil {
 			return err
 		}
 		if err := s.ResolveCurrency(ctx, doc); err != nil {
 			return err
 		}
-		if err := s.checkCELPolicy(ctx, "create", doc); err != nil {
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+		saveAction := "create"
+		if doc.GetVersion() > 1 {
+			saveAction = "update"
+		}
+		if err := s.checkCELPolicy(ctx, saveAction, doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "post", doc); err != nil {
 			return err
 		}
 
@@ -463,7 +511,7 @@ func (s *BaseHeaderDocumentService[T]) UpdateAndRepost(ctx context.Context, doc 
 			return err
 		}
 		if writePolicy := security.GetFieldPolicy(ctx, s.EntityName, "write"); writePolicy != nil {
-			if err := security.ValidateWrite(oldDoc, doc, writePolicy); err != nil {
+			if err := validateFieldWrite(ctx, s.EntityName, oldDoc, doc, writePolicy); err != nil {
 				return err
 			}
 		}
@@ -478,6 +526,15 @@ func (s *BaseHeaderDocumentService[T]) UpdateAndRepost(ctx context.Context, doc 
 			return err
 		}
 		if err := s.ResolveCurrency(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkRLSAccess(ctx, doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "update", doc); err != nil {
+			return err
+		}
+		if err := s.checkCELPolicy(ctx, "post", doc); err != nil {
 			return err
 		}
 
@@ -496,6 +553,11 @@ func (s *BaseHeaderDocumentService[T]) UpdateAndRepost(ctx context.Context, doc 
 
 // List retrieves documents with cursor-based pagination.
 func (s *BaseHeaderDocumentService[T]) List(ctx context.Context, filter ListFilter) (CursorListResult[T], error) {
+	if readPolicy := security.GetFieldPolicy(ctx, s.EntityName, "read"); readPolicy != nil {
+		if err := security.ValidateListQueryReadPolicy[T](readPolicy, filter.OrderBy, "date", filter.Search, []string{"number"}, filterFieldNames(filter)); err != nil {
+			return CursorListResult[T]{}, err
+		}
+	}
 	if filter.DataScope == nil {
 		filter.DataScope = security.GetDataScope(ctx)
 	}
@@ -515,6 +577,11 @@ func (s *BaseHeaderDocumentService[T]) List(ctx context.Context, filter ListFilt
 
 // ListIDs returns all document IDs matching the filter.
 func (s *BaseHeaderDocumentService[T]) ListIDs(ctx context.Context, filter ListFilter, maxIDs int) ([]id.ID, error) {
+	if readPolicy := security.GetFieldPolicy(ctx, s.EntityName, "read"); readPolicy != nil {
+		if err := security.ValidateListQueryReadPolicy[T](readPolicy, filter.OrderBy, "date", filter.Search, []string{"number"}, filterFieldNames(filter)); err != nil {
+			return nil, err
+		}
+	}
 	if filter.DataScope == nil {
 		filter.DataScope = security.GetDataScope(ctx)
 	}

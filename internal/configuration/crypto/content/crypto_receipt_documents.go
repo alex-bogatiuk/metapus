@@ -68,9 +68,6 @@ func (r *CryptoMerchantCreditRegistration) EntityLabel() string {
 func (r *CryptoMerchantCreditRegistration) EntityPresentation() metadata.Presentation {
 	return metadata.Presentation{Singular: "Ручное зачисление мерчанту", Plural: "Ручные зачисления мерчантам", Genitive: "ручного зачисления"}
 }
-func (r *CryptoMerchantCreditRegistration) RLSDimensions() map[string]string {
-	return map[string]string{"merchant": "merchant_id"}
-}
 func (r *CryptoMerchantCreditRegistration) DocumentCapabilities() metadata.DocumentCapabilities {
 	return readOnlyCryptoDocument
 }

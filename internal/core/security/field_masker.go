@@ -206,12 +206,67 @@ func extractFieldMetaWithPrefix(t reflect.Type, prefix []int) []fieldMeta {
 	return result
 }
 
+var _createEnvelopeFields = map[string]struct{}{
+	"id":            {},
+	"version":       {},
+	"created_at":    {},
+	"updated_at":    {},
+	"_deleted_at":   {},
+	"_txid":         {},
+	"deletion_mark": {},
+	"posted":        {},
+	"is_folder":     {},
+	"date":          {},
+	"created_by":    {},
+	"updated_by":    {},
+}
+
+var _tablePartEnvelopeFields = map[string]struct{}{
+	"line_id":     {},
+	"id":          {},
+	"line_no":     {},
+	"document_id": {},
+}
+
+// ValidateCreate checks that a newly constructed entity does not populate any
+// header or table-part fields forbidden by a "write" FieldPolicy.
+func ValidateCreate(newEntity any, policy *FieldPolicy) error {
+	if policy == nil {
+		return nil
+	}
+	v := derefStruct(newEntity)
+	if !v.IsValid() {
+		return nil
+	}
+
+	for _, fm := range globalFieldCache.getFields(v.Type()) {
+		fieldName := fm.DBName
+		if fieldName == "" {
+			fieldName = fm.JSONName
+		}
+		if fieldName == "" {
+			continue
+		}
+		if _, isEnvelope := _createEnvelopeFields[fieldName]; isEnvelope {
+			continue
+		}
+		fieldVal := v.FieldByIndex(fm.Index)
+		if fieldVal.IsZero() {
+			continue
+		}
+		if !policy.IsFieldAllowed(fieldName) {
+			return apperror.NewForbidden(
+				fmt.Sprintf("field '%s' is read-only", fieldName),
+			).WithDetail("field", fieldName)
+		}
+	}
+
+	return validateTablePartsWrite(nil, newEntity, policy)
+}
+
 // ValidateWrite compares oldEntity and newEntity, checking if any changed fields
-// violate the given FieldPolicy. Returns apperror.Forbidden if a restricted field was modified.
-//
-// Both entities must be the same type (or pointers to the same type).
-// Comparison is done via fmt.Sprintf("%v") for simplicity — sufficient for
-// primitive types (string, int, ID, bool) used in document headers.
+// (both header fields and tabular sections) violate the given FieldPolicy.
+// Returns apperror.Forbidden if a restricted field was modified.
 func ValidateWrite(oldEntity, newEntity any, policy *FieldPolicy) error {
 	if policy == nil {
 		return nil // no policy = no restrictions
@@ -237,6 +292,288 @@ func ValidateWrite(oldEntity, newEntity any, policy *FieldPolicy) error {
 		}
 	}
 
+	return validateTablePartsWrite(oldEntity, newEntity, policy)
+}
+
+func derefStruct(entity any) reflect.Value {
+	if entity == nil {
+		return reflect.Value{}
+	}
+	v := reflect.ValueOf(entity)
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return reflect.Value{}
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return reflect.Value{}
+	}
+	return v
+}
+
+func validateTablePartsWrite(oldEntity, newEntity any, policy *FieldPolicy) error {
+	if policy == nil || len(policy.TableParts) == 0 {
+		return nil
+	}
+	newVal := derefStruct(newEntity)
+	if !newVal.IsValid() {
+		return nil
+	}
+	oldVal := derefStruct(oldEntity)
+
+	for _, part := range globalFieldCache.getTableParts(newVal.Type()) {
+		if _, hasPart := policy.TableParts[part.PartName]; !hasPart {
+			continue
+		}
+		newSlice := newVal.FieldByIndex(part.Index)
+		if newSlice.Kind() != reflect.Slice || newSlice.Len() == 0 {
+			continue
+		}
+
+		elemFields := globalFieldCache.getFields(part.ElemType)
+		lines := newLineMatcher(part, elemFields, oldVal, newVal.Type())
+		for i := range newSlice.Len() {
+			newElem := derefStruct(newSlice.Index(i).Interface())
+			if !newElem.IsValid() {
+				continue
+			}
+			oldElem, hasOld := lines.match(i, newElem)
+
+			for _, fm := range elemFields {
+				colName := fieldColumn(fm)
+				if colName == "" {
+					continue
+				}
+				newField := newElem.FieldByIndex(fm.Index)
+				if hasOld {
+					oldField := oldElem.FieldByIndex(fm.Index)
+					if reflect.DeepEqual(oldField.Interface(), newField.Interface()) {
+						continue
+					}
+				} else {
+					if _, isEnv := _tablePartEnvelopeFields[colName]; isEnv || newField.IsZero() {
+						continue
+					}
+				}
+				if !policy.IsTablePartFieldAllowed(part.PartName, colName) {
+					fullName := part.PartName + "." + colName
+					return apperror.NewForbidden(
+						fmt.Sprintf("field '%s' is read-only", fullName),
+					).WithDetail("field", fullName)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func fieldColumn(fm fieldMeta) string {
+	if fm.DBName != "" {
+		return fm.DBName
+	}
+	return fm.JSONName
+}
+
+// lineMatcher pairs each submitted table-part row with the stored row it
+// edits: by line key when the stored rows carry one, by position otherwise.
+type lineMatcher struct {
+	key   *fieldMeta
+	byKey map[any]reflect.Value
+	old   reflect.Value
+}
+
+func newLineMatcher(part tablePartMeta, elemFields []fieldMeta, oldVal reflect.Value, newType reflect.Type) lineMatcher {
+	var m lineMatcher
+	for i := range elemFields {
+		name := fieldColumn(elemFields[i])
+		if name == "line_id" || name == "id" || elemFields[i].JSONName == "lineId" {
+			m.key = &elemFields[i]
+			break
+		}
+	}
+	m.byKey = make(map[any]reflect.Value)
+	if !oldVal.IsValid() || oldVal.Type() != newType {
+		return m
+	}
+	m.old = oldVal.FieldByIndex(part.Index)
+	if m.key == nil || m.old.Kind() != reflect.Slice {
+		return m
+	}
+	for i := range m.old.Len() {
+		elem := derefStruct(m.old.Index(i).Interface())
+		if !elem.IsValid() {
+			continue
+		}
+		keyField := elem.FieldByIndex(m.key.Index)
+		if !keyField.IsZero() && keyField.Type().Comparable() {
+			m.byKey[keyField.Interface()] = elem
+		}
+	}
+	return m
+}
+
+// match returns the stored row that submitted row i (newElem) edits.
+func (m lineMatcher) match(i int, newElem reflect.Value) (reflect.Value, bool) {
+	if m.key != nil {
+		keyField := newElem.FieldByIndex(m.key.Index)
+		if !keyField.IsZero() && keyField.Type().Comparable() {
+			if elem, ok := m.byKey[keyField.Interface()]; ok {
+				return elem, true
+			}
+		}
+	}
+	if len(m.byKey) == 0 && m.old.IsValid() && m.old.Kind() == reflect.Slice && i < m.old.Len() {
+		elem := derefStruct(m.old.Index(i).Interface())
+		return elem, elem.IsValid()
+	}
+	return reflect.Value{}, false
+}
+
+// RestoreMaskedFields puts back, into an edited entity, the stored values of
+// the fields its editor can neither read nor write. MaskForRead sent those
+// fields as zero values, and a client saving the form returns them so: left
+// as they come, the save would either fail ValidateWrite or, unchecked, wipe
+// the hidden value. Only zero values are restored, so an attempt to set such
+// a field to something else still reaches ValidateWrite and is refused.
+func RestoreMaskedFields(oldEntity, newEntity any, readPolicy, writePolicy *FieldPolicy) {
+	if readPolicy == nil || writePolicy == nil {
+		return
+	}
+	newVal := derefStruct(newEntity)
+	oldVal := derefStruct(oldEntity)
+	if !newVal.IsValid() || !oldVal.IsValid() || oldVal.Type() != newVal.Type() {
+		return
+	}
+
+	for _, fm := range globalFieldCache.getFields(newVal.Type()) {
+		name := fieldColumn(fm)
+		if name == "" || readPolicy.IsFieldAllowed(name) || writePolicy.IsFieldAllowed(name) {
+			continue
+		}
+		restoreZero(newVal.FieldByIndex(fm.Index), oldVal.FieldByIndex(fm.Index))
+	}
+
+	for _, part := range globalFieldCache.getTableParts(newVal.Type()) {
+		newSlice := newVal.FieldByIndex(part.Index)
+		if newSlice.Kind() != reflect.Slice || newSlice.Len() == 0 {
+			continue
+		}
+		elemFields := globalFieldCache.getFields(part.ElemType)
+		var hidden []fieldMeta
+		for _, fm := range elemFields {
+			col := fieldColumn(fm)
+			if col != "" && !readPolicy.IsTablePartFieldAllowed(part.PartName, col) &&
+				!writePolicy.IsTablePartFieldAllowed(part.PartName, col) {
+				hidden = append(hidden, fm)
+			}
+		}
+		if len(hidden) == 0 {
+			continue
+		}
+		lines := newLineMatcher(part, elemFields, oldVal, newVal.Type())
+		for i := range newSlice.Len() {
+			newElem := newSlice.Index(i)
+			for newElem.Kind() == reflect.Pointer && !newElem.IsNil() {
+				newElem = newElem.Elem()
+			}
+			if newElem.Kind() != reflect.Struct {
+				continue
+			}
+			oldElem, ok := lines.match(i, newElem)
+			if !ok {
+				continue
+			}
+			for _, fm := range hidden {
+				restoreZero(newElem.FieldByIndex(fm.Index), oldElem.FieldByIndex(fm.Index))
+			}
+		}
+	}
+}
+
+func restoreZero(dst, src reflect.Value) {
+	if dst.CanSet() && dst.IsZero() && dst.Type() == src.Type() {
+		dst.Set(src)
+	}
+}
+
+// ValidateListQueryReadPolicy ensures that sorting and filter push-down on entity
+// lists cannot be used as an oracle to probe columns masked by a "read" FieldPolicy.
+func ValidateListQueryReadPolicy[T any](policy *FieldPolicy, orderBy, defaultOrderCol, search string, searchCols, filterFields []string) error {
+	if policy == nil {
+		return nil
+	}
+
+	tablePartSet := make(map[string]struct{})
+	t := reflect.TypeFor[T]()
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() == reflect.Struct {
+		for _, part := range globalFieldCache.getTableParts(t) {
+			tablePartSet[part.PartName] = struct{}{}
+		}
+	}
+
+	checkSearch := func() error {
+		for _, col := range searchCols {
+			if !policy.IsFieldAllowed(col) {
+				return apperror.NewForbidden(
+					fmt.Sprintf("searching by restricted field '%s' is not allowed", col),
+				).WithDetail("field", col)
+			}
+		}
+		return nil
+	}
+
+	if strings.TrimSpace(search) != "" {
+		if err := checkSearch(); err != nil {
+			return err
+		}
+	}
+
+	sortCol := strings.TrimSpace(orderBy)
+	sortCol = strings.TrimPrefix(strings.TrimPrefix(sortCol, "-"), "+")
+	if sortCol != "" && sortCol != "id" && sortCol != defaultOrderCol {
+		if !policy.IsFieldAllowed(sortCol) {
+			return apperror.NewForbidden(
+				fmt.Sprintf("sorting by restricted field '%s' is not allowed", sortCol),
+			).WithDetail("field", sortCol)
+		}
+	}
+
+	for _, rawField := range filterFields {
+		if rawField == "__search" {
+			if err := checkSearch(); err != nil {
+				return err
+			}
+			continue
+		}
+		if prefix, subfield, hasDot := strings.Cut(rawField, "."); hasDot {
+			if _, isPart := tablePartSet[prefix]; isPart {
+				if !policy.IsTablePartFieldAllowed(prefix, subfield) {
+					return apperror.NewForbidden(
+						fmt.Sprintf("filtering by restricted field '%s' is not allowed", rawField),
+					).WithDetail("field", rawField)
+				}
+				continue
+			}
+			if !policy.IsFieldAllowed(prefix) {
+				return apperror.NewForbidden(
+					fmt.Sprintf("filtering by restricted field '%s' is not allowed", prefix),
+				).WithDetail("field", prefix)
+			}
+			continue
+		}
+		if rawField == "id" {
+			continue
+		}
+		if !policy.IsFieldAllowed(rawField) {
+			return apperror.NewForbidden(
+				fmt.Sprintf("filtering by restricted field '%s' is not allowed", rawField),
+			).WithDetail("field", rawField)
+		}
+	}
 	return nil
 }
 

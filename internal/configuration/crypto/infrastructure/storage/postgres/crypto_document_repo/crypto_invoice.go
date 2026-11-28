@@ -22,14 +22,12 @@ type CryptoInvoiceRepo struct {
 }
 
 func NewCryptoInvoiceRepo() *CryptoInvoiceRepo {
-	repo := &CryptoInvoiceRepo{
+	return &CryptoInvoiceRepo{
 		BaseDocumentRepo: document_repo.NewDocumentRepoForDefinition[*crypto_invoice.CryptoInvoice](crypto_invoice.Definition,
 			postgres.ExtractDBColumns[crypto_invoice.CryptoInvoice](),
 			func() *crypto_invoice.CryptoInvoice { return &crypto_invoice.CryptoInvoice{} },
 		),
 	}
-	repo.RegisterRLSDimension("merchant", "merchant_id")
-	return repo
 }
 
 func (r *CryptoInvoiceRepo) GetByIDForUpdate(ctx context.Context, docID id.ID) (*crypto_invoice.CryptoInvoice, error) {

@@ -194,9 +194,8 @@ func WriteExportXLSX(c *gin.Context, title string, req dto.ExportListRequest, dt
 	}
 
 	// Set response headers for XLSX download
-	filename := fmt.Sprintf("%s.xlsx", title)
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Content-Disposition", contentDisposition(sanitizeFilename(title), "xlsx"))
 	c.Status(http.StatusOK)
 
 	if err := listexport.XLSX(c.Writer, title, columns, rows); err != nil {
@@ -257,10 +256,9 @@ func ExportTablePart(c *gin.Context) {
 
 	// Title for the XLSX file: "DocumentTitle — TablePartTitle"
 	xlsxTitle := fmt.Sprintf("%s — %s", req.DocumentTitle, req.Title)
-	filename := fmt.Sprintf("%s.xlsx", xlsxTitle)
 
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Content-Disposition", contentDisposition(sanitizeFilename(xlsxTitle), "xlsx"))
 	c.Status(http.StatusOK)
 
 	if err := listexport.XLSX(c.Writer, xlsxTitle, columns, req.Rows); err != nil {

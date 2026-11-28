@@ -7,7 +7,8 @@ const DocumentType = "CryptoMerchantCredit"
 var Definition = entity.Definition{
 	Key: "crypto_merchant_credit", Name: DocumentType,
 	Route: "crypto-merchant-credit", Table: "doc_crypto_merchant_credits", Kind: entity.DocumentKind,
-	Number: entity.NumberRule{Prefix: "CMC"},
+	Number:        entity.NumberRule{Prefix: "CMC"},
+	RLSDimensions: map[string]string{"merchant": "merchant_id"},
 }
 
 func (CryptoMerchantCredit) EntityDefinition() entity.Definition { return Definition }
