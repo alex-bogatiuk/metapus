@@ -123,7 +123,8 @@ func (r *AutoCatalog[T, PT]) HTTPContracts() spec.Bundle {
 
 func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 	def := r.EntityDefinition()
-	shape := autoShapeFor[T]()
+	specs := r.extensionSpecs()
+	shape := extendAutoShape(autoShapeFor[T](), specs)
 	var service *domain.CatalogService[PT]
 	if r.service != nil {
 		service = r.service(deps)
@@ -135,9 +136,11 @@ func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 	for _, fn := range r.configure {
 		fn(service)
 	}
+	r.installExtensions(service)
 	domain.NewEventLogCatalogService(service, def.Key, deps.EventWriter)
 	tables := r.referenceTables(shape)
 	resolveRefs, mapWithRefs := autoReferenceMappers[PT](shape, tables)
+	resolveRefs, mapWithRefs = maskedExtensionMappers(def.Key, specs, shape, tables, resolveRefs, mapWithRefs)
 	handler := handlers.NewCatalogHandler(deps.BaseHandler, handlers.CatalogHandlerConfig[PT, AutoCreate[T], AutoUpdate[T]]{
 		Service:          service,
 		EntityName:       def.Key,
@@ -153,9 +156,12 @@ func (r *AutoCatalog[T, PT]) Build(deps CatalogDeps) CatalogRouteHandler {
 			reflect.ValueOf(existing).Elem().FieldByName("Version").SetInt(req.value.FieldByName("Version").Int())
 			return existing
 		},
-		MapToDTO: func(model PT) any { return shape.response(model, tables, nil) },
+		MapToDTO:     func(model PT) any { return shape.response(model, tables, nil) },
+		NewCreateDTO: func() AutoCreate[T] { return AutoCreate[T]{shape: shape} },
+		NewUpdateDTO: func() AutoUpdate[T] { return AutoUpdate[T]{shape: shape} },
 	})
 	im := newImporter[T, PT](def, shape, service, tables)
+	labelExtensionImports(im, shape)
 	return importCatalogHandler[PT, AutoCreate[T], AutoUpdate[T]]{CatalogHandler: handler, preview: im.preview, run: im.run}
 }
 

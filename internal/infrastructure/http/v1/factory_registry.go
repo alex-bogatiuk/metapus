@@ -48,6 +48,7 @@ type FactoryRegistry struct {
 	information      []information.Declared
 	basis            []BasisRule
 	datasets         []*schema.Dataset
+	extensions       []ExtensionRegistration
 }
 
 // NewFactoryRegistry creates an empty registry.
@@ -231,6 +232,9 @@ func (r *FactoryRegistry) HTTPContracts() spec.Bundle {
 		add(registration)
 	}
 	for _, registration := range r.CustomDocuments() {
+		add(registration)
+	}
+	for _, registration := range r.Extensions() {
 		add(registration)
 	}
 	return result

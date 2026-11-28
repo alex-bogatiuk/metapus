@@ -36,6 +36,11 @@ type BaseEntity struct {
 
 	// CDCFields contains Change Data Capture system fields (_txid, _deleted_at)
 	CDCFields
+
+	// Extensions holds the fields add-ons declare for this object
+	// (registry.Extend), kept in their own tables one to one with the
+	// object's; the platform reads and writes them with the object.
+	Extensions Extensions `db:"-" json:"-"`
 }
 
 // NewBaseEntity creates a new BaseEntity with generated ID.

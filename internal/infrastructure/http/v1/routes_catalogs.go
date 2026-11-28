@@ -27,6 +27,8 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		CurrencyCacheInvalidator: currencyInvalidator,
 	}
 
+	factoryReg.checkExtensionTargets()
+
 	// Build refEndpoints from factory declarations
 	refEndpoints := map[string]string{
 		"parent": "", // parent is self-referencing, skip
@@ -68,6 +70,7 @@ func registerCatalogRoutes(rg *gin.RouterGroup, cfg RouterConfig, factoryReg *Fa
 		var def metadata.EntityDef
 		if insp, ok := factory.(platform.Inspectable); ok {
 			def = metadata.Inspect(insp.EntityStruct(), factory.EntityName(), metadata.TypeCatalog)
+			appendExtensionMetadata(&def, factory)
 		} else {
 			def = metadata.EntityDef{Name: factory.EntityName(), Type: metadata.TypeCatalog}
 		}

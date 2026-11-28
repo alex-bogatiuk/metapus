@@ -32,6 +32,10 @@ type RouteContract struct {
 	Request, Response   string
 	OptionalRequest     bool
 	ResponseVariants    []string
+	// Extends marks an add-on's part of a route of a lower layer (an
+	// extension of a catalog): its request and response contracts are the
+	// fields the add-on adds, which the frontend merges into the route's.
+	Extends bool
 }
 
 type Bundle struct {

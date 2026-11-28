@@ -25,6 +25,8 @@ type CatalogHandler[T entity.CatalogEntity, CreateDTO any, UpdateDTO any] struct
 	mapCreateDTO func(dto CreateDTO) T
 	mapUpdateDTO func(dto UpdateDTO, existing T) T
 	mapToDTO     func(entity T) any
+	newCreateDTO func() CreateDTO
+	newUpdateDTO func() UpdateDTO
 
 	// ResolveRefs batch-resolves FK → display names. Returns an opaque refs bag.
 	// If nil, no resolution is performed (same pattern as BaseDocumentHandler).
@@ -39,6 +41,11 @@ type CatalogHandlerConfig[T entity.CatalogEntity, CreateDTO any, UpdateDTO any] 
 	MapCreateDTO func(dto CreateDTO) T
 	MapUpdateDTO func(dto UpdateDTO, existing T) T
 	MapToDTO     func(entity T) any
+
+	// NewCreateDTO and NewUpdateDTO prepare the request body before it is
+	// decoded, e.g. with the shape it decodes into; zero values otherwise.
+	NewCreateDTO func() CreateDTO
+	NewUpdateDTO func() UpdateDTO
 
 	// ResolveRefs batch-resolves FK → display names. Returns an opaque refs bag.
 	// If nil, no resolution is performed. Called after FLS projection, before DTO mapping.
@@ -61,6 +68,8 @@ func NewCatalogHandler[T entity.CatalogEntity, CreateDTO any, UpdateDTO any](
 		mapCreateDTO:     cfg.MapCreateDTO,
 		mapUpdateDTO:     cfg.MapUpdateDTO,
 		mapToDTO:         cfg.MapToDTO,
+		newCreateDTO:     cfg.NewCreateDTO,
+		newUpdateDTO:     cfg.NewUpdateDTO,
 		resolveRefs:      cfg.ResolveRefs,
 		mapToDTOWithRefs: cfg.MapToDTOWithRefs,
 	}
@@ -153,6 +162,9 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	var req CreateDTO
+	if h.newCreateDTO != nil {
+		req = h.newCreateDTO()
+	}
 	if !h.BindJSON(c, &req) {
 		return
 	}
@@ -187,6 +199,9 @@ func (h *CatalogHandler[T, CreateDTO, UpdateDTO]) Update(c *gin.Context) {
 	}
 
 	var req UpdateDTO
+	if h.newUpdateDTO != nil {
+		req = h.newUpdateDTO()
+	}
 	if !h.BindJSON(c, &req) {
 		return
 	}

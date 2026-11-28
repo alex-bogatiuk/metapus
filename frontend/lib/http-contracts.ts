@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { httpRoutes } from "@/lib/generated/http-contract-routes"
 import type { HTTPRouteContract } from "@/lib/http-contract-types"
 import type { JsonObject, JsonValue } from "@/lib/json-value"
@@ -14,18 +15,58 @@ function indexRoutes(contracts: readonly HTTPRouteContract[]): IndexedRoute[] {
 const registered = new Set<readonly HTTPRouteContract[]>([httpRoutes])
 let routes = indexRoutes(httpRoutes)
 
+const routeKey = (contract: HTTPRouteContract) => `${contract.scope} ${contract.method} ${contract.path}`
+
 /**
  * Adds a configuration's generated route table (its own
  * configuration/<name>/lib/generated/http-contract-routes.ts). Registering the
- * same table again is a no-op; a route both tables declare is an error.
+ * same table again is a no-op; a route both tables declare is an error. A
+ * route marked extends (an add-on's fields of a catalog of its base) is
+ * merged into the registered route instead, which must exist: the base
+ * registers before its add-on.
  */
 export function registerHTTPRoutes(table: readonly HTTPRouteContract[]): void {
   if (registered.has(table)) return
-  const known = new Set(routes.map(({ contract }) => `${contract.scope} ${contract.method} ${contract.path}`))
-  const duplicate = table.find(contract => known.has(`${contract.scope} ${contract.method} ${contract.path}`))
+  const known = new Map(routes.map(({ contract }) => [routeKey(contract), contract]))
+  const duplicate = table.find(contract => !contract.extends && known.has(routeKey(contract)))
   if (duplicate) throw new Error(`HTTP contract ${duplicate.scope} ${duplicate.method} ${duplicate.path} is already registered`)
+  const missing = table.find(contract => contract.extends && !known.has(routeKey(contract)))
+  if (missing) throw new Error(`HTTP contract ${missing.scope} ${missing.method} ${missing.path} extends a route that is not registered`)
   registered.add(table)
-  routes = indexRoutes([...routes.map(({ contract }) => contract), ...table])
+  for (const extension of table.filter(contract => contract.extends)) {
+    const key = routeKey(extension)
+    known.set(key, extendContract(known.get(key)!, extension))
+  }
+  routes = indexRoutes([...known.values(), ...table.filter(contract => !contract.extends)])
+}
+
+/**
+ * The route with an add-on's fields: the request takes the base's fields and
+ * the add-on's, each part checked by its own schema; the response is both.
+ */
+function extendContract(base: HTTPRouteContract, extension: HTTPRouteContract): HTTPRouteContract {
+  let request = base.request
+  let requestFields = base.requestFields
+  if (base.request && extension.request) {
+    const own = new Set(extension.requestFields ?? [])
+    const baseRequest = base.request
+    const extensionRequest = extension.request
+    request = z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
+      const parts: [z.ZodType, Record<string, unknown>][] = [
+        [baseRequest, Object.fromEntries(Object.entries(value).filter(([name]) => !own.has(name)))],
+        [extensionRequest, Object.fromEntries(Object.entries(value).filter(([name]) => own.has(name)))],
+      ]
+      for (const [schema, part] of parts) {
+        const result = schema.safeParse(part)
+        if (!result.success) {
+          for (const issue of result.error.issues) ctx.addIssue({ code: "custom", message: issue.message, path: issue.path })
+        }
+      }
+    })
+    requestFields = [...(base.requestFields ?? []), ...(extension.requestFields ?? [])]
+  }
+  const response = base.response && extension.response ? z.intersection(base.response, extension.response) : base.response
+  return { ...base, request, requestFields, response }
 }
 
 export function findHTTPContract(scope: string, method: string, path: string): HTTPRouteContract | undefined {

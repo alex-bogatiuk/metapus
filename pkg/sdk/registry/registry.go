@@ -1,6 +1,8 @@
 // Package registry declares a configuration's catalogs and documents. A
 // model declared with Catalog or Document gets its storage, HTTP routes, wire
-// contracts, metadata, permissions and, for a document, posting.
+// contracts, metadata, permissions and, for a document, posting. An add-on
+// declares its own fields for a catalog of its base or of the platform with
+// Extend.
 package registry
 
 import (
@@ -68,4 +70,28 @@ func Document[T core.DefinitionProvider, PT DocumentModel[T]](presentation Prese
 // source's form. Both documents are declared with Document.
 func Basis[S, T core.DefinitionProvider, PS DocumentModel[S], PT DocumentModel[T]](label string, fill func(ctx context.Context, source PS, target PT) error) BasisRule {
 	return v1.Basis[S, T, PS, PT](label, fill)
+}
+
+type (
+	// Extension is an add-on's extension of a catalog, declared with Extend.
+	Extension[T core.DefinitionProvider, E any, PT CatalogModel[T]] = v1.Extension[T, E, PT]
+	// ExtensionRegistration is an extension to add with
+	// Registry.RegisterExtension.
+	ExtensionRegistration = v1.ExtensionRegistration
+)
+
+// Extend declares the fields E that the add-on addOn (its Name) adds to the
+// catalog of model T, of its base or of the platform: the exported fields of
+// E with a db column (the json name in snake case) and a json name, with
+// meta labels, readOnly and binding rules as on a model. They are stored in
+// the add-on's table <catalog table>__<addOn>, one row per item, whose id is
+// the item's id (PRIMARY KEY REFERENCES the catalog's table ON DELETE
+// CASCADE), created by the add-on's migration. The platform reads and writes
+// them with the item in its transaction and serves them beside the catalog's
+// fields: in its HTTP bodies, list and filters, in its form in the group
+// named group, in its file import and under its field policies. Compute the
+// extension's read-only fields in OnWrite; make the list search find items
+// by a column with Search. Add it with Registry.RegisterExtension.
+func Extend[T core.DefinitionProvider, E any, PT CatalogModel[T]](addOn, group string) *Extension[T, E, PT] {
+	return v1.Extend[T, E, PT](addOn, group)
 }

@@ -50,6 +50,8 @@ type autoShape struct {
 	refs                 []autoRef // reference fields resolved into the response
 	parts                []autoPart
 	calcs                autoCalcs // calculated header fields (meta:"calc:..."), in order
+	model                reflect.Type
+	extensions           []autoExtension // fields add-ons declare for the catalog (extendAutoShape)
 }
 
 // autoPart is the wire projection of one table part.
@@ -123,7 +125,7 @@ func deriveAutoShape(model reflect.Type, def entity.Definition) (*autoShape, err
 	}
 	base = append(base, autoField{"Attributes", "attributes", ""})
 
-	shape := &autoShape{}
+	shape := &autoShape{model: model}
 	fields := newAutoFields()
 	for _, b := range base {
 		f, ok := model.FieldByName(b.name)
@@ -390,6 +392,7 @@ func (s *autoShape) applyAutoRequest(request reflect.Value, model any) {
 	for _, part := range s.parts {
 		part.apply(request.FieldByName(part.field), target.FieldByName(part.field))
 	}
+	s.applyExtensions(request, model)
 }
 
 // computeAutoCalcs computes the calculated fields of every line and then of
@@ -459,6 +462,7 @@ func (s *autoShape) response(model any, tables map[string]string, refs postgres.
 	for _, name := range s.readable {
 		out.FieldByName(name).Set(source.FieldByName(name))
 	}
+	s.respondExtensions(model, out)
 	setRefDisplays(s.refs, source, out, tables, refs)
 	for _, part := range s.parts {
 		lines := source.FieldByName(part.field)
@@ -535,18 +539,33 @@ func autoRefID(v reflect.Value) (id.ID, bool) {
 
 // AutoCreate is the create request body of a declared entity. It decodes
 // into the derived create type with the strict options of the enclosing
-// request and validates its binding rules.
-type AutoCreate[T entity.DefinitionProvider] struct{ value reflect.Value }
+// request and validates its binding rules. A body prepared with a shape
+// (the catalog's with its extensions) decodes into that shape's type.
+type AutoCreate[T entity.DefinitionProvider] struct {
+	value reflect.Value
+	shape *autoShape
+}
 
 // AutoUpdate is the update request body of a declared entity.
-type AutoUpdate[T entity.DefinitionProvider] struct{ value reflect.Value }
+type AutoUpdate[T entity.DefinitionProvider] struct {
+	value reflect.Value
+	shape *autoShape
+}
 
 func (r *AutoCreate[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
-	return decodeAuto(dec, autoShapeFor[T]().create, &r.value)
+	shape := r.shape
+	if shape == nil {
+		shape = autoShapeFor[T]()
+	}
+	return decodeAuto(dec, shape.create, &r.value)
 }
 
 func (r *AutoUpdate[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
-	return decodeAuto(dec, autoShapeFor[T]().update, &r.value)
+	shape := r.shape
+	if shape == nil {
+		shape = autoShapeFor[T]()
+	}
+	return decodeAuto(dec, shape.update, &r.value)
 }
 
 func decodeAuto(dec *jsontext.Decoder, t reflect.Type, out *reflect.Value) error {

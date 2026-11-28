@@ -45,6 +45,9 @@ func Check(t *testing.T, cfg configuration.Configuration) {
 		bundles := configuration.HTTPContractBundles(cfg)
 		seen := map[string]bool{}
 		for _, route := range contracts.Routes(bundles...) {
+			if route.Extends {
+				continue // an add-on's part of a route of its base
+			}
 			key := route.Scope + " " + route.Method + " " + route.Path
 			require.Falsef(t, seen[key], "route %s is declared twice", key)
 			seen[key] = true

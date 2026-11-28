@@ -64,6 +64,10 @@ type BaseCatalogRepo[T any] struct {
 	// Configured via RegisterRLSDimension. At query time, DataScope.ApplyConditions
 	// uses this map to inject WHERE conditions for matching dimensions.
 	rlsDimensions map[string]string // e.g. {"organization": "organization_id"}
+
+	// extensions are the tables of add-on fields one to one with the
+	// catalog's that list filters and the search reach (RegisterExtensionTable).
+	extensions []*ExtensionTable
 }
 
 // NewBaseCatalogRepo creates a new base catalog repository.
@@ -281,7 +285,7 @@ func (r *BaseCatalogRepo[T]) BaseSelect(ctx context.Context) squirrel.SelectBuil
 
 // buildWhereConditions builds WHERE conditions for list filtering.
 // Returns conditions that can be applied to any SelectBuilder via Where().
-func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]squirrel.Sqlizer, error) {
+func (r *BaseCatalogRepo[T]) buildWhereConditions(ctx context.Context, filter domain.ListFilter) ([]squirrel.Sqlizer, error) {
 	conditions := make([]squirrel.Sqlizer, 0, 8)
 
 	// Apply filters
@@ -291,7 +295,7 @@ func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]s
 
 	if filter.Search != "" {
 		// M5: 1С-style fuzzy search — split by spaces, AND between tokens, OR between searchable columns
-		if cond := pgfilter.BuildSearchConditions(filter.Search, []string{"name", "code"}); cond != nil {
+		if cond := r.searchCondition(ctx, filter.Search); cond != nil {
 			conditions = append(conditions, cond)
 		}
 	}
@@ -320,7 +324,7 @@ func (r *BaseCatalogRepo[T]) buildWhereConditions(filter domain.ListFilter) ([]s
 		// __search from AdvancedFilters is applied only if f.Search was empty
 		// to prevent duplicate conditions when both are present
 		if filter.Search == "" {
-			if cond := pgfilter.BuildSearchConditions(searchQuery, []string{"name", "code"}); cond != nil {
+			if cond := r.searchCondition(ctx, searchQuery); cond != nil {
 				conditions = append(conditions, cond)
 			}
 		}
@@ -401,7 +405,7 @@ func (r *BaseCatalogRepo[T]) List(ctx context.Context, f domain.ListFilter) (dom
 	}
 
 	// Build WHERE conditions
-	conditions, err := r.buildWhereConditions(f)
+	conditions, err := r.buildWhereConditions(ctx, f)
 	if err != nil {
 		return result, err
 	}
@@ -701,6 +705,12 @@ func (r *BaseCatalogRepo[T]) buildAdvancedFilterConditions(filters []filterPkg.I
 			} else {
 				return nil, fmt.Errorf("invalid dot-notation field or unknown reference prefix: %s", item.Field)
 			}
+		} else if table := r.extensionOf(item.Field); table != nil {
+			cond, err := pgfilter.BuildReferenceFieldCondition(item, r.tableName, table.reference(), item.Field)
+			if err != nil {
+				return nil, err
+			}
+			conditions = append(conditions, cond)
 		} else {
 			baseFilters = append(baseFilters, item)
 		}
