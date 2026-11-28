@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ext-api",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", ". /private/tmp/claude-501/-Users-alexandrbogatiuk-GolandProjects-metapus/598b77e9-cd86-4720-881e-d1a0b556cfd7/scratchpad/dev.env && go run ./cmd/automotive-server"],
+      "port": 18090
+    },
+    {
+      "name": "ext-web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd frontend && API_PROXY_URL=http://localhost:18090 NEXT_PUBLIC_TENANT_ID=01a21efd-b71b-78e1-9f58-1159c6ee2087 npx next dev --turbopack -p 3010"],
+      "port": 3010
+    }
+  ]
+}
